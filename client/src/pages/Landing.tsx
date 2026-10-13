@@ -3,7 +3,7 @@ import { Playground } from '../components/Playground.tsx';
 import { Brand } from '../components/Brand.tsx';
 import { navigate } from '../router.ts';
 
-const REPO_URL = 'https://github.com/';
+const REPO_URL = 'https://github.com/Jarpula-Nirjala/CoWrite';
 
 const STEPS = [
   {
