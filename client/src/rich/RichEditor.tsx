@@ -391,6 +391,10 @@ export function RichEditor(props: Props) {
     if (menu.kind === 'slash') {
       return SLASH_ITEMS.filter((it) => !q || it.label.toLowerCase().includes(q) || it.keywords.includes(q))
         .filter((it) => !it.needsAi || props.ctx.aiEnabled)
+        // Names that start with what was typed come first, then other name matches, then keyword matches.
+        .map((it, i) => ({ it, i, rank: !q ? 0 : it.label.toLowerCase().startsWith(q) ? 0 : it.label.toLowerCase().includes(q) ? 1 : 2 }))
+        .sort((x, y) => x.rank - y.rank || x.i - y.i)
+        .map((x) => x.it)
         .slice(0, 40)
         .map((it: SlashItem) => ({
           key: it.id,

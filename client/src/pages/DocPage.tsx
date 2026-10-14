@@ -10,6 +10,11 @@ import type { RemoteCursor } from '../components/CollabEditor.tsx';
 import { NotificationBell, ThemeToggle, UserMenu } from '../components/SiteHeader.tsx';
 import { Avatar, Dropdown, Icon, Spinner } from '../components/ui.tsx';
 import { AiPanel, type AiAction, type AiTool } from '../editor/ai.tsx';
+import { MindMap } from '../editor/MindMap.tsx';
+import { exportNarration } from '../editor/narrate.ts';
+import { StudyDialog } from '../editor/StudyDialog.tsx';
+import { UpdatesSection } from '../editor/UpdatesSection.tsx';
+import { WebsitePanel } from '../editor/WebsitePanel.tsx';
 import { deckFromOutline } from '../kinds/slides/model.ts';
 import { HistoryPanel, type Viewing } from '../editor/history.tsx';
 import { ImageSearch } from '../editor/imageSearch.tsx';
@@ -38,7 +43,7 @@ import { DEFAULT_SETTINGS, paperProps, printCss, readSettings, settingsOps, type
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
 
-type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'time' | 'review' | 'draft' | 'stats' | 'page' | 'ai' | 'network';
+type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'time' | 'review' | 'draft' | 'site' | 'stats' | 'page' | 'ai' | 'network';
 
 const PANELS: { id: PanelId; label: string; icon: string }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
@@ -52,6 +57,7 @@ const PANELS: { id: PanelId; label: string; icon: string }[] = [
   { id: 'page', label: 'Page', icon: 'file' },
   { id: 'stats', label: 'Stats', icon: 'chart' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
+  { id: 'site', label: 'Website', icon: 'globe' },
   { id: 'network', label: 'Network', icon: 'wifi' },
 ];
 
@@ -139,6 +145,9 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   const registered = !!meta && !meta.encrypted;
   const [heat, setHeat] = useState(false);
   const [reading, setReading] = useState(false);
+  const [mindmapOpen, setMindmapOpen] = useState(false);
+  const [studyOpen, setStudyOpen] = useState(false);
+  const [narrating, setNarrating] = useState(false);
   const call = useCall(client);
   const p2p = usePeerMesh(client, roleCanEdit(role));
   const locksQ = useLocks(roomId, share, !!meta, s.notifyVersion.locks);
@@ -644,6 +653,21 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   };
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
+  const narrate = async () => {
+    if (!meta) return flash('Narration works for documents saved to an account.');
+    if (!aiReady) return flash('Narration uses Gemini. Connect your free Gemini key in Account settings.');
+    setNarrating(true);
+    flash('Recording the narration… this can take a minute.');
+    try {
+      const r = await exportNarration(roomId, title, 'Kore');
+      flash(r.truncated ? 'Saved the MP3 (the first part of a long document).' : 'Saved the narration as an MP3.');
+    } catch (e) {
+      flash((e as Error).message);
+    } finally {
+      setNarrating(false);
+    }
+  };
+
   const applyOps = (ops: Op[]) => {
     if (!client || !ops.length) return;
     client.edit(ops);
@@ -724,6 +748,10 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     { id: 'suggest', group: 'Edit', label: suggestMode ? 'Stop suggesting (edit directly)' : 'Start suggesting mode', disabled: !roleCanEdit(role), run: () => setSuggestMode(!suggestMode) },
     { id: 'voice', group: 'Edit', label: speech.listening ? 'Stop voice typing' : 'Start voice typing', disabled: !speech.supported || !canEdit, run: () => (speech.listening ? speech.stop() : speech.start()) },
     ...PANELS.map((p) => ({ id: `panel-${p.id}`, group: 'Panels', label: `Open ${p.label}`, run: () => setPanel(p.id) })),
+    { id: 'mindmap', group: 'View', label: 'Mind map of the headings', run: () => setMindmapOpen(true) },
+    { id: 'study', group: 'Tools', label: 'Study: flashcards & quiz', run: () => setStudyOpen(true) },
+    { id: 'narrate', group: 'Export', label: 'Audio narration (.mp3)', disabled: !aiReady || !meta, run: () => void narrate() },
+    { id: 'website', group: 'Share', label: 'Publish as a website', disabled: !meta, run: () => setPanel('site') },
     { id: 'read-aloud', group: 'View', label: speaking ? 'Stop reading aloud' : 'Read aloud', run: readAloud },
     { id: 'reading', group: 'View', label: 'Reading mode', run: () => setReading(true) },
     { id: 'time', group: 'History', label: 'Compare two moments / paragraph history', run: () => setPanel('time') },
@@ -890,6 +918,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
         );
       case 'review':
         return (
+          <>
           <ReviewPanel
             docId={roomId}
             share={share}
@@ -911,6 +940,22 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
             }}
             onSignature={() => editor.current?.insertAtom('signature', {})}
             onChanged={() => workflowQ.reload()}
+          />
+          {!!meta && !!user && <UpdatesSection docId={roomId} share={share} role={role} />}
+          </>
+        );
+      case 'site':
+        return (
+          <WebsitePanel
+            docId={roomId}
+            meta={meta}
+            role={role}
+            site={(doc.getObject('settings')?.site ?? undefined) as { theme?: string; accent?: string | null } | undefined}
+            onSite={(site) => {
+              client.edit(doc.setFields('settings', { site }));
+              bumpLocal();
+            }}
+            onMeta={s.setMeta}
           />
         );
       case 'draft':
@@ -1124,9 +1169,26 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
                         {label}
                       </button>
                     ))}
+                    <button
+                      role="menuitem"
+                      type="button"
+                      disabled={narrating}
+                      onClick={() => {
+                        close();
+                        void narrate();
+                      }}
+                    >
+                      🎧 Audio narration (.mp3)
+                    </button>
                   </>
                 )}
               </Dropdown>
+              <button className="tool" onClick={() => setMindmapOpen(true)} title="Mind map of the headings" aria-label="Mind map" type="button">
+                <Icon name="mindmap" />
+              </button>
+              <button className="tool" onClick={() => setStudyOpen(true)} title="Study: flashcards and quiz from your notes" aria-label="Flashcards" type="button">
+                <Icon name="cards" />
+              </button>
               <button className="tool" onClick={() => setPaletteOpen(true)} title="All commands (Ctrl+K)" aria-label="Command palette" type="button">
                 <span className="tool-text">⌘K</span>
               </button>
@@ -1268,6 +1330,24 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
       )}
       {shareOpen && <ShareDialog docId={roomId} meta={meta} role={role} share={share} onClose={() => setShareOpen(false)} onMetaChange={s.setMeta} />}
       {paletteOpen && <CommandPalette commands={commands} onClose={() => setPaletteOpen(false)} />}
+      {mindmapOpen && <MindMap title={title} headings={headings} onJump={(at) => editor.current?.selectTokens(at)} onClose={() => setMindmapOpen(false)} />}
+      {studyOpen && (
+        <StudyDialog
+          doc={doc}
+          version={version}
+          docId={roomId}
+          share={share}
+          registered={!!meta && !meta.encrypted}
+          signedIn={!!user}
+          canEdit={canEdit}
+          aiReady={aiReady && !meta?.encrypted}
+          onEdit={(ops) => {
+            client.edit(ops);
+            bumpLocal();
+          }}
+          onClose={() => setStudyOpen(false)}
+        />
+      )}
     </div>
   );
 }

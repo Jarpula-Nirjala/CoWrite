@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { CropOverlay, cropImage } from './crop.tsx';
+import { FormEditor } from './form.tsx';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
@@ -130,6 +131,12 @@ function AtomBlock(p: AtomProps) {
       return <SummaryBlock {...p} />;
     case 'signature':
       return <SignatureBlock {...p} />;
+    case 'form':
+      return (
+        <Frame p={p} label="Form">
+          <FormEditor data={p.data} readOnly={p.readOnly} docId={p.ctx.docId} share={p.ctx.share} update={p.update} />
+        </Frame>
+      );
     case 'table':
       return <TableBlock {...p} />;
     case 'pagebreak':

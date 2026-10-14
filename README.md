@@ -68,7 +68,8 @@ CoWrite is a real-time collaborative workspace in the spirit of Google Docs. It 
 - **End-to-end encryption (optional).** The server merges ciphertext it cannot read.
 - **Offline-first PWA.** The app keeps working offline and syncs when the connection returns.
 
-**AI built in (Claude, optional)**
+**AI built in (free with Google Gemini)**
+- **Free AI, two ways.** The site can run on one free Gemini key, and each person can also connect their own free Gemini key (from Google AI Studio, using the same Google account as their email). Their AI then runs on their own quota. Claude works too, when a Claude key is set.
 - **Live co-writer.** Claude joins with its own cursor. It can continue, summarize, rewrite, fix grammar, shorten, expand, change the tone, or follow a custom instruction. Each result can be kept or undone in one click.
 - **Document → slides.** Builds a themed presentation with speaker notes.
 - **Images to text.** Describes photos, or transcribes a photo of a whiteboard or notebook into notes.
@@ -76,6 +77,16 @@ CoWrite is a real-time collaborative workspace in the spirit of Google Docs. It 
 - **Meeting mode.** Dictate a meeting; Claude writes the summary, decisions and action items.
 - **AI reviewer.** Leaves editor-style comments anchored to exact sentences.
 - **Ask your documents.** Answers questions across your library, with links to its sources.
+- **Flashcards & AI cards.** Study cards from your notes, with optional AI-written cards.
+- **Audio narration.** Download the document read aloud by a Gemini voice, as an MP3.
+
+**Learning, publishing and teams**
+- **Home dashboard** after sign-in: quick create, template strip, recent documents, tasks due, writing streak, AI status.
+- **Flashcards and quizzes** made from ordinary notes ("Term: definition" lines, two-column tables, headings), studied with spaced repetition (SM-2), plus a multiple-choice quiz.
+- **Mind-map view** of any document's headings; click a branch to jump there.
+- **Forms and surveys** inside documents: seven question types. Responses come from collaborators, public pages or websites, with summaries, charts and CSV export.
+- **Website builder.** Publish a document as a one-page website (hero, navigation from headings, sections, six designs) at `/site/<id>`.
+- **Change digests.** Daily or weekly email summaries, and a Slack channel feed through an incoming webhook.
 
 **Collaboration and teams**
 - **Presence.** Live cursors and selections, typing, idle and away status, and follow mode.
@@ -163,7 +174,10 @@ Every setting is optional locally. Each feature switches on when its variable is
 | --- | --- |
 | `DATABASE_URL` | Postgres connection string (for example Neon). Without it, an embedded PGlite database is used. |
 | `PUBLIC_URL` | Public base URL, used for OAuth redirects and reset links |
-| `ANTHROPIC_API_KEY` | Enables every AI feature (co-writer, slides, translation, reviewer, meeting mode, ask) |
+| `GEMINI_API_KEY` | Free Google Gemini key (aistudio.google.com) for the whole site. People can also connect their own key in Account settings. |
+| `GEMINI_MODEL`, `GEMINI_TTS_MODEL` | Optional model overrides (defaults: `gemini-2.5-flash`, `gemini-2.5-flash-preview-tts`) |
+| `ANTHROPIC_API_KEY` | Uses Claude instead when no Gemini key is set |
+| `APP_SECRET` | Long random string used to encrypt people's AI keys at rest. Without it, a key is generated and stored in the database. |
 | `RESEND_API_KEY`, `MAIL_FROM` | Sends password-reset emails. Without them, links are printed to the server log. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | "Continue with Google". Redirect URI: `<PUBLIC_URL>/api/auth/oauth/google/callback` |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | "Continue with GitHub". Redirect URI: `<PUBLIC_URL>/api/auth/oauth/github/callback` |
@@ -175,7 +189,7 @@ Notes:
 ## Tests
 
 ```bash
-npm test          # 166 tests
+npm test          # 178 tests
 npm run typecheck
 ```
 

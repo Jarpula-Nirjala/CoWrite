@@ -1,5 +1,6 @@
 import { useAuth } from '../auth.tsx';
 import { FeatureShowcase } from '../components/FeatureShowcase.tsx';
+import { Bento, Comparison, NumbersStrip, ScrollStory } from '../components/HomeExtras.tsx';
 import { Playground } from '../components/Playground.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
@@ -120,7 +121,31 @@ export function Home() {
               <h2>50+ features, one editor</h2>
               <p className="muted">Documents, slides, whiteboards, boards and spreadsheets on one merge engine built from scratch, with AI where it helps.</p>
             </header>
+            <NumbersStrip />
             <FeatureShowcase />
+          </div>
+        </section>
+
+        <section id="why" className="section section-alt">
+          <div className="container">
+            <header className="section-head">
+              <p className="kicker">Why CoWrite</p>
+              <h2>What Google Docs can’t do</h2>
+            </header>
+            <div className="why-grid">
+              <Comparison />
+              <Bento />
+            </div>
+          </div>
+        </section>
+
+        <section id="story" className="section">
+          <div className="container">
+            <header className="section-head">
+              <p className="kicker">See it in action</p>
+              <h2>From blank page to finished, together</h2>
+            </header>
+            <ScrollStory />
           </div>
         </section>
 

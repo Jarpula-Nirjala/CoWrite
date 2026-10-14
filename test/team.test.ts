@@ -17,11 +17,13 @@ async function waitFor(check: () => boolean | Promise<boolean>, what: string, ti
 
 function browser(server: () => RunningServer) {
   let cookie = '';
+  // Each simulated browser has its own address (the app trusts one proxy hop).
+  const ip = `10.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}.${(Math.random() * 250) | 0}`;
   const base = () => `http://localhost:${server().port}`;
   const api = async (p: string, init: { method?: string; body?: unknown; headers?: Record<string, string> } = {}) => {
     const res = await fetch(`${base()}/api${p}`, {
       method: init.method ?? 'GET',
-      headers: { 'content-type': 'application/json', cookie, ...init.headers },
+      headers: { 'content-type': 'application/json', cookie, 'x-forwarded-for': ip, ...init.headers },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
     const set = res.headers.get('set-cookie');
@@ -249,5 +251,49 @@ describe('team features', () => {
     const b = make();
     const r = await b.api(`/media/proxy?url=${encodeURIComponent('http://127.0.0.1:1/secret.png')}`);
     assert.equal(r.status, 400);
+  });
+
+  it('collects form responses from readers and shows them to editors', async () => {
+    const { id, owner, other, token } = await sharedDoc('Survey');
+    // Viewers of a published page can answer too: publish, then answer as a stranger.
+    await owner.api(`/docs/${id}`, { method: 'PATCH', body: { published: true } });
+    const stranger = make();
+    assert.equal((await stranger.api(`/docs/${id}/forms/f1/responses`, { method: 'POST', body: { answers: { q1: 'Asha', q2: 4 } } })).status, 201);
+    assert.equal((await other.api(`/docs/${id}/forms/f1/responses`, { method: 'POST', body: { answers: { q1: 'Ravi', q2: 5 } } })).status, 201);
+    assert.equal((await stranger.api(`/docs/${id}/forms/f1/responses`)).status, 403);
+    const r = await owner.api(`/docs/${id}/forms/f1/responses`);
+    assert.equal(r.body.responses.length, 2);
+    assert.equal((await stranger.api(`/docs/${id}/forms/f1/responses`, { method: 'POST', body: { answers: 'nope' } })).status, 400);
+    void token;
+  });
+
+  it('stores flashcard reviews per person', async () => {
+    const { id, owner, other } = await sharedDoc('Notes');
+    await owner.api(`/docs/${id}/flash/abc`, { method: 'PUT', body: { ease: 2.6, interval: 3, reps: 2, due: 123 } });
+    const mine = await owner.api(`/docs/${id}/flash`);
+    assert.deepEqual(mine.body.reviews, [{ card: 'abc', ease: 2.6, interval: 3, reps: 2, due: 123 }]);
+    assert.equal((await other.api(`/docs/${id}/flash`)).body.reviews.length, 0);
+  });
+
+  it('manages change digests and validates Slack webhooks', async () => {
+    const { id, owner, other } = await sharedDoc('Digest');
+    assert.equal((await other.api(`/docs/${id}/updates`, { method: 'PUT', body: { freq: 'daily' } })).body.freq, 'daily');
+    assert.equal((await other.api(`/docs/${id}/updates`)).body.freq, 'daily');
+    assert.equal((await other.api(`/docs/${id}/updates`, { method: 'PUT', body: { freq: 'hourly' } })).status, 400);
+    assert.equal((await other.api(`/docs/${id}/slack`, { method: 'PUT', body: { url: 'https://hooks.slack.com/services/T/B/x' } })).status, 403);
+    assert.equal((await owner.api(`/docs/${id}/slack`, { method: 'PUT', body: { url: 'https://evil.example.com/hook' } })).status, 400);
+    assert.equal((await owner.api(`/docs/${id}/slack`, { method: 'PUT', body: { url: 'https://hooks.slack.com/services/T0/B0/abc' } })).body.slack, true);
+    assert.equal((await owner.api(`/docs/${id}/updates`)).body.slack, true);
+  });
+
+  it('explains how to turn on AI when no key is available', async () => {
+    const { id, owner } = await sharedDoc('AI');
+    const r = await owner.api(`/docs/${id}/ai/tool`, { method: 'POST', body: { tool: 'board-summary', input: { text: 'some notes for the board' } } });
+    assert.equal(r.status, 503);
+    assert.match(r.body.error, /Gemini/);
+    assert.equal((await owner.api('/auth/me/ai-key', { method: 'PUT', body: { key: 'short' } })).status, 400);
+    assert.equal((await owner.api('/auth/me')).body.user.aiConnected, false);
+    const p = await owner.api('/auth/providers');
+    assert.equal(p.body.ai, false);
   });
 });

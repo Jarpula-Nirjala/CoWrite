@@ -18,8 +18,14 @@ services:
       - key: PUBLIC_URL
         sync: false
       # Optional features: each switches on when its value is set.
+      # Free Google Gemini key for the site's AI (people can also add their own).
+      - key: GEMINI_API_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Encrypts people's own AI keys at rest.
+      - key: APP_SECRET
+        generateValue: true
       - key: RESEND_API_KEY
         sync: false
       - key: MAIL_FROM

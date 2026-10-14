@@ -135,6 +135,9 @@ const ICONS: Record<string, string> = {
   team: 'M7 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM17 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM2 20v-1a5 5 0 0 1 10 0v1M12 20v-1a5 5 0 0 1 10 0v1',
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   crop: 'M6 2v14h14M2 6h14v14',
+  globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18',
+  mindmap: 'M12 12h.01M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM5 5a2 2 0 1 0 0 .01M19 5a2 2 0 1 0 0 .01M5 19a2 2 0 1 0 0 .01M19 19a2 2 0 1 0 0 .01M7 6.5l3 3M17 6.5l-3 3M7 17.5l3-3M17 17.5l-3-3',
+  cards: 'M4 7h12v13H4zM8 7V4h12v13h-4',
 };
 
 export const ICON_PATHS = ICONS;

@@ -30,7 +30,8 @@ export type AtomKind =
   | 'toc'
   | 'summary'
   | 'signature'
-  | 'table';
+  | 'table'
+  | 'form';
 
 export const MARKS = ['b', 'i', 'u', 's', 'code', 'sub', 'sup', 'link', 'color', 'bg', 'font', 'size'] as const;
 export type MarkName = (typeof MARKS)[number];

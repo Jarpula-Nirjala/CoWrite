@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Demo } from './HomeExtras.tsx';
 
 type Item = [icon: string, title: string, body: string];
 interface Group {
@@ -177,6 +178,7 @@ export function FeatureShowcase() {
             </span>
             <h4>{item[1]}</h4>
             <p>{item[2]}</p>
+            <Demo group={g} />
             {!paused && inView && <span className="showcase-timer" key={`t-${g}-${i}`} />}
           </article>
           <div className="showcase-dots">

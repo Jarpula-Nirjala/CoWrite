@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { BLOCK, EMBED, type Attrs, type Token } from '../../../shared/crdt.ts';
 import { strokePath } from './atoms.tsx';
+import { StaticForm } from './form.tsx';
 import { fontStack, listLabel } from './schema.ts';
 
 /** Renders a token list read-only (versions, replay, published pages). */
@@ -285,6 +286,8 @@ function StaticAtom({ a, resolve, headings }: { a: Attrs; resolve?: (s: string) 
           <p>{String(a.text ?? '')}</p>
         </aside>
       );
+    case 'form':
+      return <StaticForm data={a} />;
     case 'signature':
       return (
         <div className="signature signed">

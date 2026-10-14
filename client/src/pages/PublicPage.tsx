@@ -7,6 +7,7 @@ import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Avatar, Spinner } from '../components/ui.tsx';
 import { renderMarkdown } from '../lib/text.ts';
 import { DEFAULT_SETTINGS, paperProps, type DocSettings } from '../rich/settings.ts';
+import { FormDocContext } from '../rich/form.tsx';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link } from '../router.ts';
 
@@ -99,7 +100,9 @@ export function PublicDoc({ id }: { id: string }) {
                       <span className="paper-brand">{settings.brandName}</span>
                     </header>
                   )}
-                  <StaticDoc tokens={data.tokens} resolve={same} />
+                  <FormDocContext.Provider value={{ docId: id, share: null }}>
+                    <StaticDoc tokens={data.tokens} resolve={same} />
+                  </FormDocContext.Provider>
                 </div>
               ) : (
                 <div className="markdown-preview published" dangerouslySetInnerHTML={{ __html: renderMarkdown(data.text) }} />

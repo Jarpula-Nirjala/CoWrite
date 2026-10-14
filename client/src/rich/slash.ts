@@ -1,3 +1,4 @@
+import { newForm } from './form.tsx';
 import { insertChip, setBlock } from './commands.ts';
 import type { RichHandle } from './RichEditor.tsx';
 
@@ -41,6 +42,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { id: 'toc', label: 'Table of contents', group: 'Advanced', icon: 'list', keywords: 'toc contents outline index', run: (h) => h.insertAtom('toc', {}) },
   { id: 'summary', label: 'Summary card', group: 'Advanced', icon: 'sparkle', keywords: 'summary tldr ai abstract', run: (h) => h.insertAtom('summary', { text: '' }) },
   { id: 'signature', label: 'Signature', group: 'Advanced', icon: 'keyboard', keywords: 'sign signature esign approve', run: (h) => h.insertAtom('signature', {}) },
+  { id: 'form', label: 'Form / survey', group: 'Advanced', icon: 'check', keywords: 'form survey poll questionnaire rsvp feedback quiz', run: (h) => h.insertAtom('form', newForm() as unknown as Record<string, unknown>) },
   { id: 'hr', label: 'Divider', group: 'Advanced', icon: 'hr', keywords: 'line separator hr rule', run: (h) => h.insertAtom('hr', {}) },
   { id: 'pagebreak', label: 'Page break', group: 'Advanced', icon: 'file', keywords: 'page break print new page', run: (h) => h.insertAtom('pagebreak', {}) },
   { id: 'date', label: 'Today’s date', group: 'Inline', icon: 'clock', keywords: 'date today time', run: (h) => h.run(insertChip('date', { date: today() })) },
