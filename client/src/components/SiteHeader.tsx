@@ -213,6 +213,11 @@ export function SiteHeader() {
             </Link>
           ))}
           {user && (
+            <Link to="/home" onClick={() => setMenuOpen(false)}>
+              Home
+            </Link>
+          )}
+          {user && (
             <Link to="/documents" onClick={() => setMenuOpen(false)}>
               My Documents
             </Link>

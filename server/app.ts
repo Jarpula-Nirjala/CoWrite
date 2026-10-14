@@ -7,7 +7,8 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import type { Snapshot } from '../shared/crdt.ts';
 import { ROOM_RE, parseClientMsg, type ChatMessage, type PeerInfo } from '../shared/protocol.ts';
 import { DELETED_CODE, FORBIDDEN_CODE } from '../shared/sync-client.ts';
-import { AiWriter } from './ai.ts';
+import { AiHub } from './ai.ts';
+import { Vault } from './secrets.ts';
 import { Auth, AuthError, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
 import { openDb } from './db.ts';
@@ -22,6 +23,7 @@ import { meRoutes } from './routes-me.ts';
 import { mediaRoutes } from './routes-media.ts';
 import { aiRoutes, syncTranslation } from './routes-ai.ts';
 import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.ts';
+import { extraRoutes, runDigests } from './routes-extra.ts';
 
 export interface ServerOptions {
   port: number;
@@ -151,12 +153,12 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   }
 
   const rooms = new RoomManager(hooks, opts.limits ?? DEFAULT_LIMITS);
-  const ctx: AppCtx = { db, auth, docs, rooms, notifier, ai: new AiWriter() };
+  const vault = new Vault(db);
+  const ctx: AppCtx = { db, auth, docs, rooms, notifier, ai: new AiHub(db, vault), vault };
 
   // Linked translations follow their source a little after edits stop.
   const translationTimers = new Map<string, ReturnType<typeof setTimeout>>();
   function scheduleTranslations(sourceId: string) {
-    if (!ctx.ai.enabled) return;
     clearTimeout(translationTimers.get(sourceId));
     translationTimers.set(
       sourceId,
@@ -171,6 +173,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const timers = [
     setInterval(() => void flushActivity(), 10_000),
     setInterval(() => void runReminders(ctx).catch((err) => console.error('reminders failed:', err)), 60_000),
+    setInterval(() => void runDigests(ctx, process.env.PUBLIC_URL?.replace(/\/+$/, '') || `http://localhost:${process.env.PORT ?? 3000}`).catch((err) => console.error('digests failed:', err)), 5 * 60_000),
     // Trash older than 30 days is deleted for good.
     setInterval(() => void docs.expiredTrash().then((ids) => docs.purge(ids)).catch(() => {}), 6 * 3600_000),
   ];
@@ -211,6 +214,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(mediaRoutes(ctx));
   api.use(aiRoutes(ctx));
   api.use(teamRoutes(ctx));
+  api.use(extraRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

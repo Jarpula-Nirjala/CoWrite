@@ -17,11 +17,21 @@ const EXAMPLES = ['What did we decide in last week’s meeting?', 'Summarise my 
 
 /** Chat with your documents: questions answered from everything you can open. */
 export function Ask() {
-  const { user, ready, providers } = useAuth();
+  const { user, ready, aiReady, aiName } = useAuth();
   const [q, setQ] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<Answer[]>([]);
+
+  // Questions can arrive from the Home page as /ask?q=…
+  useEffect(() => {
+    const q0 = new URLSearchParams(window.location.search).get('q');
+    if (q0 && user && aiReady) {
+      window.history.replaceState(null, '', '/ask');
+      void ask(q0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, aiReady]);
 
   useEffect(() => {
     document.title = 'Ask your documents · CoWrite';
@@ -50,8 +60,13 @@ export function Ask() {
       <main className="container ask-page">
         <p className="kicker">AI</p>
         <h1>Ask your documents</h1>
-        <p className="lead muted">Ask a question in plain words. Claude reads the documents you own or that were shared with you, answers, and links to its sources.</p>
-        {!providers.ai && <p className="notice">The AI features are not configured on this server yet (they need an Anthropic API key).</p>}
+        <p className="lead muted">
+          Ask a question in plain words. {aiName} reads the documents you own or that were shared with you, answers, and links to its sources.</p>
+        {!aiReady && (
+          <p className="notice">
+            AI is not set up yet. <Link to="/account#ai">Connect your free Gemini key</Link> in Account settings; it takes a minute.
+          </p>
+        )}
         <form
           className="ask-form"
           onSubmit={(e) => {
@@ -61,14 +76,14 @@ export function Ask() {
         >
           <Icon name="search" size={18} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="e.g. What are the action items from my meetings this month?" maxLength={1000} aria-label="Your question" autoFocus />
-          <button className="btn btn-primary" disabled={busy || !q.trim() || !providers.ai} type="submit">
+          <button className="btn btn-primary" disabled={busy || !q.trim() || !aiReady} type="submit">
             {busy ? 'Thinking…' : 'Ask'}
           </button>
         </form>
         {!history.length && (
           <div className="ask-examples">
             {EXAMPLES.map((x) => (
-              <button key={x} className="ask-chip" onClick={() => void ask(x)} disabled={busy || !providers.ai} type="button">
+              <button key={x} className="ask-chip" onClick={() => void ask(x)} disabled={busy || !aiReady} type="button">
                 {x}
               </button>
             ))}

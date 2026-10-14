@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type { Role } from '../shared/protocol.ts';
-import type { AiWriter } from './ai.ts';
+import type { AiHub } from './ai.ts';
+import type { Vault } from './secrets.ts';
 import type { Auth, User } from './auth.ts';
 import type { Db } from './db.ts';
 import type { DocRow, Docs } from './docs.ts';
@@ -14,7 +15,8 @@ export interface AppCtx {
   docs: Docs;
   rooms: RoomManager;
   notifier: Notifier;
-  ai: AiWriter;
+  ai: AiHub;
+  vault: Vault;
 }
 
 const RANK: Record<Role, number> = { viewer: 1, commenter: 2, editor: 3, owner: 4 };

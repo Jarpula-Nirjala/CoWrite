@@ -59,7 +59,7 @@ export const FEATURE_GROUPS: Group[] = [
     icon: '✨',
     color: '#0a7a6b',
     items: [
-      ['🤖', 'Live AI co-writer', 'Claude joins with its own cursor and types in live. Keep or undo in one click.'],
+      ['🤖', 'Live AI co-writer', 'Gemini (free) or Claude joins with its own cursor and types in live. Keep or undo in one click.'],
       ['🪄', 'Document → slides', 'Turn any document into a themed presentation with speaker notes.'],
       ['📷', 'Photos to text', 'Describe images, or turn a whiteboard photo into tidy notes.'],
       ['🌐', 'Live translation', 'A linked copy in another language that follows the original as it changes.'],

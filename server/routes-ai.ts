@@ -2,16 +2,18 @@ import crypto from 'node:crypto';
 import express from 'express';
 import { isSelection } from '../shared/protocol.ts';
 import { blocksOf, markdownToTokens, plainText } from '../shared/rich.ts';
-import { AI_ACTIONS, AI_COLOR, AI_NAME, TONES, promptText, type AiAction } from './ai.ts';
+import { AI_ACTIONS, TONES, promptText, type AiAction } from './ai.ts';
 import { docAccess, type AppCtx } from './context.ts';
-import { HttpError, rateLimit, requireUser, str } from './http.ts';
+import { HttpError, currentUser, rateLimit, requireUser, str } from './http.ts';
 import { safeFetchBinary } from './routes-media.ts';
 
 const LANGS = ['Hindi', 'Telugu', 'Tamil', 'Marathi', 'Bengali', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu', 'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Arabic', 'Russian'];
 
 export function aiRoutes(ctx: AppCtx) {
   const r = express.Router();
-  const { db, rooms, ai } = ctx;
+  const { db, rooms } = ctx;
+  /** The requester's own AI key if they connected one, else the site's. */
+  const aiFor = (res: express.Response) => ctx.ai.for(currentUser(res)?.id);
   const limiter = rateLimit(40, 10 * 60_000);
 
   async function roomText(docId: string) {
@@ -34,12 +36,13 @@ export function aiRoutes(ctx: AppCtx) {
     if (action === 'tone' && !(TONES as readonly string[]).includes(custom)) throw new HttpError(400, 'Unknown tone.');
     const room = await rooms.open(a.docId);
     if (!room) throw new HttpError(503, 'Server busy, try again.');
+    const ai = await aiFor(res);
     const result = await ai.run(room, action, sel, custom, (site) => {
       void db.query('insert into sites (doc_id, site, user_id, name, color, first_seen) values ($1, $2, null, $3, $4, $5) on conflict do nothing', [
         a.docId,
         site,
-        AI_NAME,
-        AI_COLOR,
+        ai.name,
+        ai.color,
         Date.now(),
       ]);
     });
@@ -58,7 +61,7 @@ export function aiRoutes(ctx: AppCtx) {
         const text = plainText(tokens);
         if (text.trim().length < 40) throw new HttpError(400, 'Write a little more before asking for a summary.');
         res.json({
-          text: await ai.text(
+          text: await (await aiFor(res)).text(
             'You summarise documents. Reply with the summary only: no heading, no preamble.',
             `<document>\n${text}\n</document>\n\nSummarise this document in two to four plain sentences.`,
             2000,
@@ -81,7 +84,7 @@ export function aiRoutes(ctx: AppCtx) {
           data = got.data;
           mime = got.type;
         }
-        res.json({ text: await ai.describeImage(data, mime, 'Write one or two sentences of alt text describing this image for someone who cannot see it. Reply with the description only.') });
+        res.json({ text: await (await aiFor(res)).describeImage(data, mime, 'Write one or two sentences of alt text describing this image for someone who cannot see it. Reply with the description only.') });
         return;
       }
       case 'whiteboard-to-text': {
@@ -91,7 +94,7 @@ export function aiRoutes(ctx: AppCtx) {
         const [f] = await db.query<{ data: Buffer | Uint8Array; mime: string }>('select data, mime from files where id = $1', [m[1]]);
         if (!f) throw new HttpError(404, 'Image not found.');
         res.json({
-          text: await ai.describeImage(
+          text: await (await aiFor(res)).describeImage(
             Buffer.from(f.data),
             f.mime,
             'This is a photo of a whiteboard, notebook page or handwritten notes. Transcribe it into clean Markdown: keep headings, bullet points, numbered steps and arrows as lists. Reply with the Markdown only.',
@@ -103,7 +106,7 @@ export function aiRoutes(ctx: AppCtx) {
         const notes = str(input.text, 20_000);
         if (notes.trim().length < 10) throw new HttpError(400, 'Add some sticky notes or text first.');
         res.json({
-          text: await ai.text(
+          text: await (await aiFor(res)).text(
             'You turn the sticky notes of a collaborative whiteboard into a short written summary. Reply with plain text only: no Markdown symbols, no preamble.',
             `<board>\n${notes}\n</board>\n\nGroup related notes into themes and write a summary of 3 to 6 short lines, ending with the clearest next steps.`,
             1500,
@@ -123,6 +126,7 @@ export function aiRoutes(ctx: AppCtx) {
     const text = plainText(tokens);
     if (text.trim().length < 80) throw new HttpError(400, 'The document is too short to review.');
     const focus = str(req.body?.focus, 200) || 'clarity, tone, structure, grammar and persuasiveness';
+    const ai = await aiFor(res);
     const out = await ai.json<{ comments: { quote: string; comment: string; kind: string }[] }>(
       'You are a careful human editor reviewing a document. You leave specific, actionable comments, like an editor in Google Docs.',
       `<document>\n${text}\n</document>\n\nReview this document with a focus on ${focus}. Leave 3 to 8 comments. Each comment must quote a short exact passage (5 to 80 characters, copied exactly from the document) and explain the issue and a concrete improvement.`,
@@ -158,7 +162,7 @@ export function aiRoutes(ctx: AppCtx) {
       await db.query(
         `insert into comments (id, doc_id, parent_id, anchor_start, anchor_end, quote, body, author_id, author_name, color, created_at)
          values ($1, $2, null, $3::jsonb, $4::jsonb, $5, $6, null, $7, $8, $9)`,
-        [crypto.randomUUID().slice(0, 12), a.docId, JSON.stringify(start), JSON.stringify(end), c.quote, `[${c.kind}] ${c.comment}`, `${AI_NAME} (AI reviewer)`, AI_COLOR, Date.now() + added],
+        [crypto.randomUUID().slice(0, 12), a.docId, JSON.stringify(start), JSON.stringify(end), c.quote, `[${c.kind}] ${c.comment}`, `${ai.name} (AI reviewer)`, ai.color, Date.now() + added],
       );
       added++;
     }
@@ -173,7 +177,7 @@ export function aiRoutes(ctx: AppCtx) {
     const { tokens } = await roomText(a.docId);
     const text = promptText(tokens);
     if (plainText(tokens).trim().length < 60) throw new HttpError(400, 'Write some content first: the deck is built from the document.');
-    const deck = await ai.json<{ title: string; subtitle: string; slides: { layout: string; title: string; bullets: string[]; notes: string }[] }>(
+    const deck = await (await aiFor(res)).json<{ title: string; subtitle: string; slides: { layout: string; title: string; bullets: string[]; notes: string }[] }>(
       'You turn documents into clear, well-structured presentation decks.',
       `<document>\n${text}\n</document>\n\nCreate a presentation of 6 to 12 slides from this document. Use short bullet points (at most 6 per slide, under 14 words each). Speaker notes should be 1-3 sentences.`,
       {
@@ -227,7 +231,7 @@ export function aiRoutes(ctx: AppCtx) {
     await docAccess(ctx, req, res, 'editor');
     const transcript = str(req.body?.transcript, 60_000).trim();
     if (transcript.length < 40) throw new HttpError(400, 'The transcript is too short.');
-    const md = await ai.text(
+    const md = await (await aiFor(res)).text(
       'You write clear meeting notes from transcripts. Reply in Markdown only.',
       `<transcript>\n${transcript}\n</transcript>\n\nWrite meeting notes with these sections: "## Summary" (2-4 sentences), "## Key points" (bullets), "## Decisions" (bullets), "## Action items" (as "- [ ] Owner – task – due date if mentioned"). Omit a section if there is nothing for it.`,
       6000,
@@ -264,7 +268,7 @@ export function aiRoutes(ctx: AppCtx) {
         return `<doc id="${d.id}" title="${d.title.replace(/"/g, "'")}">\n${body}\n</doc>`;
       })
       .join('\n');
-    const answer = await ai.text(
+    const answer = await (await aiFor(res)).text(
       'You answer questions using only the user\'s documents provided. Cite the documents you used as [Title](/d/ID). If the documents do not contain the answer, say so plainly.',
       `${context}\n\nQuestion: ${question}`,
       4000,
@@ -295,7 +299,7 @@ export async function syncTranslation(ctx: AppCtx, targetId: string) {
   // Translate new paragraphs in batches, keeping their order with markers.
   for (let i = 0; i < missing.length; i += 40) {
     const batch = missing.slice(i, i + 40);
-    const out = await ctx.ai.json<{ items: { n: number; text: string }[] }>(
+    const out = await (await ctx.ai.for(target.owner_id)).json<{ items: { n: number; text: string }[] }>(
       'You are a professional translator. Translate faithfully, keeping Markdown markers (#, -, **, [ ]) unchanged.',
       `Translate each numbered paragraph into ${target.lang}.\n\n${batch.map((x, k) => `<p n="${k}">${x.m}</p>`).join('\n')}`,
       {

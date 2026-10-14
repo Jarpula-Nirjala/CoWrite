@@ -296,6 +296,41 @@ const MIGRATIONS: string[] = [
      text text not null,
      primary key (target_id, src_hash)
    );`,
+  // 3: personal AI keys, forms, flashcards, change digests.
+  `create table server_secrets (
+     name text primary key,
+     value text not null
+   );
+   alter table users add column ai_key text;
+   create table form_responses (
+     id text primary key,
+     doc_id text not null,
+     form_id text not null,
+     user_id text,
+     name text not null default '',
+     answers jsonb not null,
+     created_at double precision not null
+   );
+   create index form_responses_form on form_responses (doc_id, form_id);
+   create table flash_reviews (
+     user_id text not null references users(id) on delete cascade,
+     doc_id text not null,
+     card text not null,
+     ease real not null,
+     interval_days real not null,
+     reps integer not null default 0,
+     due double precision not null,
+     primary key (user_id, doc_id, card)
+   );
+   create table subscriptions (
+     doc_id text not null,
+     user_id text not null references users(id) on delete cascade,
+     freq text not null,
+     last_sent double precision not null default 0,
+     primary key (doc_id, user_id)
+   );
+   alter table documents add column slack_webhook text;
+   alter table documents add column slack_sent double precision not null default 0;`,
 ];
 
 async function migrate(db: Db): Promise<void> {

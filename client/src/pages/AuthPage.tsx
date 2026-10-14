@@ -7,7 +7,7 @@ import { Link, navigate, queryParam } from '../router.ts';
 /** Only allow redirects back into this site. */
 function nextPath(): string {
   const next = queryParam('next');
-  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/documents';
+  return next && next.startsWith('/') && !next.startsWith('//') ? next : '/home';
 }
 
 function AuthShell({ children }: { children: ReactNode }) {
@@ -223,7 +223,7 @@ export function ResetPage() {
           try {
             const r = await api<{ user: User }>('/auth/reset', { method: 'POST', body: { token, password } });
             setUser(r.user);
-            navigate('/documents', { replace: true });
+            navigate('/home', { replace: true });
           } catch (err) {
             setError(errorText(err));
           }

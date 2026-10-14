@@ -77,7 +77,7 @@ export function TemplateGallery({
   );
 }
 
-function Preview({ item }: { item: GalleryItem }) {
+export function Preview({ item }: { item: GalleryItem }) {
   const content = useMemo(() => item.build(), [item]);
   const objects = content.objects ?? [];
   switch (item.kind) {

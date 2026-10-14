@@ -26,7 +26,7 @@ const STEPS = [
   },
 ];
 
-const STACK = ['TypeScript', 'React 19', 'Node.js', 'Express', 'WebSockets', 'PostgreSQL', 'Web Crypto', 'IndexedDB', 'Claude API', 'Vite'];
+const STACK = ['TypeScript', 'React 19', 'Node.js', 'Express', 'WebSockets', 'PostgreSQL', 'Web Crypto', 'IndexedDB', 'Gemini API', 'Claude API', 'Vite'];
 
 export function Home() {
   const { user } = useAuth();

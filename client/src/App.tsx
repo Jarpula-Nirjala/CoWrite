@@ -4,6 +4,7 @@ import { Account } from './pages/Account.tsx';
 import { Activity } from './pages/Activity.tsx';
 import { Ask } from './pages/Ask.tsx';
 import { CalendarPage } from './pages/Calendar.tsx';
+import { Dashboard } from './pages/Dashboard.tsx';
 import { Workspaces } from './pages/Workspaces.tsx';
 import { AuthPage, ForgotPage, ResetPage } from './pages/AuthPage.tsx';
 import { DocPage } from './pages/DocPage.tsx';
@@ -47,6 +48,8 @@ function Routes() {
       return <Activity />;
     case '/ask':
       return <Ask />;
+    case '/home':
+      return <Dashboard />;
     case '/calendar':
       return <CalendarPage />;
     case '/workspaces':

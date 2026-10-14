@@ -143,3 +143,76 @@ export function BrandKitSection({ user, onSaved }: { user: User; onSaved(b: Bran
     </form>
   );
 }
+
+/** Connect a personal (free) Gemini key, so AI runs on the person's own Google quota. */
+export function AiKeySection({ user, onChange }: { user: User; onChange(connected: boolean): void }) {
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const connected = !!user.aiConnected;
+
+  const save = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api('/auth/me/ai-key', { method: 'PUT', body: { key } });
+      setKey('');
+      onChange(true);
+      setMsg({ ok: true, text: 'Connected. Every AI feature now runs on your own free Gemini quota.' });
+    } catch (e) {
+      setMsg({ ok: false, text: errorText(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="panel ai-key" id="ai">
+      <h2>AI assistant (free with Gemini)</h2>
+      {msg && <div className={msg.ok ? 'alert success' : 'alert'}>{msg.text}</div>}
+      {connected ? (
+        <>
+          <p className="ai-status-line">
+            <span className="ai-badge on">● Connected</span> AI features use <strong>your own Gemini key</strong>, linked to the Google account you used in AI Studio.
+          </p>
+          <button
+            className="btn btn-outline btn-sm"
+            disabled={busy}
+            onClick={async () => {
+              await api('/auth/me/ai-key', { method: 'DELETE' });
+              onChange(false);
+              setMsg({ ok: true, text: 'Disconnected. Your key was deleted from CoWrite.' });
+            }}
+            type="button"
+          >
+            Disconnect
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="muted">Google gives every Google account a free Gemini API key. Connect yours once and every AI feature (writing, slides, translation, meeting notes, ask your documents, read-aloud MP3) runs on your own free quota.</p>
+          <ol className="ai-steps">
+            <li>
+              Open{' '}
+              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
+                Google AI Studio → API keys
+              </a>{' '}
+              and sign in with <strong>{user.email}</strong> (the same email you use for CoWrite) or any Google account.
+            </li>
+            <li>
+              Click <strong>Create API key</strong> and copy it. It starts with <code>AIza</code>.
+            </li>
+            <li>Paste it below and press Connect. CoWrite checks it with Google, then stores it encrypted.</li>
+          </ol>
+          <div className="inline-form">
+            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza…" autoComplete="off" aria-label="Gemini API key" />
+            <button className="btn btn-primary btn-sm" disabled={busy || key.trim().length < 20} onClick={() => void save()} type="button">
+              {busy ? 'Checking…' : 'Connect'}
+            </button>
+          </div>
+          <p className="muted small">The free tier has daily limits, and Google may use free-tier prompts to improve its products, so avoid pasting secrets into AI requests. You can disconnect at any time.</p>
+        </>
+      )}
+    </section>
+  );
+}

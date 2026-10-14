@@ -14,6 +14,8 @@ export interface User {
   createdAt: number;
   brand?: Brand | null;
   prefs?: Prefs | null;
+  /** They connected their own free Gemini key. */
+  aiConnected?: boolean;
 }
 
 export interface Brand {
@@ -133,6 +135,8 @@ export interface Providers {
   passwordReset: boolean;
   emailDelivery: boolean;
   ai: boolean;
+  /** Which model the site's own key uses ('Gemini' or 'Claude'), if any. */
+  aiName?: string | null;
 }
 
 export class ApiError extends Error {

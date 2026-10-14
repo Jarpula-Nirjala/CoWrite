@@ -43,7 +43,7 @@ export interface KindProps {
 }
 
 export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
-  const { user, providers } = useAuth();
+  const { user, aiReady } = useAuth();
   const { client, meta, role, share, cipher } = s;
   const { resolve, upload } = useFiles(roomId, s.keyText);
   const [shareOpen, setShareOpen] = useState(false);
@@ -139,7 +139,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
                 share,
                 title,
                 canEdit: roleCanEdit(role),
-                aiEnabled: providers.ai,
+                aiEnabled: aiReady,
                 me: { id: user?.id ?? null, name: user?.name ?? client.name, color: client.color },
                 peers: [...client.peers.values()],
                 follow,

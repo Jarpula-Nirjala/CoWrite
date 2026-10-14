@@ -4,13 +4,14 @@ import { SESSION_TTL_MS, toPublic, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
 import { HttpError, SESSION_COOKIE, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
+import { checkGeminiKey } from './llm.ts';
 import { authorizeUrl, enabledProviders, fetchProfile, type Provider } from './oauth.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
 
 export function authRoutes(ctx: AppCtx) {
   const r = express.Router();
-  const { auth } = ctx;
+  const { auth, vault } = ctx;
   const limiter = rateLimit(20, 10 * 60_000);
 
   const startSession = async (req: Request, res: Response, user: User) => {
@@ -24,7 +25,7 @@ export function authRoutes(ctx: AppCtx) {
   };
 
   r.get('/providers', (_req, res) => {
-    res.json({ providers: enabledProviders(), passwordReset: true, emailDelivery: mailEnabled(), ai: ctx.ai.enabled });
+    res.json({ providers: enabledProviders(), passwordReset: true, emailDelivery: mailEnabled(), ai: ctx.ai.enabled, aiName: ctx.ai.serverName });
   });
 
   r.post('/signup', limiter, async (req, res) => {
@@ -66,6 +67,22 @@ export function authRoutes(ctx: AppCtx) {
     };
     await ctx.db.query('update users set prefs = $2::jsonb where id = $1', [user.id, JSON.stringify(prefs)]);
     res.json({ prefs });
+  });
+
+  /** Connect your own free Gemini key: AI then runs on your own quota. */
+  r.put('/me/ai-key', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
+    if (!/^[\w-]{20,200}$/.test(key)) throw new HttpError(400, 'That does not look like a Gemini API key. It usually starts with “AIza”.');
+    if (!(await checkGeminiKey(key))) throw new HttpError(400, 'Google did not accept this key. Copy it again from Google AI Studio.');
+    await ctx.db.query('update users set ai_key = $2 where id = $1', [user.id, await vault.seal(key)]);
+    res.json({ aiConnected: true });
+  });
+
+  r.delete('/me/ai-key', async (_req, res) => {
+    const user = requireUser(res);
+    await ctx.db.query('update users set ai_key = null where id = $1', [user.id]);
+    res.json({ aiConnected: false });
   });
 
   r.put('/me/brand', async (req, res) => {
@@ -138,7 +155,7 @@ export function authRoutes(ctx: AppCtx) {
   r.get('/oauth/:provider', (req, res) => {
     const p = provider(req);
     const state = crypto.randomBytes(16).toString('base64url');
-    const next = typeof req.query.next === 'string' && req.query.next.startsWith('/') && !req.query.next.startsWith('//') ? req.query.next : '/documents';
+    const next = typeof req.query.next === 'string' && req.query.next.startsWith('/') && !req.query.next.startsWith('//') ? req.query.next : '/home';
     res.cookie(STATE_COOKIE, `${state}|${next}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
     res.redirect(authorizeUrl(p, redirectUri(req, p), state));
   });
@@ -153,7 +170,7 @@ export function authRoutes(ctx: AppCtx) {
       const profile = await fetchProfile(p, req.query.code, redirectUri(req, p));
       const user = await auth.oauthUser(p, profile.id, profile.email, profile.name, profile.avatar);
       await startSession(req, res, user);
-      res.redirect(next || '/documents');
+      res.redirect(next || '/home');
     } catch (err) {
       console.error('oauth failed:', err);
       fail(err instanceof Error ? err.message : 'Sign-in failed.');

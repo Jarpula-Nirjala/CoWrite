@@ -13,6 +13,10 @@ interface AuthState {
   signUp(name: string, email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   setUser(user: User | null): void;
+  /** AI works for this person: the site has a key, or they connected their own. */
+  aiReady: boolean;
+  /** The model that will answer: 'Gemini', 'Claude' or 'AI'. */
+  aiName: string;
 }
 
 const NO_PROVIDERS: Providers = { providers: [], passwordReset: true, emailDelivery: false, ai: false };
@@ -79,7 +83,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [setUser]);
 
   const value = useMemo(
-    () => ({ user, ready, offline, providers, signIn, signUp, signOut, setUser }),
+    () => ({
+      user,
+      ready,
+      offline,
+      providers,
+      signIn,
+      signUp,
+      signOut,
+      setUser,
+      aiReady: providers.ai || !!user?.aiConnected,
+      aiName: user?.aiConnected ? 'Gemini' : (providers.aiName ?? 'AI'),
+    }),
     [user, ready, offline, providers, signIn, signUp, signOut, setUser],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

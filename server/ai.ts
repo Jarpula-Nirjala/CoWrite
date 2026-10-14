@@ -1,32 +1,29 @@
-import Anthropic from '@anthropic-ai/sdk';
-import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema';
 import { BLOCK, EMBED, type Id, type Token } from '../shared/crdt.ts';
 import type { PeerInfo, Selection } from '../shared/protocol.ts';
 import { inlineTokens, markdownToTokens, type NewToken } from '../shared/rich.ts';
 import { randomSite } from '../shared/sync-client.ts';
+import type { Db } from './db.ts';
 import { HttpError } from './http.ts';
+import { ClaudeLlm, GeminiLlm, type Llm } from './llm.ts';
 import type { Room } from './rooms.ts';
+import type { Vault } from './secrets.ts';
 
 export type AiAction = 'continue' | 'summarize' | 'rewrite' | 'grammar' | 'shorten' | 'expand' | 'custom' | 'tone';
 export const AI_ACTIONS: AiAction[] = ['continue', 'summarize', 'rewrite', 'grammar', 'shorten', 'expand', 'custom', 'tone'];
 const NEEDS_SELECTION = new Set<AiAction>(['rewrite', 'grammar', 'shorten', 'expand', 'tone']);
 export const TONES = ['formal', 'casual', 'persuasive', 'simple', 'friendly', 'confident', 'academic'] as const;
 
-export const AI_NAME = 'Claude';
-export const AI_COLOR = '#c15f3c';
-const MODEL = 'claude-opus-5-5';
-const BETAS = ['server-side-fallback-2026-07-01'];
 
 export interface AiResult {
-  /** Characters Claude inserted (the client can undo them). */
+  /** Characters the AI inserted (the client can undo them). */
   inserted: Id[];
-  /** Characters Claude replaced, with their original content for undo. */
+  /** Characters the AI replaced, with their original content for undo. */
   deleted: Id[];
   original: Token[];
   site: string;
 }
 
-const SYSTEM = `You are Claude, a writing assistant working inside CoWrite, a collaborative rich-text editor.
+const SYSTEM = `You are a writing assistant working inside CoWrite, a collaborative rich-text editor.
 Your output is inserted directly into the shared document as you write it, so reply with the document text only:
 no preamble, no explanations, no surrounding quotes or code fences.
 You may use Markdown for structure (# headings, - bullets, 1. numbered lists, - [ ] tasks, **bold**, *italic*);
@@ -58,111 +55,87 @@ export function promptText(tokens: Token[]): string {
   return tokens.map((t) => (t.ch === EMBED ? (t.attrs.atom ? `[${String(t.attrs.atom)}]` : '') : t.ch)).join('');
 }
 
-function errorFor(err: unknown): HttpError {
-  if (err instanceof HttpError) return err;
-  if (err instanceof Anthropic.RateLimitError) return new HttpError(429, 'The AI service is busy right now. Please try again shortly.');
-  if (err instanceof Anthropic.AuthenticationError) return new HttpError(503, 'The AI features are misconfigured (invalid API key).');
-  if (err instanceof Anthropic.BadRequestError) return new HttpError(400, 'The AI service could not process this request.');
-  if (err instanceof Anthropic.APIError) return new HttpError(502, `The AI service returned an error (${err.status ?? 'network'}).`);
-  return new HttpError(500, 'The AI request failed.');
+/**
+ * Picks the model for each request: the person's own Gemini key first (their
+ * own free quota), then the site's Gemini key, then the site's Claude key.
+ */
+export class AiHub {
+  private readonly db: Db;
+  private readonly vault: Vault;
+  private readonly server: Llm | null;
+
+  constructor(db: Db, vault: Vault) {
+    this.db = db;
+    this.vault = vault;
+    this.server = process.env.GEMINI_API_KEY ? new GeminiLlm(process.env.GEMINI_API_KEY, 'server') : process.env.ANTHROPIC_API_KEY ? new ClaudeLlm() : null;
+  }
+
+  /** Whether the site itself has an AI key (people can still bring their own). */
+  get enabled(): boolean {
+    return this.server !== null;
+  }
+
+  get serverName(): string | null {
+    return this.server?.name ?? null;
+  }
+
+  /** The writer for a user (their own key if they connected one). */
+  async for(userId: string | null | undefined): Promise<AiWriter> {
+    if (userId) {
+      const [row] = await this.db.query<{ ai_key: string | null }>('select ai_key from users where id = $1', [userId]);
+      const key = row?.ai_key ? await this.vault.open(row.ai_key) : null;
+      if (key) return new AiWriter(new GeminiLlm(key, 'user'));
+    }
+    if (!this.server) throw new HttpError(503, 'AI is not set up yet. Connect your free Gemini key in Account settings → AI assistant.');
+    return new AiWriter(this.server);
+  }
+
+  /** Like `for`, but null instead of an error when no AI is available. */
+  async maybeFor(userId: string | null | undefined): Promise<AiWriter | null> {
+    try {
+      return await this.for(userId);
+    } catch {
+      return null;
+    }
+  }
 }
 
-/** The AI co-writer: Claude joins the room as a peer and types its answer in live. */
+/** Rooms where an AI is typing right now (one at a time per document). */
+const busy = new Set<string>();
+
+/** The AI co-writer: the model joins the room as a peer and types its answer in live. */
 export class AiWriter {
-  private readonly client: Anthropic | null;
-  private readonly busy = new Set<string>();
+  readonly llm: Llm;
 
-  constructor() {
-    this.client = process.env.ANTHROPIC_API_KEY ? new Anthropic() : null;
+  constructor(llm: Llm) {
+    this.llm = llm;
   }
 
-  get enabled(): boolean {
-    return this.client !== null;
+  get name(): string {
+    return this.llm.name;
   }
 
-  private need(): Anthropic {
-    if (!this.client) throw new HttpError(503, 'AI features are not configured on this server (ANTHROPIC_API_KEY is missing).');
-    return this.client;
+  get color(): string {
+    return this.llm.color;
   }
 
-  // ----------------------------------------------------- one-shot helpers
-
-  /** A plain text answer. */
-  async text(system: string, prompt: string, maxTokens = 8000): Promise<string> {
-    const client = this.need();
-    try {
-      const stream = client.beta.messages.stream({
-        model: MODEL,
-        max_tokens: maxTokens,
-        output_config: { effort: 'low' },
-        betas: BETAS,
-        fallbacks: 'default',
-        system,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      const msg = await stream.finalMessage();
-      if (msg.stop_reason === 'refusal') throw new HttpError(422, 'Claude declined this request.');
-      return msg.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('').trim();
-    } catch (err) {
-      throw errorFor(err);
-    }
+  text(system: string, prompt: string, maxTokens = 8000): Promise<string> {
+    return this.llm.text(system, prompt, maxTokens);
   }
 
-  /** A JSON answer that matches `schema` (structured outputs). */
-  async json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens = 12000): Promise<T> {
-    const client = this.need();
-    try {
-      const msg = await client.beta.messages.parse({
-        model: MODEL,
-        max_tokens: maxTokens,
-        output_config: { effort: 'low', format: betaJSONSchemaOutputFormat(schema) },
-        betas: BETAS,
-        fallbacks: 'default',
-        system,
-        messages: [{ role: 'user', content: prompt }],
-      });
-      if (msg.stop_reason === 'refusal') throw new HttpError(422, 'Claude declined this request.');
-      if (!msg.parsed_output) throw new HttpError(502, 'The AI returned an unexpected answer. Please try again.');
-      return msg.parsed_output as T;
-    } catch (err) {
-      throw errorFor(err);
-    }
+  json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens = 12000): Promise<T> {
+    return this.llm.json<T>(system, prompt, schema, maxTokens);
   }
 
-  /** Describes an image (vision). */
-  async describeImage(data: Buffer, mime: string, ask: string): Promise<string> {
-    const client = this.need();
-    const media = (['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(mime) ? mime : 'image/png') as 'image/png';
-    try {
-      const msg = await client.beta.messages.create({
-        model: MODEL,
-        max_tokens: 4000,
-        output_config: { effort: 'low' },
-        betas: BETAS,
-        fallbacks: 'default',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'image', source: { type: 'base64', media_type: media, data: data.toString('base64') } },
-              { type: 'text', text: ask },
-            ],
-          },
-        ],
-      });
-      if (msg.stop_reason === 'refusal') throw new HttpError(422, 'Claude declined this request.');
-      return msg.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('').trim();
-    } catch (err) {
-      throw errorFor(err);
-    }
+  describeImage(data: Buffer, mime: string, ask: string): Promise<string> {
+    return this.llm.image(data, mime, ask);
   }
 
   // ------------------------------------------------------- live co-writer
 
   async run(room: Room, action: AiAction, sel: Selection, custom: string, onSite: (site: string) => void): Promise<AiResult> {
-    const client = this.need();
     if (room.encrypted) throw new HttpError(400, 'The AI co-writer is unavailable in end-to-end encrypted documents, because the server cannot read them.');
-    if (this.busy.has(room.id)) throw new HttpError(409, 'Claude is already writing in this document. Please wait for it to finish.');
+    if (busy.has(room.id)) throw new HttpError(409, 'The AI is already writing in this document. Please wait for it to finish.');
 
     const doc = room.doc;
     const tokens = doc.tokens();
@@ -180,10 +153,10 @@ export class AiWriter {
     else if (hasSelection) prompt = `<document>\n${before}⟦SELECTION START⟧${selected}⟦SELECTION END⟧${after}\n</document>\n\n<selection>\n${selected}\n</selection>\n\n${instructionFor(action, custom)}`;
     else prompt = `<document>\n${before}⟦CURSOR⟧${after}\n</document>\n\n${instructionFor(action, custom)}`;
 
-    this.busy.add(room.id);
-    const site = `claude-${randomSite()}`;
+    busy.add(room.id);
+    const site = `ai-${randomSite()}`;
     onSite(site);
-    const peer: PeerInfo = { site, name: AI_NAME, color: AI_COLOR, sel: null, userId: null, state: 'active', typing: true };
+    const peer: PeerInfo = { site, name: this.name, color: this.color, sel: null, userId: null, state: 'active', typing: true };
     const replace = hasSelection && action !== 'summarize';
     const result: AiResult = { inserted: [], deleted: [], original: replace ? tokens.slice(from, to) : [], site };
 
@@ -213,16 +186,6 @@ export class AiWriter {
       }
       room.setVirtualPeer(site, { ...peer, sel: [anchor, anchor] });
 
-      const stream = client.beta.messages.stream({
-        model: MODEL,
-        max_tokens: 16000,
-        // Writing help should feel quick; low effort keeps latency down.
-        output_config: { effort: 'low' },
-        betas: BETAS,
-        fallbacks: 'default',
-        system: SYSTEM,
-        messages: [{ role: 'user', content: prompt }],
-      });
 
       // Text arrives in fragments; whole lines are converted from Markdown.
       let pending = '';
@@ -240,30 +203,23 @@ export class AiWriter {
         firstLine = false;
         anchor = this.insert(room, peer, anchor, toks, result);
       };
-      for await (const event of stream) {
-        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
-          pending += event.delta.text;
-          let nl = pending.indexOf('\n');
-          while (nl >= 0) {
-            emitLine(pending.slice(0, nl), false);
-            pending = pending.slice(nl + 1);
-            nl = pending.indexOf('\n');
-          }
+      for await (const fragment of this.llm.stream(SYSTEM, prompt, 16000)) {
+        pending += fragment;
+        let nl = pending.indexOf('\n');
+        while (nl >= 0) {
+          emitLine(pending.slice(0, nl), false);
+          pending = pending.slice(nl + 1);
+          nl = pending.indexOf('\n');
         }
       }
       if (pending) emitLine(pending, true);
-      const final = await stream.finalMessage();
-      if (final.stop_reason === 'refusal') {
-        this.revert(room, peer, result);
-        throw new HttpError(422, 'Claude declined this request.');
-      }
       return result;
     } catch (err) {
       this.revert(room, peer, result);
-      throw errorFor(err);
+      throw err instanceof HttpError ? err : new HttpError(500, 'The AI request failed.');
     } finally {
       room.setVirtualPeer(site, null);
-      this.busy.delete(room.id);
+      busy.delete(room.id);
     }
   }
 

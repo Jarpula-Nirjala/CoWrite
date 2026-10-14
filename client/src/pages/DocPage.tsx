@@ -80,7 +80,7 @@ export function DocPage({ roomId }: { roomId: string }) {
 }
 
 function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
-  const { user, providers } = useAuth();
+  const { user, aiReady, aiName } = useAuth();
   const { client, meta, role, cipher, share, keyText } = s;
   const editor = useRef<RichHandle>(null);
   const undo = useRef(new UndoStack());
@@ -405,8 +405,8 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
 
   const runTool = async (tool: AiTool) => {
     const busyText: Record<AiTool['kind'], string> = {
-      review: 'Claude is reviewing the document…',
-      slides: 'Claude is designing your slides…',
+      review: `${aiName} is reviewing the document…`,
+      slides: `${aiName} is designing your slides…`,
       translate: 'Translating…',
       meeting: 'Writing meeting notes…',
       'photo-notes': 'Reading the photo…',
@@ -431,7 +431,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     try {
       if (tool.kind === 'review') {
         const r = await api<{ added: number }>(`/docs/${roomId}/ai/review`, { method: 'POST', share, body: { focus: tool.focus } });
-        setAiTool2({ busy: null, message: r.added ? `Claude left ${r.added} comments. Open the Comments panel to read them.` : 'Claude found nothing to comment on.' });
+        setAiTool2({ busy: null, message: r.added ? `${aiName} left ${r.added} comments. Open the Comments panel to read them.` : `${aiName} found nothing to comment on.` });
       } else if (tool.kind === 'slides') {
         const r = await api<{ document: { id: string }; deck: Parameters<typeof deckFromOutline>[0] }>(`/docs/${roomId}/ai/slides`, { method: 'POST', share });
         pendingContent.set(r.document.id, deckFromOutline(r.deck) as unknown as InitialContent);
@@ -668,14 +668,14 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
       readOnly: !canEdit,
       me: { id: user?.id ?? null, name: myName },
       people,
-      aiEnabled: providers.ai && !meta?.encrypted && !client?.encrypted,
+      aiEnabled: aiReady && !meta?.encrypted && !client?.encrypted,
       upload,
       resolve,
       unfurl: (url: string) => api<{ url: string; title: string; description: string; image: string | null; site: string }>(`/unfurl?url=${encodeURIComponent(url)}`),
       ai: (tool: 'describe-image' | 'summarize', input: Record<string, unknown>) => aiTool(tool, input),
       openImageSearch: () => setImageSearch(true),
     }),
-    [roomId, share, canEdit, user?.id, myName, people, providers.ai, meta?.encrypted, client?.encrypted, upload, resolve, aiTool],
+    [roomId, share, canEdit, user?.id, myName, people, aiReady, meta?.encrypted, client?.encrypted, upload, resolve, aiTool],
   );
 
   // ------------------------------------------------------------ commands
@@ -743,8 +743,8 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     { id: 'docx', group: 'Export', label: 'Download as Word (.docx)', run: () => void exportAs('docx') },
     { id: 'md', group: 'Export', label: 'Download as Markdown', run: () => void exportAs('md') },
     { id: 'txt', group: 'Export', label: 'Download as plain text', run: () => void exportAs('txt') },
-    { id: 'ai-continue', group: 'AI', label: 'Claude: continue writing', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('continue')) },
-    { id: 'ai-summary', group: 'AI', label: 'Claude: summarize document', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('summarize')) },
+    { id: 'ai-continue', group: 'AI', label: 'AI: continue writing', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('continue')) },
+    { id: 'ai-summary', group: 'AI', label: 'AI: summarize document', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('summarize')) },
     { id: 'offline', group: 'Network', label: manualOffline ? 'Reconnect' : 'Go offline (simulate)', run: () => toggleOffline(!manualOffline) },
     { id: 'docs', group: 'Go to', label: 'My documents', disabled: !user, run: () => navigate('/documents') },
     { id: 'home', group: 'Go to', label: 'Home page', run: () => navigate('/') },
@@ -940,7 +940,8 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
       case 'ai':
         return (
           <AiPanel
-            enabled={providers.ai}
+            enabled={aiReady}
+            aiName={aiName}
             encrypted={!!meta?.encrypted || client.encrypted}
             canEdit={canEdit}
             online={online}

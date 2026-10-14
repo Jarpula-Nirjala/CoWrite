@@ -41,6 +41,7 @@ export interface AiOutcome {
 
 export function AiPanel(props: {
   enabled: boolean;
+  aiName: string;
   encrypted: boolean;
   canEdit: boolean;
   online: boolean;
@@ -61,23 +62,28 @@ export function AiPanel(props: {
   const [focus, setFocus] = useState('');
   const [transcript, setTranscript] = useState('');
   const speech = useSpeech((t) => setTranscript((x) => `${x}${x && !x.endsWith(' ') ? ' ' : ''}${t}`));
+  const ai = props.aiName === 'AI' ? 'The AI' : props.aiName;
   const blocked = !props.enabled
-    ? 'The AI features are not configured on this server yet (they need an Anthropic API key).'
+    ? 'AI is not set up yet. Connect your own free Gemini key in Account settings → AI assistant (it takes a minute).'
     : props.encrypted
       ? 'Unavailable in end-to-end encrypted documents: the server cannot read them, so neither can the AI.'
       : !props.online
         ? 'The AI features need a connection.'
         : null;
-  const writeBlocked = blocked ?? (!props.canEdit ? 'You need edit access to let Claude write here.' : null);
+  const writeBlocked = blocked ?? (!props.canEdit ? 'You need edit access to let the AI write here.' : null);
   const busy = props.busy || !!props.toolBusy;
 
   return (
     <div className="ai">
       <p className="muted small">
-        Claude joins this document as a collaborator with its own cursor and types its answer in live, so everyone sees it happen. Keep the result or undo it in
+        {ai} joins this document as a collaborator with its own cursor and types its answer in live, so everyone sees it happen. Keep the result or undo it in
         one click.
       </p>
-      {blocked && <p className="notice small">{blocked}</p>}
+      {blocked && (
+        <p className="notice small">
+          {blocked} {!props.enabled && <Link to="/account#ai">Set it up →</Link>}
+        </p>
+      )}
 
       <h3 className="ai-h">Write</h3>
       <div className="ai-actions">
@@ -114,7 +120,7 @@ export function AiPanel(props: {
         }}
       >
         <label className="field">
-          <span>Ask Claude</span>
+          <span>Ask {ai}</span>
           <textarea
             className="input"
             rows={2}
@@ -125,19 +131,19 @@ export function AiPanel(props: {
           />
         </label>
         <button className="btn btn-primary btn-sm" disabled={!!writeBlocked || busy || !instruction.trim()} type="submit">
-          <Icon name="sparkle" size={14} /> {props.busy ? 'Claude is writing…' : 'Send'}
+          <Icon name="sparkle" size={14} /> {props.busy ? `${ai} is writing…` : 'Send'}
         </button>
       </form>
       {props.busy && (
         <p className="ai-status">
-          <span className="spinner small" /> Claude is writing in the document…
+          <span className="spinner small" /> {ai} is writing in the document…
         </p>
       )}
       {props.error && <p className="error-text small">{props.error}</p>}
       {props.outcome && !props.busy && (
         <div className="ai-result">
           <p className="small">
-            Claude {props.outcome.replaced ? `replaced ${props.outcome.replaced} characters with ` : 'wrote '}
+            {ai} {props.outcome.replaced ? `replaced ${props.outcome.replaced} characters with ` : 'wrote '}
             {props.outcome.inserted} characters.
           </p>
           <div className="row-actions">
@@ -153,7 +159,7 @@ export function AiPanel(props: {
 
       <h3 className="ai-h">Review</h3>
       <div className="ai-tool">
-        <p className="small muted">Claude reads the document like an editor and leaves comments on specific sentences.</p>
+        <p className="small muted">{ai} reads the document like an editor and leaves comments on specific sentences.</p>
         <input className="input" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional): e.g. persuasiveness for investors" maxLength={200} />
         <button className="btn btn-outline btn-sm" disabled={!!blocked || busy} onClick={() => props.onTool({ kind: 'review', focus })} type="button">
           💬 Review my document
@@ -172,7 +178,7 @@ export function AiPanel(props: {
         </button>
         <button className="ai-action" disabled={!!writeBlocked || busy} onClick={() => props.onTool({ kind: 'photo-notes' })} type="button">
           <strong>📷 Photo of notes → text</strong>
-          <span className="muted small">Upload a whiteboard or notebook photo; Claude types it up.</span>
+          <span className="muted small">Upload a whiteboard or notebook photo; {ai} types it up.</span>
         </button>
         <div className="ai-row">
           <select className="input" value={lang} onChange={(e) => setLang(e.target.value)} aria-label="Language">
@@ -188,7 +194,7 @@ export function AiPanel(props: {
 
       <h3 className="ai-h">Meeting mode</h3>
       <div className="ai-tool">
-        <p className="small muted">Dictate or paste a meeting transcript. Claude writes the summary, decisions and action items into the document at your cursor.</p>
+        <p className="small muted">Dictate or paste a meeting transcript. {ai} writes the summary, decisions and action items into the document at your cursor.</p>
         <textarea className="input" rows={4} value={transcript} onChange={(e) => setTranscript(e.target.value)} placeholder="Transcript…" />
         {speech.interim && <p className="small muted">{speech.interim}</p>}
         <div className="row-actions">
