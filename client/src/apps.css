@@ -1,8 +1,28 @@
 /* Header: icons on links, Home first, app launcher */
+.header-inner {
+  max-width: 1320px;
+  gap: 1.2rem;
+}
+@media (min-width: 901px) {
+  .site-nav {
+    gap: 1rem;
+    align-items: center;
+  }
+}
 .site-nav a {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  white-space: nowrap;
+  font-size: 0.95rem;
+}
+@media (max-width: 1250px) {
+  .site-nav a svg {
+    display: none;
+  }
+  .site-nav {
+    gap: 0.8rem;
+  }
 }
 .site-nav a svg {
   opacity: 0.75;
