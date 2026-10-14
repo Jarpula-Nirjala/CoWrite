@@ -2,6 +2,12 @@ import { useEffect } from 'react';
 import { AuthProvider } from './auth.tsx';
 import { Account } from './pages/Account.tsx';
 import { Activity } from './pages/Activity.tsx';
+import { AiTools } from './pages/AiTools.tsx';
+import { Assistant } from './pages/Assistant.tsx';
+import { Drive } from './pages/Drive.tsx';
+import { Keep } from './pages/Keep.tsx';
+import { Meet } from './pages/Meet.tsx';
+import { Templates } from './pages/Templates.tsx';
 import { Ask } from './pages/Ask.tsx';
 import { CalendarPage } from './pages/Calendar.tsx';
 import { Dashboard } from './pages/Dashboard.tsx';
@@ -60,6 +66,18 @@ function Routes() {
       return <CalendarPage />;
     case '/workspaces':
       return <Workspaces />;
+    case '/templates':
+      return <Templates />;
+    case '/ai':
+      return <AiTools />;
+    case '/assistant':
+      return <Assistant />;
+    case '/keep':
+      return <Keep />;
+    case '/drive':
+      return <Drive />;
+    case '/meet':
+      return <Meet />;
     default:
       return <NotFound />;
   }

@@ -12,7 +12,8 @@ export interface Llm {
   /** Streams the answer as text fragments. */
   stream(system: string, prompt: string, maxTokens?: number): AsyncIterable<string>;
   json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens?: number): Promise<T>;
-  image(data: Buffer, mime: string, ask: string): Promise<string>;
+  /** Reads an image (or a PDF, where the provider supports it) and answers about it. */
+  image(data: Buffer, mime: string, ask: string, maxTokens?: number): Promise<string>;
   /** Text to speech: 24 kHz, 16-bit mono PCM. Null when the provider has no voice. */
   speech?(text: string, voice: string): Promise<Buffer>;
 }
@@ -96,12 +97,16 @@ export class ClaudeLlm implements Llm {
     }
   }
 
-  async image(data: Buffer, mime: string, ask: string): Promise<string> {
+  async image(data: Buffer, mime: string, ask: string, maxTokens = 4000): Promise<string> {
     const media = (['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(mime) ? mime : 'image/png') as 'image/png';
+    const file =
+      mime === 'application/pdf'
+        ? ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: data.toString('base64') } } as const)
+        : ({ type: 'image', source: { type: 'base64', media_type: media, data: data.toString('base64') } } as const);
     try {
       const msg = await this.client.beta.messages.create({
         model: CLAUDE_MODEL,
-        max_tokens: 4000,
+        max_tokens: maxTokens,
         output_config: { effort: 'low' },
         betas: BETAS,
         fallbacks: 'default',
@@ -109,7 +114,7 @@ export class ClaudeLlm implements Llm {
           {
             role: 'user',
             content: [
-              { type: 'image', source: { type: 'base64', media_type: media, data: data.toString('base64') } },
+              file,
               { type: 'text', text: ask },
             ],
           },
@@ -236,8 +241,8 @@ export class GeminiLlm implements Llm {
     }
   }
 
-  async image(data: Buffer, mime: string, ask: string): Promise<string> {
-    const res = await this.call(GEMINI_MODEL, 'generateContent', this.request('', [{ inlineData: { mimeType: mime || 'image/png', data: data.toString('base64') } }, { text: ask }], 4000));
+  async image(data: Buffer, mime: string, ask: string, maxTokens = 4000): Promise<string> {
+    const res = await this.call(GEMINI_MODEL, 'generateContent', this.request('', [{ inlineData: { mimeType: mime || 'image/png', data: data.toString('base64') } }, { text: ask }], maxTokens));
     return GeminiLlm.textOf((await res.json()) as GeminiResponse).trim();
   }
 
@@ -358,10 +363,11 @@ export class CompatLlm implements Llm {
     }
   }
 
-  async image(data: Buffer, mime: string, ask: string): Promise<string> {
+  async image(data: Buffer, mime: string, ask: string, maxTokens = 2000): Promise<string> {
+    if (mime === 'application/pdf') throw new HttpError(400, `${this.name} cannot read PDFs. Connect a free Gemini key in Account → AI to use PDF tools.`);
     const res = await this.call({
       model: this.cfg.vision,
-      max_tokens: 2000,
+      max_tokens: Math.min(maxTokens, 8000),
       messages: [{ role: 'user', content: [{ type: 'text', text: ask }, { type: 'image_url', image_url: { url: `data:${mime || 'image/png'};base64,${data.toString('base64')}` } }] }],
     });
     return (((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '').trim();

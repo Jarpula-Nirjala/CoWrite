@@ -41,7 +41,8 @@ import { RichEditor, type RangeDeco, type RichHandle, type WidgetDeco } from '..
 import { RichToolbar } from '../rich/RichToolbar.tsx';
 import { DEFAULT_SETTINGS, paperProps, printCss, readSettings, settingsOps, type DocSettings } from '../rich/settings.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
-import { Link, navigate } from '../router.ts';
+import { Link, navigate, queryParam } from '../router.ts';
+import { MeetBanner } from '../components/MeetBanner.tsx';
 
 type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'time' | 'review' | 'draft' | 'site' | 'stats' | 'page' | 'ai' | 'network';
 
@@ -93,7 +94,13 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   const [localVersion, bumpLocal] = useReducer((n: number) => n + 1, 0);
   const [editorState, setEditorState] = useState<EditorState | null>(null);
 
-  const [panel, setPanelState] = useState<PanelId | null>(() => (window.innerWidth > 1180 ? readPref<PanelId | null>('panel', 'outline') : null));
+  const [panel, setPanelState] = useState<PanelId | null>(() => {
+    const asked = queryParam('panel');
+    if (asked && PANELS.some((p) => p.id === asked)) return asked as PanelId;
+    if (queryParam('meet')) return 'chat';
+    return window.innerWidth > 1180 ? readPref<PanelId | null>('panel', 'outline') : null;
+  });
+  const [meetRoom] = useState(() => queryParam('meet') === '1');
   const [focus, setFocus] = useState(false);
   const [typewriter, setTypewriter] = useState(() => readPref('typewriter', false));
   const [authorship, setAuthorship] = useState(false);
@@ -1314,6 +1321,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
         </button>
       )}
       <CallDock call={call} client={client} />
+      {meetRoom && <MeetBanner call={call} onError={flash} />}
       {toast && (
         <div className="toast" role="status">
           {toast}

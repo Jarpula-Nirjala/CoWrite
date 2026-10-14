@@ -4,6 +4,7 @@ import { keysAfter, uid } from '../kinds/objects.ts';
 import { layoutElements, type El } from '../kinds/slides/model.ts';
 import type { LayoutId } from '../kinds/slides/themes.ts';
 import type { DocSettings } from '../rich/settings.ts';
+import { PRO_DECKS, PRO_DOCS } from './proTemplates.ts';
 import type { InitialContent } from './templates.ts';
 
 export type Category = 'Documents' | 'Notes & journals' | 'Presentations' | 'Whiteboards' | 'Boards' | 'Spreadsheets';
@@ -19,6 +20,10 @@ export interface GalleryItem {
   settings?: Partial<DocSettings>;
   /** Doc templates: Markdown body (with CoWrite extensions). */
   md?: string;
+  /** Templates-page categories (Featured, Work Report, …). */
+  tags?: string[];
+  /** Photo shown on the template card when there is one. */
+  cover?: string;
   build(): InitialContent;
 }
 
@@ -738,7 +743,7 @@ const SHEETS: GalleryItem[] = [
   ]),
 ];
 
-export const GALLERY: GalleryItem[] = [...DOCS, ...NOTES, ...DECKS, ...BOARDS, ...KANBANS, ...SHEETS];
+export const GALLERY: GalleryItem[] = [DOCS[0], ...PRO_DOCS, ...DOCS.slice(1), ...NOTES, DECKS[0], ...PRO_DECKS, ...DECKS.slice(1), ...BOARDS, ...KANBANS, ...SHEETS];
 export const CATEGORIES: Category[] = ['Documents', 'Notes & journals', 'Presentations', 'Whiteboards', 'Boards', 'Spreadsheets'];
 export const BLANKS: Record<DocKind, string> = { doc: 'blank', slides: 'deck-blank', board: 'board-blank', kanban: 'kanban-basic', sheet: 'sheet-blank' };
 export { today };

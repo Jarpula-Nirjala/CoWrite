@@ -37,6 +37,21 @@ export function usePath(): string {
   return path;
 }
 
+/** The current query string, updated on in-app navigation. */
+export function useSearch(): string {
+  const [search, setSearch] = useState(window.location.search);
+  useEffect(() => {
+    const update = () => setSearch(window.location.search);
+    window.addEventListener('popstate', update);
+    window.addEventListener(EVENT, update);
+    return () => {
+      window.removeEventListener('popstate', update);
+      window.removeEventListener(EVENT, update);
+    };
+  }, []);
+  return search;
+}
+
 export function queryParam(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }

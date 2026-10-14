@@ -12,7 +12,7 @@ import { BLANKS, GALLERY, type Category } from '../lib/gallery.ts';
 import { pendingContent, type InitialContent } from '../lib/templates.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { htmlToTokens } from '../rich/importHtml.ts';
-import { Link, navigate } from '../router.ts';
+import { Link, navigate, useSearch } from '../router.ts';
 
 type View = 'all' | 'recent' | 'starred' | 'shared' | 'trash';
 
@@ -48,6 +48,16 @@ export function Documents() {
   const [offlineDocs, setOfflineDocs] = useState<OfflineDoc[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const search = useSearch();
+  const kindFilter = (new URLSearchParams(search).get('kind') ?? '') as DocKind | '';
+  useEffect(() => {
+    const v = new URLSearchParams(search).get('view') as View | null;
+    if (v && v in VIEW_LABEL) {
+      setView(v);
+      setFolder(null);
+      setTag(null);
+    }
+  }, [search]);
 
   useEffect(() => {
     document.title = 'My documents · CoWrite';
@@ -58,7 +68,7 @@ export function Documents() {
     if (ready && !user) navigate(`/signin?next=${encodeURIComponent('/documents')}`, { replace: true });
   }, [ready, user]);
 
-  const cacheKey = `docs:${view}:${folder ?? ''}:${tag ?? ''}`;
+  const cacheKey = `docs:${view}:${folder ?? ''}:${tag ?? ''}:${kindFilter}`;
   const load = useCallback(() => {
     if (!user) return;
     const q = new URLSearchParams({ view });
@@ -67,7 +77,7 @@ export function Documents() {
     if (query.trim()) q.set('q', query.trim());
     api<{ documents: DocMeta[] }>(`/docs?${q}`)
       .then((r) => {
-        setDocs(r.documents);
+        setDocs(kindFilter ? r.documents.filter((d) => (d.kind ?? 'doc') === kindFilter) : r.documents);
         setError(null);
         if (!query.trim()) cache.set(cacheKey, r.documents);
       })
@@ -77,7 +87,7 @@ export function Documents() {
         setError(errorText(e, 'Could not load documents.'));
       });
     api<Library>('/library').then(setLib, () => {});
-  }, [user, view, folder, tag, query, cacheKey]);
+  }, [user, view, folder, tag, query, cacheKey, kindFilter]);
 
   // Debounce searches; load immediately otherwise.
   useEffect(() => {
@@ -359,6 +369,11 @@ export function Documents() {
                   aria-label="Search documents"
                 />
               </div>
+              {kindFilter && (
+                <Link className="kind-filter-chip" to="/documents">
+                  {NEW_KINDS.find((k) => k.kind === kindFilter)?.icon ?? '📄'} {KIND_NAME[kindFilter]}s only ×
+                </Link>
+              )}
               <span className="muted small">{docs ? `${docs.length} document${docs.length === 1 ? '' : 's'}` : ''}</span>
             </div>
             {isTrash && <p className="muted small">Documents in the trash are deleted for good after 30 days.</p>}

@@ -146,7 +146,7 @@ export function Account() {
         <AppearanceSection signedIn />
         <BrandKitSection user={user} onSaved={(brand) => setUser({ ...user, brand })} />
 
-        <form className="panel" onSubmit={changePassword}>
+        <form className="panel" id="security" onSubmit={changePassword}>
           <h2>{user.hasPassword ? 'Change password' : 'Set a password'}</h2>
           {!user.hasPassword && <p className="muted small">You signed up with Google or GitHub. Set a password to also sign in with your email.</p>}
           {pwMsg && <div className={pwMsg.ok ? 'alert success' : 'alert'}>{pwMsg.text}</div>}

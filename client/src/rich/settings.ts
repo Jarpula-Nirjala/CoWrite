@@ -9,7 +9,7 @@ export interface DocSettings {
   lines: 'none' | 'ruled' | 'college' | 'grid' | 'dotted';
   marginLine: boolean;
   dateHeader: boolean;
-  theme: 'classic' | 'modern' | 'elegant' | 'academic' | 'playful' | 'minimal' | 'notebook' | 'report';
+  theme: 'classic' | 'modern' | 'elegant' | 'academic' | 'playful' | 'minimal' | 'notebook' | 'report' | 'paperback' | 'luxe' | 'mla' | 'simple' | 'executive';
   font: string;
   spacing: '1' | '1.15' | '1.5' | '2';
   header: string;
@@ -60,6 +60,11 @@ export const THEMES: { id: DocSettings['theme']; name: string; description: stri
   { id: 'minimal', name: 'Minimal', description: 'Quiet greys and generous space' },
   { id: 'notebook', name: 'Notebook', description: 'Handwriting on ruled paper' },
   { id: 'report', name: 'Report', description: 'Bold sans headings with rules' },
+  { id: 'paperback', name: 'Paperback', description: 'Book-style serif with small caps' },
+  { id: 'luxe', name: 'Luxe', description: 'Large display serif and gold rules' },
+  { id: 'mla', name: 'MLA', description: 'Times 12 pt, double spaced, plain headings' },
+  { id: 'simple', name: 'Simple', description: 'Google-style blue headings' },
+  { id: 'executive', name: 'Executive', description: 'Navy title band and crisp sans text' },
 ];
 
 export const PAPERS: { id: DocSettings['paper']; name: string }[] = [

@@ -1,8 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, errorText, timeAgo, type DocKind, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
+import { AppRail } from '../components/AppRail.tsx';
+import { SmartCreate } from '../components/SmartCreate.tsx';
+import { readImport } from '../lib/exporters.ts';
+import { htmlToTokens } from '../rich/importHtml.ts';
+import { createAndOpen } from '../lib/create.ts';
 import { Preview, TemplateGallery } from '../components/TemplateGallery.tsx';
 import { Icon, Spinner } from '../components/ui.tsx';
 import { BLANKS, GALLERY, type GalleryItem } from '../lib/gallery.ts';
@@ -18,7 +23,16 @@ const KINDS: { kind: DocKind; label: string; icon: string; tint: string }[] = [
   { kind: 'sheet', label: 'Spreadsheet', icon: '📈', tint: '#2e7d32' },
 ];
 const ICON: Record<string, string> = { doc: '📄', slides: '📊', board: '🧩', kanban: '🗂️', sheet: '📈' };
-const FEATURED = ['diary', 'resume', 'pitch', 'meeting', 'retro', 'budget', 'notebook', 'proposal'];
+const FEATURED = ['pro-growth', 'gdoc-report-luxe', 'pro-corporate-brochure', 'gdoc-paperback', 'pro-data-insights', 'gdoc-project-plan', 'pro-pioneering', 'resume'];
+const ACTIONS: { label: string; icon: string; to?: string; tint: string }[] = [
+  { label: 'Blank', icon: '➕', tint: '#1a73e8' },
+  { label: 'Open', icon: '📂', tint: '#f9ab00' },
+  { label: 'Create from Template', icon: '🎨', to: '/templates', tint: '#e8710a' },
+  { label: 'Smart Create', icon: '✨', to: '/ai?tool=docs-create', tint: '#7b1fa2' },
+  { label: 'Smart Edit', icon: '✏️', to: '/ai?tool=smart-edit', tint: '#0b8bd8' },
+  { label: 'AI Spell Check', icon: '🔤', to: '/ai?tool=spell', tint: '#d93025' },
+  { label: 'More', icon: '⋯', to: '/ai', tint: '#5f6368' },
+];
 
 interface Task {
   docId: string;
@@ -45,6 +59,7 @@ export function Dashboard() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState('');
+  const openInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.title = 'Home · CoWrite';
@@ -67,6 +82,18 @@ export function Dashboard() {
     }
   };
 
+  const openFile = async (file?: File) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const r = await readImport(file);
+      await createAndOpen(r.title, 'doc', { tokens: r.html ? htmlToTokens(r.html) : r.tokens });
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
   if (!ready || !user) return <Spinner />;
   const first = user.name.split(' ')[0];
   const goal = localPrefs().dailyGoal;
@@ -77,6 +104,8 @@ export function Dashboard() {
   return (
     <div className="page">
       <SiteHeader />
+      <div className="rail-layout">
+      <AppRail active="home" />
       <main className="container dashboard">
         <header className="dash-hello">
           <div>
@@ -98,6 +127,24 @@ export function Dashboard() {
 
         {error && <p className="error-text">{error}</p>}
 
+        <nav className="wps-actions" aria-label="Quick actions">
+          {ACTIONS.map((a) => (
+            <button
+              key={a.label}
+              style={{ '--tint': a.tint } as React.CSSProperties}
+              disabled={busy}
+              onClick={() => (a.to ? navigate(a.to) : a.label === 'Open' ? openInput.current?.click() : void create(GALLERY.find((g) => g.id === 'blank')!))}
+              type="button"
+            >
+              <span>{a.icon}</span>
+              {a.label}
+            </button>
+          ))}
+          <input ref={openInput} type="file" hidden accept=".docx,.md,.markdown,.txt,.html,.htm" onChange={(e) => (void openFile(e.target.files?.[0]), (e.target.value = ''))} />
+        </nav>
+
+        <SmartCreate compact />
+
         <section className="quick-create" aria-label="Create">
           {KINDS.map((k) => (
             <button key={k.kind} className="create-tile" style={{ '--tint': k.tint } as React.CSSProperties} disabled={busy} onClick={() => void create(GALLERY.find((g) => g.id === BLANKS[k.kind])!)} type="button">
@@ -113,7 +160,7 @@ export function Dashboard() {
             <span className="create-icon">✨</span>
             <span>
               <strong>Templates</strong>
-              <small>50 designs</small>
+              <small>{GALLERY.length} designs</small>
             </span>
           </button>
         </section>
@@ -121,7 +168,7 @@ export function Dashboard() {
         <section className="dash-section">
           <div className="row-between">
             <h2>Start from a template</h2>
-            <button className="btn btn-text btn-sm" onClick={() => setGallery(true)} type="button">
+            <button className="btn btn-text btn-sm" onClick={() => navigate('/templates')} type="button">
               See all →
             </button>
           </div>
@@ -232,12 +279,17 @@ export function Dashboard() {
                 <Link to="/ask">❓ Ask AI</Link>
                 <Link to="/activity">🔥 Streaks</Link>
                 <Link to="/documents">📁 Library</Link>
+                <Link to="/keep">💡 Keep</Link>
+                <Link to="/drive">☁️ Drive</Link>
+                <Link to="/meet">🎥 Meet</Link>
+                <Link to="/assistant">✦ Assistant</Link>
                 <Link to="/account">⚙️ Settings</Link>
               </div>
             </section>
           </aside>
         </div>
       </main>
+      </div>
       <SiteFooter />
       {gallery && <TemplateGallery busy={busy} onClose={() => setGallery(false)} onPick={(item) => (setGallery(false), void create(item))} />}
     </div>

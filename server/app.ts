@@ -25,6 +25,7 @@ import { aiRoutes, syncTranslation } from './routes-ai.ts';
 import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.ts';
 import { extraRoutes, runDigests } from './routes-extra.ts';
 import { lifeRoutes, runEventReminders } from './routes-life.ts';
+import { toolRoutes } from './routes-tools.ts';
 
 export interface ServerOptions {
   port: number;
@@ -218,6 +219,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(teamRoutes(ctx));
   api.use(extraRoutes(ctx));
   api.use(lifeRoutes(ctx));
+  api.use(toolRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

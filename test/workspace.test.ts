@@ -1,0 +1,134 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { after, before, describe, it } from 'node:test';
+import { aiDeck, PRO_DECKS, PRO_DOCS } from '../client/src/lib/proTemplates.ts';
+import { SLIDE_THEMES } from '../client/src/kinds/slides/themes.ts';
+import { startServer, type RunningServer } from '../server/app.ts';
+import { keyProvider } from '../server/llm.ts';
+import { DECK_STYLES, PHOTOS } from '../server/routes-tools.ts';
+
+describe('professional templates', () => {
+  it('every deck builds eight slides whose elements belong to them', () => {
+    assert.ok(PRO_DECKS.length >= 20);
+    for (const d of PRO_DECKS) {
+      const { objects = [] } = d.build();
+      const slides = new Set(objects.filter((o) => o.key.startsWith('slide:')).map((o) => o.key.slice(6)));
+      assert.equal(slides.size, 8, d.id);
+      for (const o of objects.filter((x) => x.key.startsWith('el:'))) assert.ok(slides.has(String(o.fields.slide)), `${d.id}: orphan element`);
+      for (const o of objects.filter((x) => x.fields.kind === 'image')) assert.match(String(o.fields.src), /^\/tpl\/[\w-]+\.jpg$/);
+      assert.ok(fs.existsSync(path.join('client/public', String(d.cover))), `${d.id}: missing cover photo`);
+    }
+  });
+
+  it('document templates have content and a theme', () => {
+    for (const d of PRO_DOCS) {
+      assert.ok(d.build().tokens.length > 100, d.id);
+      assert.ok(d.settings?.theme, d.id);
+    }
+  });
+
+  it('AI outlines turn into designed decks for every layout', () => {
+    const layouts = ['agenda', 'title-content', 'image-text', 'stats', 'process', 'two-column', 'quote', 'section', 'closing', 'mystery'];
+    const deck = aiDeck({
+      title: 'Solar for homes',
+      subtitle: 'Why now',
+      theme: 'growth',
+      cover: 'idea',
+      slides: layouts.map((layout) => ({ layout, title: layout, bullets: ['40% | lower bills', 'Install | in a day', 'Left', 'Right'], notes: '', photo: 'forest' })),
+    });
+    const slides = deck.objects.filter((o) => o.key.startsWith('slide:'));
+    assert.equal(slides.length, layouts.length + 1);
+    const texts = deck.objects.map((o) => String(o.fields.text ?? ''));
+    assert.ok(texts.includes('40%') && texts.includes('lower bills'), 'stats split on |');
+  });
+
+  it('server style lists only name themes and photos that exist', () => {
+    const ids = new Set(SLIDE_THEMES.map((t) => t.id));
+    for (const list of Object.values(DECK_STYLES)) for (const t of list) assert.ok(ids.has(t), t);
+    for (const p of PHOTOS) assert.ok(fs.existsSync(`client/public/tpl/${p}.jpg`), p);
+  });
+
+  it('recognises personal key providers', () => {
+    assert.equal(keyProvider('gsk_abc'), 'groq');
+    assert.equal(keyProvider('sk-or-v1-abc'), 'openrouter');
+    assert.equal(keyProvider('AQ.Ab8RN6abc'), 'gemini');
+    assert.equal(keyProvider('AIzaSyabc'), 'gemini');
+  });
+});
+
+describe('workspace apps', () => {
+  let server: RunningServer;
+  let dataDir: string;
+  let cookie = '';
+  const api = async (p: string, init: { method?: string; body?: unknown; raw?: Blob; type?: string } = {}) => {
+    const res = await fetch(`http://localhost:${server.port}/api${p}`, {
+      method: init.method ?? 'GET',
+      headers: { 'content-type': init.type ?? 'application/json', cookie, 'x-forwarded-for': '10.9.8.7' },
+      body: init.raw ?? (init.body === undefined ? undefined : JSON.stringify(init.body)),
+    });
+    const set = res.headers.get('set-cookie');
+    if (set) cookie = set.split(';')[0];
+    return { status: res.status, body: (await res.json().catch(() => ({}))) as any };
+  };
+
+  before(async () => {
+    dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cowrite-ws-'));
+    server = await startServer({ port: 0, dataDir });
+    const r = await api('/auth/signup', { method: 'POST', body: { name: 'Ws User', email: 'ws@example.com', password: 'password123' } });
+    assert.equal(r.status, 200);
+  });
+  after(async () => {
+    await server.close();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  });
+
+  it('calendar events: create, list by range, validate, update and delete', async () => {
+    const c = await api('/events', { method: 'POST', body: { title: 'Launch', day: '2027-04-15', start: '09:30', end: '10:00', kind: 'important', color: 'red' } });
+    assert.equal(c.status, 201);
+    assert.equal((await api('/events', { method: 'POST', body: { title: 'Bad', day: '2027-13-40' } })).status, 400);
+    assert.equal((await api('/events', { method: 'POST', body: { title: 'Bad', day: '2027-04-15', start: '10:00', end: '09:00' } })).status, 400);
+    const inRange = await api('/events?from=2027-04-01&to=2027-04-30');
+    assert.deepEqual(inRange.body.events.map((e: { title: string }) => e.title), ['Launch']);
+    assert.equal((await api('/events?from=2027-05-01&to=2027-05-31')).body.events.length, 0);
+    const u = await api(`/events/${c.body.event.id}`, { method: 'PUT', body: { title: 'Launch day', day: '2027-04-16' } });
+    assert.equal(u.body.event.title, 'Launch day');
+    await api(`/events/${c.body.event.id}`, { method: 'DELETE' });
+    assert.equal((await api('/events')).body.events.length, 0);
+  });
+
+  it('Keep notes: checklists, pins and labels', async () => {
+    assert.equal((await api('/notes', { method: 'POST', body: { title: ' ', body: '' } })).status, 400);
+    const n = await api('/notes', { method: 'POST', body: { title: 'Groceries', items: [{ text: 'Milk' }, { text: 'Bread', done: true }], color: 'yellow', labels: ['home'] } });
+    assert.equal(n.status, 201);
+    await api('/notes', { method: 'POST', body: { body: 'Second note' } });
+    await api(`/notes/${n.body.note.id}`, { method: 'PUT', body: { ...n.body.note, pinned: true } });
+    const list = (await api('/notes')).body.notes;
+    assert.equal(list[0].title, 'Groceries');
+    assert.equal(list[0].pinned, true);
+    assert.deepEqual(list[0].items, [
+      { text: 'Milk', done: false },
+      { text: 'Bread', done: true },
+    ]);
+    assert.deepEqual(list[0].labels, ['home']);
+  });
+
+  it('Drive lists uploads with storage use, and the backup includes documents', async () => {
+    const up = await fetch(`http://localhost:${server.port}/api/files`, { method: 'POST', headers: { 'content-type': 'image/png', 'x-file-name': 'a.png', cookie }, body: new Uint8Array(1234) });
+    assert.equal(up.status, 201);
+    const files = (await api('/me/files')).body;
+    assert.equal(files.files.length, 1);
+    assert.equal(files.used, 1234);
+    await api('/docs', { method: 'POST', body: { title: 'Backed up', kind: 'doc' } });
+    const b = (await api('/me/backup')).body;
+    assert.ok(b.documents.some((d: { title: string }) => d.title === 'Backed up'));
+  });
+
+  it('AI tools validate input before calling a model', async () => {
+    assert.equal((await api('/ai/text', { method: 'POST', body: { task: 'spell', text: '' } })).status, 400);
+    assert.equal((await api('/ai/create', { method: 'POST', body: { kind: 'slides', prompt: '' } })).status, 400);
+    assert.equal((await api('/ai/file?task=extract', { method: 'POST', raw: new Blob(['x'.repeat(100)]), type: 'text/plain' })).status, 400);
+    assert.equal((await api('/ai/chat', { method: 'POST', body: { messages: [] } })).status, 400);
+  });
+});

@@ -38,13 +38,16 @@ export const MANAGEMENT = [
 
 /** Template categories double as "solutions". */
 export const SOLUTIONS = [
-  { name: 'Small business', cat: 'Business' },
-  { name: 'Marketing', cat: 'Marketing' },
-  { name: 'Education', cat: 'Education' },
-  { name: 'Higher education', cat: 'Higher education' },
-  { name: 'Healthcare', cat: 'Healthcare' },
+  { name: 'New business', cat: 'Business Plan' },
+  { name: 'Small business', cat: 'Company Profile' },
+  { name: 'Enterprise', cat: 'Work Report' },
+  { name: 'Retail & marketing', cat: 'Marketing & Advertising' },
+  { name: 'Manufacturing', cat: 'Research & Analysis' },
+  { name: 'Professional services', cat: 'HR & Administration' },
   { name: 'Technology', cat: 'Technology' },
-  { name: 'Human resources', cat: 'HR' },
+  { name: 'Healthcare', cat: 'Healthcare' },
+  { name: 'Education', cat: 'Education & Training' },
+  { name: 'Higher education', cat: 'Higher Education' },
   { name: 'Nonprofits', cat: 'Nonprofit' },
   { name: 'Personal & students', cat: 'Personal' },
 ];

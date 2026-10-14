@@ -1331,3 +1331,84 @@ textarea.mono {
     color: inherit;
   }
 }
+
+/* Professional document looks (Google Docs gallery style) */
+.theme-paperback {
+  --heading: #3b2a24;
+  --heading-font: Garamond, 'EB Garamond', Georgia, serif;
+}
+.theme-paperback .rich-doc h1.blk {
+  font-size: 2.3rem;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.theme-paperback .rich-doc h2.blk {
+  font-variant: small-caps;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.theme-paperback .rich-doc .blk-p {
+  text-align: justify;
+  hyphens: auto;
+}
+.theme-luxe {
+  --heading: #1c1c1c;
+  --heading-font: 'Playfair Display', Didot, 'Bodoni MT', Georgia, serif;
+}
+.theme-luxe .rich-doc h1.blk {
+  font-size: 2.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  padding-bottom: 0.35em;
+  border-bottom: 2px solid var(--accent, #b08d57);
+}
+.theme-luxe .rich-doc h2.blk {
+  color: var(--accent, #b08d57) !important;
+  font-size: 1.05rem;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.theme-mla {
+  --heading: #000;
+}
+.theme-mla .rich-doc h1.blk,
+.theme-mla .rich-doc h2.blk,
+.theme-mla .rich-doc h3.blk {
+  font-size: 1em;
+  font-weight: 400;
+  color: #000 !important;
+}
+.theme-mla .rich-doc h1.blk {
+  text-align: center;
+}
+.theme-mla .rich-doc .blk-p {
+  text-indent: 0.5in;
+}
+.theme-simple {
+  --heading: #1a73e8;
+  --heading-font: Arial, 'Helvetica Neue', sans-serif;
+}
+.theme-simple .rich-doc h1.blk {
+  font-size: 2.4rem;
+  font-weight: 400;
+  color: #202124;
+}
+.theme-simple .rich-doc h2.blk {
+  font-weight: 400;
+}
+.theme-executive {
+  --heading: #12284c;
+  --heading-font: 'Segoe UI Semibold', 'Segoe UI', Arial, sans-serif;
+}
+.theme-executive .rich-doc h1.blk:first-child {
+  margin: calc(var(--page-pad) * -1) calc(var(--page-pad) * -1) 1rem;
+  padding: calc(var(--page-pad) * 0.8) var(--page-pad) 0.7em;
+  background: linear-gradient(120deg, #12284c, #24508f);
+  color: #fff !important;
+  font-size: 2.2rem;
+}
+.theme-executive .rich-doc h2.blk {
+  padding-bottom: 0.15em;
+  border-bottom: 2px solid var(--accent, #d4a64a);
+}
