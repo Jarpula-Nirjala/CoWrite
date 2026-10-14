@@ -5,7 +5,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import { Plugin, PluginKey, type EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { indent, insertAtom, setBlock, smartBackspace, smartEnter, toggleMark } from './commands.ts';
-import { schema } from './schema.ts';
+import { listLabel, schema } from './schema.ts';
 
 // ---------------------------------------------------------------- keymap
 
@@ -102,6 +102,43 @@ export function decorationsPlugin() {
       },
     },
     props: { decorations: (state) => decoKey.getState(state) },
+  });
+}
+
+// --------------------------------------------------------- list numbers
+
+/** Numbers flat ordered-list paragraphs (1. 2. 3., then a. b., i. ii. when indented). */
+export function listNumberPlugin() {
+  const build = (doc: PMNode) => {
+    const decos: Decoration[] = [];
+    let counters: number[] = [];
+    doc.forEach((node, pos) => {
+      const a = node.attrs as { block?: string; level?: number };
+      if (node.type.name !== 'para' || (a.block !== 'oli' && a.block !== 'li' && a.block !== 'task')) {
+        counters = [];
+        return;
+      }
+      const level = a.level ?? 0;
+      if (a.block !== 'oli') {
+        counters.length = level;
+        return;
+      }
+      counters[level] = (counters[level] ?? 0) + 1;
+      counters.length = level + 1;
+      decos.push(Decoration.node(pos, pos + node.nodeSize, { 'data-num': listLabel(level, counters[level]) }));
+    });
+    return DecorationSet.create(doc, decos);
+  };
+  return new Plugin<DecorationSet>({
+    state: {
+      init: (_, state) => build(state.doc),
+      apply: (tr, set) => (tr.docChanged ? build(tr.doc) : set),
+    },
+    props: {
+      decorations(state) {
+        return this.getState(state);
+      },
+    },
   });
 }
 

@@ -7,6 +7,7 @@ import '@fontsource/opendyslexic/700.css';
 import './styles.css';
 import './app.css';
 import './rich.css';
+import './kinds/kinds.css';
 
 createRoot(document.getElementById('root')!).render(<App />);
 

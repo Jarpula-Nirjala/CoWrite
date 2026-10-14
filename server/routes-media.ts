@@ -65,6 +65,31 @@ async function safeFetch(raw: string, maxBytes = 600_000): Promise<{ url: string
   throw new HttpError(400, 'Too many redirects.');
 }
 
+/** Fetches public binary content (images for AI descriptions) with the same SSRF guard. */
+export async function safeFetchBinary(raw: string, maxBytes: number): Promise<{ data: Buffer; type: string }> {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new HttpError(400, 'Invalid image address.');
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new HttpError(400, 'Only http and https links are supported.');
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  const addrs = net.isIP(host) ? [host] : (await dns.lookup(host, { all: true })).map((a) => a.address);
+  if (!addrs.length || addrs.some(privateAddress)) throw new HttpError(400, 'That address is not reachable from here.');
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(url, { redirect: 'error', signal: ctrl.signal, headers: { 'user-agent': 'CoWriteBot/1.0' } });
+    if (!res.ok) throw new HttpError(400, 'Could not download the image.');
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new HttpError(400, 'The image is too large.');
+    return { data: buf, type: (res.headers.get('content-type') ?? 'image/png').split(';')[0] };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function meta(html: string, names: string[]): string | null {
   for (const n of names) {
     const re = new RegExp(`<meta[^>]+(?:property|name)=["']${n}["'][^>]*>`, 'i');
@@ -165,6 +190,16 @@ export function mediaRoutes(ctx: AppCtx) {
     if (unfurlCache.size > 500) unfurlCache.clear();
     unfurlCache.set(parsed.toString(), { at: Date.now(), data });
     res.json(data);
+  });
+
+  // Same-origin copy of a public image, so exports can draw it onto a canvas.
+  r.get('/media/proxy', rateLimit(120, 60_000), async (req, res) => {
+    const got = await safeFetchBinary(str(req.query.url, 2000), 8_000_000);
+    if (!/^image\/(png|jpeg|gif|webp)$/.test(got.type)) throw new HttpError(400, 'That link is not an image.');
+    res.setHeader('Content-Type', got.type);
+    res.setHeader('Cache-Control', 'private, max-age=86400');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.send(got.data);
   });
 
   // ------------------------------------------------------ free image search

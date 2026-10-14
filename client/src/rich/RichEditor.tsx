@@ -12,7 +12,7 @@ import { insertAtom, insertChip, insertText, setMarkValue } from './commands.ts'
 import { flatten, posToToken, reconcile, tokenToPos, tokensToDoc, type FlatToken } from './convert.ts';
 import { embedFor, mapEmbed, type EditorCtx } from './ctx.ts';
 import { EMOJI_GROUPS, searchEmoji } from './emoji.ts';
-import { decoKey, decorationsPlugin, editorKeymap, highlightPlugin, lockPlugin, markdownShortcuts, placeholderPlugin } from './plugins.ts';
+import { decoKey, decorationsPlugin, editorKeymap, highlightPlugin, listNumberPlugin, lockPlugin, markdownShortcuts, placeholderPlugin } from './plugins.ts';
 import { SLASH_ITEMS, type SlashItem } from './slash.ts';
 
 /** A highlighted token range [from, to). */
@@ -175,6 +175,7 @@ export function RichEditor(props: Props) {
         gapCursor(),
         decorationsPlugin(),
         highlightPlugin(),
+        listNumberPlugin(),
         placeholderPlugin(() => propsRef.current.placeholder ?? 'Start writing…'),
         lockPlugin(() => lockedPm.current),
       ],

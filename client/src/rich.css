@@ -133,53 +133,14 @@
 .rich-doc .blk-li.lvl-4::before {
   content: '▪';
 }
-.rich-doc .blk-oli.lvl-0 {
-  counter-increment: ol0;
-}
-.rich-doc .blk-oli.lvl-1 {
-  counter-increment: ol1;
-}
-.rich-doc .blk-oli.lvl-2 {
-  counter-increment: ol2;
-}
-.rich-doc .blk-oli.lvl-3,
-.rich-doc .blk-oli.lvl-4 {
-  counter-increment: ol3;
-}
-.rich-doc :not(.blk-oli):not(.lvl-1):not(.lvl-2):not(.lvl-3) + .blk-oli.lvl-0,
-.rich-doc .blk-oli.lvl-0:first-child {
-  counter-reset: ol0 1;
-}
-.rich-doc .lvl-0 + .blk-oli.lvl-1,
-.rich-doc :not(.blk-oli) + .blk-oli.lvl-1 {
-  counter-reset: ol1 1;
-}
-.rich-doc .lvl-0 + .blk-oli.lvl-2,
-.rich-doc .lvl-1 + .blk-oli.lvl-2,
-.rich-doc :not(.blk-oli) + .blk-oli.lvl-2 {
-  counter-reset: ol2 1;
-}
 .rich-doc .blk-oli::before {
-  content: counter(ol0) '.';
+  content: attr(data-num);
   position: absolute;
   left: 0;
   min-width: 1.4em;
   text-align: right;
   color: var(--accent);
   font-weight: 700;
-}
-.rich-doc .blk-oli.lvl-1::before {
-  content: counter(ol1, lower-alpha) '.';
-}
-.rich-doc .blk-oli.lvl-2::before {
-  content: counter(ol2, lower-roman) '.';
-}
-.rich-doc .blk-oli.lvl-3::before,
-.rich-doc .blk-oli.lvl-4::before {
-  content: counter(ol3) '.';
-}
-.rich-doc.static .static-oli::before {
-  content: attr(data-num);
 }
 .rich-doc .blk-task::before {
   content: '';

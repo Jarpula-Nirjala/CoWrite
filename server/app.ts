@@ -20,6 +20,7 @@ import { collabRoutes } from './routes-collab.ts';
 import { docRoutes } from './routes-docs.ts';
 import { meRoutes } from './routes-me.ts';
 import { mediaRoutes } from './routes-media.ts';
+import { aiRoutes, syncTranslation } from './routes-ai.ts';
 
 export interface ServerOptions {
   port: number;
@@ -81,6 +82,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     },
     edited(roomId, peer, inserts, deletes) {
       const now = Date.now();
+      scheduleTranslations(roomId);
       const site = peer?.site ?? 'merge';
       const key = `${roomId}|${site}|${dayKey(now)}`;
       const a = activity.get(key) ?? { doc: roomId, site, day: dayKey(now), userId: peer?.userId ?? null, name: peer?.name ?? 'Merge', inserts: 0, deletes: 0 };
@@ -136,6 +138,21 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const rooms = new RoomManager(hooks, opts.limits ?? DEFAULT_LIMITS);
   const ctx: AppCtx = { db, auth, docs, rooms, notifier, ai: new AiWriter() };
 
+  // Linked translations follow their source a little after edits stop.
+  const translationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  function scheduleTranslations(sourceId: string) {
+    if (!ctx.ai.enabled) return;
+    clearTimeout(translationTimers.get(sourceId));
+    translationTimers.set(
+      sourceId,
+      setTimeout(async () => {
+        translationTimers.delete(sourceId);
+        const targets = await db.query<{ id: string }>('select id from documents where translated_from = $1 and deleted_at is null', [sourceId]).catch(() => []);
+        for (const t of targets) await syncTranslation(ctx, t.id).catch((err) => console.error('translation sync failed:', err));
+      }, 20_000),
+    );
+  }
+
   const timers = [
     setInterval(() => void flushActivity(), 10_000),
     // Trash older than 30 days is deleted for good.
@@ -176,6 +193,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(collabRoutes(ctx));
   api.use(meRoutes(ctx));
   api.use(mediaRoutes(ctx));
+  api.use(aiRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });
@@ -231,7 +249,10 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     // messages that arrive meanwhile wait on the same promise, in order.
     const ready = (async () => {
       const user: User | null = await auth.userForToken(readCookie(req.headers.cookie, SESSION_COOKIE));
-      const { role, doc } = await docs.roleFor(roomId, user, url.searchParams.get('s'));
+      const access = await docs.roleFor(roomId, user, url.searchParams.get('s'));
+      const doc = access.doc;
+      // Live translations are written by the translator only.
+      const role = doc?.translated_from && (access.role === 'editor' || access.role === 'owner') ? 'commenter' : access.role;
       if (!role) {
         ws.close(doc?.deleted_at ? DELETED_CODE : FORBIDDEN_CODE, 'no access');
         return null;

@@ -1,10 +1,9 @@
 import express from 'express';
 import type { Id } from '../shared/crdt.ts';
-import { isId, isSelection } from '../shared/protocol.ts';
-import { AI_ACTIONS, AI_COLOR, AI_NAME, type AiAction } from './ai.ts';
+import { isId } from '../shared/protocol.ts';
 import { actorName, docAccess, type Access, type AppCtx } from './context.ts';
 import { newId } from './docs.ts';
-import { HttpError, rateLimit, str } from './http.ts';
+import { HttpError, str } from './http.ts';
 import { Notifier } from './notify.ts';
 
 const KEY_RE = /^[A-Za-z0-9_-]{1,32}:\d{1,15}$/;
@@ -300,28 +299,6 @@ export function collabRoutes(ctx: AppCtx) {
       [a.doc.owner_id, a.docId],
     );
     res.json({ people: rows });
-  });
-
-  // ------------------------------------------------------- AI co-writer
-
-  const aiLimiter = rateLimit(30, 10 * 60_000);
-  r.post('/docs/:id/ai', aiLimiter, async (req, res) => {
-    const a = await docAccess(ctx, req, res, 'editor');
-    const action = req.body?.action as AiAction;
-    if (!AI_ACTIONS.includes(action)) throw new HttpError(400, 'Unknown AI action.');
-    const sel = req.body?.selection ?? null;
-    if (!isSelection(sel)) throw new HttpError(400, 'Invalid selection.');
-    const custom = str(req.body?.instruction, 500).trim();
-    if (action === 'custom' && !custom) throw new HttpError(400, 'Tell Claude what to do.');
-    const room = await rooms.open(a.docId);
-    if (!room) throw new HttpError(503, 'Server busy, try again.');
-    const result = await ctx.ai.run(room, action, sel, custom, (site) => {
-      void db.query(
-        'insert into sites (doc_id, site, user_id, name, color, first_seen) values ($1, $2, null, $3, $4, $5) on conflict do nothing',
-        [a.docId, site, AI_NAME, AI_COLOR, Date.now()],
-      );
-    });
-    res.json(result);
   });
 
   return r;

@@ -19,8 +19,9 @@ import { ShareDialog } from '../editor/share.tsx';
 import { useSpeech } from '../editor/speech.ts';
 import { UndoStack } from '../editor/undo.ts';
 import { loadChatHistory, useAuthors, useComments, usePeople, useSuggestions, useVersions } from '../editor/useCollab.ts';
-import { useDocSession } from '../editor/useDocSession.ts';
-import { createFileCipher } from '../lib/e2e.ts';
+import { useDocSession, type DocSession } from '../editor/useDocSession.ts';
+import { useFiles } from '../editor/useFiles.ts';
+import { KindPage } from '../kinds/KindPage.tsx';
 import { exportDocx, exportMarkdown, exportPdf, exportText } from '../lib/exporters.ts';
 import { pendingContent } from '../lib/templates.ts';
 import { countWords } from '../lib/text.ts';
@@ -65,8 +66,13 @@ const writePref = (key: string, v: unknown) => {
 };
 
 export function DocPage({ roomId }: { roomId: string }) {
-  const { user, providers } = useAuth();
   const s = useDocSession(roomId);
+  if (s.meta?.kind && s.meta.kind !== 'doc') return <KindPage roomId={roomId} s={s} />;
+  return <DocEditor roomId={roomId} s={s} />;
+}
+
+function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
+  const { user, providers } = useAuth();
   const { client, meta, role, cipher, share, keyText } = s;
   const editor = useRef<RichHandle>(null);
   const undo = useRef(new UndoStack());
@@ -124,41 +130,7 @@ export function DocPage({ roomId }: { roomId: string }) {
 
   // ------------------------------------------------------------- files
 
-  const fileCipher = useMemo(() => (keyText ? createFileCipher(keyText) : null), [keyText]);
-  const resolved = useRef(new Map<string, Promise<string>>());
-  const resolve = useCallback(
-    (src: string): Promise<string> => {
-      if (!src.includes('enc=1')) return Promise.resolve(src);
-      const hit = resolved.current.get(src);
-      if (hit) return hit;
-      const p = (async () => {
-        const fc = await fileCipher;
-        if (!fc) throw new Error('Missing key');
-        const buf = await (await fetch(src)).arrayBuffer();
-        const mime = new URL(src, location.href).searchParams.get('m') ?? 'application/octet-stream';
-        return URL.createObjectURL(new Blob([await fc.decrypt(buf)], { type: mime }));
-      })();
-      resolved.current.set(src, p);
-      return p;
-    },
-    [fileCipher],
-  );
-  const upload = useCallback(
-    async (blob: Blob, name: string) => {
-      const mime = blob.type || 'application/octet-stream';
-      const fc = fileCipher ? await fileCipher : null;
-      const body = fc ? await fc.encrypt(await blob.arrayBuffer()) : blob;
-      const res = await fetch('/api/files', {
-        method: 'POST',
-        headers: { 'content-type': fc ? 'application/octet-stream' : mime, 'x-file-name': encodeURIComponent(name), 'x-doc-id': roomId },
-        body,
-      });
-      const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
-      if (!res.ok || !j.url) throw new Error(j.error ?? 'Upload failed.');
-      return { src: fc ? `${j.url}?enc=1&m=${encodeURIComponent(mime)}` : j.url, name, size: blob.size, mime };
-    },
-    [fileCipher, roomId],
-  );
+  const { resolve, upload } = useFiles(roomId, keyText);
 
   // ------------------------------------------------------------- effects
 

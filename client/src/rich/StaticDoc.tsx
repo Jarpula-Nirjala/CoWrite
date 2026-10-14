@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { BLOCK, EMBED, type Attrs, type Token } from '../../../shared/crdt.ts';
 import { strokePath } from './atoms.tsx';
-import { fontStack } from './schema.ts';
+import { fontStack, listLabel } from './schema.ts';
 
 /** Renders a token list read-only (versions, replay, published pages). */
 export function StaticDoc({
@@ -59,7 +59,7 @@ export function StaticDoc({
         olCounters[level] = (olCounters[level] ?? 0) + 1;
         olCounters.length = level + 1;
         blocks.push(
-          <div key={key++} className={`blk blk-oli lvl-${level} static-oli`} style={style} data-num={`${olCounters[level]}.`}>
+          <div key={key++} className={`blk blk-oli lvl-${level} static-oli`} style={style} data-num={listLabel(level, olCounters[level])}>
             {children}
           </div>,
         );

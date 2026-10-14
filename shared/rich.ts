@@ -218,7 +218,7 @@ export interface NewToken {
 }
 
 /** Inline markdown (**bold**, *italic*, `code`, ~~strike~~, [link](url)) to tokens. */
-function inlineTokens(text: string, base: Attrs = {}): NewToken[] {
+export function inlineTokens(text: string, base: Attrs = {}): NewToken[] {
   const out: NewToken[] = [];
   const re = /\*\*(.+?)\*\*|__(.+?)__|\*(?!\s)(.+?)\*|_(?!\s)(.+?)_|`([^`]+)`|~~(.+?)~~|\[([^\]]+)\]\(([^)\s]+)\)/g;
   let last = 0;
@@ -286,6 +286,26 @@ export function markdownToTokens(md: string): NewToken[] {
     }
     if (!line.trim()) {
       // Blank lines separate paragraphs in Markdown; they are not blocks.
+      continue;
+    }
+    // CoWrite extensions used by templates: {toc}, {signature}, {pagebreak}, {summary}.
+    if ((m = /^\{(toc|signature|pagebreak|summary)\}\s*$/.exec(line))) {
+      out.push({ ch: EMBED, a: { atom: m[1], ...(m[1] === 'summary' ? { text: '' } : {}) } });
+      continue;
+    }
+    // Callouts: > [!tip] text   (tones: info, tip, warn, success, idea)
+    if ((m = /^>\s?\[!(info|tip|warn|success|idea|note)\]\s*(.*)$/i.exec(line))) {
+      const tone = m[1].toLowerCase() === 'note' ? 'info' : m[1].toLowerCase();
+      const emoji = { info: 'ℹ️', tip: '💡', warn: '⚠️', success: '✅', idea: '✨' }[tone] ?? '💡';
+      out.push(...inlineTokens(m[2]));
+      end({ block: 'callout', tone, emoji });
+      continue;
+    }
+    // Centred line: ->text<-
+    if ((m = /^->\s?(.*?)\s?<-$/.exec(line))) {
+      const h = /^(#{1,6})\s+(.*)$/.exec(m[1]);
+      out.push(...inlineTokens(h ? h[2] : m[1]));
+      end({ ...(h ? { block: 'h', level: Math.min(3, h[1].length) } : {}), align: 'center' });
       continue;
     }
     if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) {

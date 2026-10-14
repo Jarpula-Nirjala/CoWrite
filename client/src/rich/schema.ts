@@ -167,3 +167,18 @@ function chipLabel(node: PMNode): string {
 
 /** Mark names whose value is a string attribute. */
 export const VALUE_MARKS: Record<string, string> = { link: 'href', color: 'c', bg: 'c', font: 'f', size: 's' };
+
+const roman = (n: number) => {
+  const map: [number, string][] = [[1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'], [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
+  let out = '';
+  for (const [v, s] of map) for (; n >= v; n -= v) out += s;
+  return out;
+};
+const alpha = (n: number) => {
+  let s = '';
+  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(97 + ((n - 1) % 26)) + s;
+  return s;
+};
+
+/** The marker of item `n` (1-based) of a numbered list at `level`: 1. a. i. */
+export const listLabel = (level: number, n: number) => `${level === 1 ? alpha(n) : level === 2 ? roman(n) : n}.`;

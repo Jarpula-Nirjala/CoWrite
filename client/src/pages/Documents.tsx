@@ -7,7 +7,9 @@ import { Dropdown, Icon, Modal, Spinner } from '../components/ui.tsx';
 import { generateKey } from '../lib/e2e.ts';
 import { readImport } from '../lib/exporters.ts';
 import { listOffline, type OfflineDoc } from '../lib/offline.ts';
-import { TEMPLATES, pendingContent, type InitialContent } from '../lib/templates.ts';
+import { TemplateGallery } from '../components/TemplateGallery.tsx';
+import { BLANKS, GALLERY, type Category } from '../lib/gallery.ts';
+import { pendingContent, type InitialContent } from '../lib/templates.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { htmlToTokens } from '../rich/importHtml.ts';
 import { Link, navigate } from '../router.ts';
@@ -19,6 +21,15 @@ interface Library {
   tags: { tag: string; count: number }[];
   counts: { all: number; starred: number; trash: number; shared: number };
 }
+
+const NEW_KINDS: { kind: DocKind; label: string; icon: string }[] = [
+  { kind: 'slides', label: 'presentation', icon: '📊' },
+  { kind: 'board', label: 'whiteboard', icon: '🧩' },
+  { kind: 'kanban', label: 'kanban board', icon: '🗂️' },
+  { kind: 'sheet', label: 'spreadsheet', icon: '📈' },
+];
+
+const KIND_NAME: Record<DocKind, string> = { doc: 'Document', slides: 'Presentation', board: 'Whiteboard', kanban: 'Kanban board', sheet: 'Spreadsheet' };
 
 const VIEW_LABEL: Record<View, string> = { all: 'All documents', recent: 'Recent', starred: 'Starred', shared: 'Shared with me', trash: 'Trash' };
 
@@ -32,7 +43,7 @@ export function Documents() {
   const [lib, setLib] = useState<Library | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState<false | Category | 'All'>(false);
   const [tagEdit, setTagEdit] = useState<DocMeta | null>(null);
   const [offlineDocs, setOfflineDocs] = useState<OfflineDoc[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -254,15 +265,30 @@ export function Documents() {
                   <button className="btn btn-primary btn-lg" onClick={() => void create({})} disabled={busy || !user} type="button">
                     {busy ? 'Creating…' : '+ New document'}
                   </button>
-                  <Dropdown className="btn btn-outline btn-lg" label="More ▾">
+                  <Dropdown className="btn btn-outline btn-lg" label="New ▾">
                     {(close) => (
                       <>
+                        {NEW_KINDS.map((k) => (
+                          <button
+                            key={k.kind}
+                            role="menuitem"
+                            type="button"
+                            onClick={() => {
+                              close();
+                              const blank = GALLERY.find((g) => g.id === BLANKS[k.kind])!;
+                              void createWith(blank.title, blank.build(), k.kind);
+                            }}
+                          >
+                            {k.icon} New {k.label}
+                          </button>
+                        ))}
+                        <hr className="menu-sep" />
                         <button
                           role="menuitem"
                           type="button"
                           onClick={() => {
                             close();
-                            setTemplatesOpen(true);
+                            setTemplatesOpen('All');
                           }}
                         >
                           From a template…
@@ -339,7 +365,7 @@ export function Documents() {
                     <button className="btn btn-primary" onClick={() => void create({})} disabled={busy} type="button">
                       Create a document
                     </button>
-                    <button className="btn btn-outline" onClick={() => setTemplatesOpen(true)} type="button">
+                    <button className="btn btn-outline" onClick={() => setTemplatesOpen('All')} type="button">
                       Browse templates
                     </button>
                   </div>
@@ -359,6 +385,7 @@ export function Documents() {
                         <span className="doc-link">{d.title}</span>
                       ) : (
                         <Link className="doc-link" to={`/d/${d.id}`}>
+                          {d.kind && d.kind !== 'doc' && <span className="kind-icon" title={KIND_NAME[d.kind]}>{NEW_KINDS.find((k) => k.kind === d.kind)?.icon}</span>}
                           {d.title}
                         </Link>
                       )}
@@ -464,29 +491,15 @@ export function Documents() {
       </div>
 
       {templatesOpen && (
-        <Modal title="Start from a template" onClose={() => setTemplatesOpen(false)} wide>
-          <div className="template-grid">
-            {TEMPLATES.map((make) => {
-              const t = make();
-              return (
-                <button
-                  key={t.id}
-                  className="template-card"
-                  disabled={busy}
-                  onClick={() => {
-                    setTemplatesOpen(false);
-                    void create({ title: t.title, content: t.content });
-                  }}
-                  type="button"
-                >
-                  <span className="template-preview">{t.content.slice(0, 160) || ' '}</span>
-                  <strong>{t.name}</strong>
-                  <span className="muted small">{t.description}</span>
-                </button>
-              );
-            })}
-          </div>
-        </Modal>
+        <TemplateGallery
+          busy={busy}
+          initial={templatesOpen === 'All' ? undefined : templatesOpen}
+          onClose={() => setTemplatesOpen(false)}
+          onPick={(item) => {
+            setTemplatesOpen(false);
+            void createWith(item.title, item.build(), item.kind);
+          }}
+        />
       )}
 
       {tagEdit && <TagEditor doc={tagEdit} onClose={() => setTagEdit(null)} onSave={(tags) => void patch(tagEdit, { tags }).then(() => setTagEdit(null))} />}
