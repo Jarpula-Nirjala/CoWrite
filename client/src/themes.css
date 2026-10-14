@@ -1,0 +1,188 @@
+/* Reading themes: dark, sepia and a dyslexia-friendly font (data attributes on <html>). */
+
+:root[data-theme='dark'] {
+  --bg: #14171c;
+  --bg-alt: #1b1f26;
+  --surface: #1f242c;
+  --text: #e7e9ee;
+  --text-2: #c3c8d2;
+  --muted: #98a0ad;
+  --border: #323946;
+  --border-strong: #46505f;
+  --accent: #8fb0ea;
+  --accent-hover: #a9c3f2;
+  --accent-soft: #25324a;
+  --gold: #d6b25e;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px rgb(0 0 0 / 0.35);
+  color-scheme: dark;
+}
+
+:root[data-theme='sepia'] {
+  --bg: #f4ecd8;
+  --bg-alt: #ede2c8;
+  --surface: #f8f1e0;
+  --text: #3b2f22;
+  --text-2: #5a4a37;
+  --muted: #7d6b55;
+  --border: #dccdab;
+  --border-strong: #c8b48b;
+  --accent: #7a4b1e;
+  --accent-hover: #5e3913;
+  --accent-soft: #eadcbc;
+  color-scheme: light;
+}
+
+/* Paper follows the theme unless a document chose a coloured paper. */
+:root[data-theme='dark'] .paper-white,
+:root[data-theme='dark'] .paper-sheet:not([class*='paper-']) {
+  --paper-bg: #1f242c;
+  --ink: #e7e9ee;
+}
+:root[data-theme='dark'] .paper-white .rich-doc {
+  color: #e7e9ee;
+}
+:root[data-theme='sepia'] .paper-white {
+  --paper-bg: #fbf4e3;
+  --ink: #3b2f22;
+}
+:root[data-theme='sepia'] .paper-white .rich-doc {
+  color: #3b2f22;
+}
+
+/* Surfaces that are not variables. */
+:root[data-theme='dark'] body,
+:root[data-theme='dark'] .page,
+:root[data-theme='dark'] .docpage,
+:root[data-theme='dark'] .kind-page {
+  background: var(--bg);
+  color: var(--text);
+}
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] textarea,
+:root[data-theme='dark'] select {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+:root[data-theme='dark'] .btn-primary {
+  background: #3b5f9e;
+  border-color: #3b5f9e;
+  color: #fff;
+}
+:root[data-theme='dark'] .rich-doc a {
+  color: #9cc0ff;
+}
+:root[data-theme='dark'] .rich-doc code,
+:root[data-theme='dark'] .rich-doc .blk-code {
+  background: #262c36;
+  color: #e7e9ee;
+}
+:root[data-theme='dark'] .rich-doc .blk-callout {
+  background: #23324a;
+  border-color: #3b5f9e;
+}
+:root[data-theme='dark'] .rich-doc .blk-callout[data-tone='warn'] {
+  background: #3b3220;
+  border-color: #7a6020;
+}
+:root[data-theme='dark'] .rich-doc .blk-callout[data-tone='success'] {
+  background: #1e3a2b;
+  border-color: #2f6b49;
+}
+:root[data-theme='dark'] .rich-doc h1,
+:root[data-theme='dark'] .rich-doc h2,
+:root[data-theme='dark'] .rich-doc h3 {
+  color: #f0f2f6;
+}
+:root[data-theme='dark'] .lines-ruled .rich-doc,
+:root[data-theme='dark'] .lines-college .rich-doc {
+  --rule: #33415a;
+}
+:root[data-theme='dark'] .board-wrap {
+  background: #171a20;
+}
+:root[data-theme='dark'] .kanban-cols {
+  background: linear-gradient(180deg, #161a20, #12151a);
+}
+:root[data-theme='dark'] .kanban-col {
+  background: #1b1f26;
+}
+:root[data-theme='dark'] .col-count {
+  background: #2a313c;
+}
+:root[data-theme='dark'] .slide-workspace {
+  background: #101318;
+}
+:root[data-theme='dark'] .sheet-grid th {
+  background: #232934;
+  color: #aab2bf;
+  border-color: #323946;
+}
+:root[data-theme='dark'] .sheet-grid td {
+  border-color: #2a313c;
+}
+:root[data-theme='dark'] .sheet-grid td.in-range {
+  background-color: #25324a !important;
+}
+:root[data-theme='dark'] .sheet-status,
+:root[data-theme='dark'] .sheet-charts {
+  background: #1b1f26;
+}
+:root[data-theme='dark'] .calendar-day.other {
+  background: #1a1e25;
+}
+:root[data-theme='dark'] .calendar-item.task {
+  background: #25324a;
+  color: #bcd0f5;
+}
+:root[data-theme='dark'] .toast {
+  background: #e7e9ee;
+  color: #14171c;
+}
+:root[data-theme='dark'] .site-header,
+:root[data-theme='dark'] .doc-header {
+  background: rgb(20 23 28 / 0.92);
+}
+:root[data-theme='dark'] img.brand-logo,
+:root[data-theme='dark'] .brand img {
+  filter: brightness(1.15);
+}
+
+/* Dyslexia-friendly reading: OpenDyslexic, more spacing, no justified text. */
+:root[data-dyslexic] body,
+:root[data-dyslexic] .rich-doc,
+:root[data-dyslexic] input,
+:root[data-dyslexic] textarea,
+:root[data-dyslexic] button {
+  font-family: 'OpenDyslexic', 'Comic Sans MS', sans-serif !important;
+}
+:root[data-dyslexic] .rich-doc {
+  letter-spacing: 0.03em;
+  word-spacing: 0.12em;
+  line-height: 1.9;
+  text-align: left !important;
+}
+
+.theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.theme-toggle:hover {
+  border-color: var(--border);
+  background: var(--bg-alt);
+}
+:root[data-theme='sepia'] .site-header,
+:root[data-theme='sepia'] .doc-header {
+  background: rgb(244 236 216 / 0.95);
+}
+:root[data-theme='sepia'] .board-wrap,
+:root[data-theme='sepia'] .slide-workspace {
+  background: #efe5cc;
+}

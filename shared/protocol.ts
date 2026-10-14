@@ -16,6 +16,8 @@ export interface PresenceExt {
   /** Slide id, sheet cell, board item… whatever the editor is focused on. */
   focus?: string | null;
   inCall?: boolean;
+  /** Ready for direct (WebRTC) sync. */
+  p2p?: boolean;
 }
 
 export interface PeerInfo {

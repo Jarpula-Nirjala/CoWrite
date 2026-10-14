@@ -15,6 +15,24 @@ export interface User {
   google_id: string | null;
   github_id: string | null;
   created_at: number;
+  brand?: Brand | null;
+  prefs?: Prefs | null;
+}
+
+/** Brand kit: applied to documents and decks in one click. */
+export interface Brand {
+  name: string;
+  logo: string | null;
+  accent: string;
+  font: string;
+  deckTheme: string;
+}
+
+/** Personal settings that follow the account across devices. */
+export interface Prefs {
+  theme: 'light' | 'dark' | 'sepia';
+  dyslexic: boolean;
+  dailyGoal: number;
 }
 
 export interface PublicUser {
@@ -28,6 +46,8 @@ export interface PublicUser {
   google: boolean;
   github: boolean;
   createdAt: number;
+  brand: Brand | null;
+  prefs: Prefs | null;
 }
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -55,6 +75,8 @@ export const toPublic = (u: User): PublicUser => ({
   google: u.google_id !== null,
   github: u.github_id !== null,
   createdAt: u.created_at,
+  brand: u.brand ?? null,
+  prefs: u.prefs ?? null,
 });
 
 async function hashPassword(password: string): Promise<string> {

@@ -37,6 +37,7 @@ export function RichToolbar({
   onUndo,
   onRedo,
   extra,
+  people = [],
 }: {
   state: EditorState | null;
   handle: RichHandle | null;
@@ -44,6 +45,8 @@ export function RichToolbar({
   onUndo(): void;
   onRedo(): void;
   extra?: React.ReactNode;
+  /** People who can be assigned tasks. */
+  people?: { id: string; name: string }[];
 }) {
   const [linkOpen, setLinkOpen] = useState(false);
   const [href, setHref] = useState('');
@@ -224,6 +227,40 @@ export function RichToolbar({
           )}
         </Dropdown>
       </div>
+      {para?.attrs.block === 'task' && !disabled && (
+        <div className="tool-group task-tools" aria-label="Task details">
+          <label className="task-field" title="Assign this task">
+            <Icon name="users" size={14} />
+            <select
+              value={(para.attrs.assignee as { id: string } | null)?.id ?? ''}
+              onChange={(e) => {
+                const p = people.find((x) => x.id === e.target.value);
+                run(setParaAttrs({ assignee: p ? { id: p.id, name: p.name } : null }));
+                handle.focus();
+              }}
+              aria-label="Assignee"
+            >
+              <option value="">Assign…</option>
+              {people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="task-field" title="Due date">
+            <Icon name="calendar" size={14} />
+            <input
+              type="date"
+              value={(para.attrs.due as string | null) ?? ''}
+              onChange={(e) => {
+                run(setParaAttrs({ due: e.target.value || null }));
+              }}
+              aria-label="Due date"
+            />
+          </label>
+        </div>
+      )}
       {extra}
     </div>
   );

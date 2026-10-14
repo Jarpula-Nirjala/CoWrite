@@ -151,7 +151,7 @@
   height: 1.05em;
   border: 1.6px solid var(--accent);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
 }
 .rich-doc .blk-task[data-checked='true']::before {
@@ -359,7 +359,7 @@
   list-style: none;
   margin: 0;
   padding: 6px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.16);
@@ -416,7 +416,7 @@
   gap: 2px;
   padding: 3px;
   max-width: 100%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   box-shadow: var(--shadow);
@@ -464,7 +464,7 @@
   box-shadow: 0 0 0 2px var(--accent);
 }
 .swatch.none {
-  background: #fff;
+  background: var(--surface);
   color: var(--muted);
   font-size: 0.7rem;
   line-height: 1;
@@ -565,7 +565,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   text-decoration: none !important;
 }
@@ -610,7 +610,7 @@
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   text-decoration: none !important;
 }
@@ -640,7 +640,7 @@
 .draw-surface {
   display: block;
   width: 100%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   touch-action: none;
@@ -853,7 +853,7 @@ textarea.mono {
   padding: 10px 4px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   font-size: 0.78rem;
   cursor: pointer;
 }
@@ -893,7 +893,7 @@ textarea.mono {
   border: 1px solid var(--border);
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   text-align: left;
 }
@@ -931,7 +931,7 @@ textarea.mono {
   padding: 0 0.3rem;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
   font-family: var(--font);
   font-size: 0.9rem;
   color: var(--text-2);
@@ -1246,7 +1246,7 @@ textarea.mono {
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface);
   font-family: var(--font);
   font-size: 0.9rem;
   cursor: pointer;
@@ -1282,7 +1282,7 @@ textarea.mono {
 
 @media print {
   body {
-    background: #fff;
+    background: var(--surface);
   }
   .doc-header,
   .doc-toolbar,
@@ -1300,7 +1300,7 @@ textarea.mono {
   }
   .docpage,
   .doc-main {
-    background: #fff;
+    background: var(--surface);
     padding: 0 !important;
   }
   .doc-main .paper-sheet {

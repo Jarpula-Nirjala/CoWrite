@@ -582,6 +582,15 @@ export default function SlidesEditor(p: KindProps) {
                   <span>Footer text</span>
                   <input defaultValue={deck.footer} maxLength={80} onBlur={(e) => api.set('settings', { footer: e.target.value })} placeholder="e.g. Company · Confidential" />
                 </label>
+                {p.brand && (p.brand.logo || p.brand.deckTheme) && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => api.set('settings', { theme: p.brand!.deckTheme || deck.theme, logo: p.brand!.logo ?? deck.logo, footer: deck.footer || p.brand!.name })}
+                    type="button"
+                  >
+                    Apply my brand kit
+                  </button>
+                )}
                 <label className="check-row">
                   <input type="checkbox" checked={deck.numbers} onChange={(e) => api.set('settings', { numbers: e.target.checked })} /> Slide numbers
                 </label>

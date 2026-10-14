@@ -313,3 +313,18 @@ describe('rich text and objects', () => {
     });
   }
 });
+
+it('compare marks characters added and removed between two moments', () => {
+  const d = new Doc('a');
+  d.insert(0, 'hello world');
+  const before = { ...d.vector };
+  d.delete(0, 6);
+  d.insert(5, '!');
+  const after = { ...d.vector };
+  const diff = d.compare(before, after);
+  const text = (state: string) => diff.filter((x) => x.state === state).map((x) => x.token.ch).join('');
+  assert.equal(text('removed'), 'hello ');
+  assert.equal(text('added'), '!');
+  assert.equal(text('same'), 'world');
+  assert.equal(d.rawItems().length, 12);
+});

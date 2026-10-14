@@ -70,7 +70,27 @@ export function meRoutes(ctx: AppCtx) {
       const day = dayKey(Date.now() - i * DAY);
       days.push({ day, edits: byDay.get(day) ?? 0, mine: mineByDay.get(day) ?? 0 });
     }
-    res.json({ days, collaborators, topDocs, totals: totals[0] });
+    // Writing streak: consecutive days (ending today or yesterday) with something typed.
+    const year = await db.query<{ day: string; chars: number }>(
+      'select day, sum(inserts)::int as chars from activity where user_id = $1 and day >= $2 group by day',
+      [user.id, dayKey(Date.now() - 370 * DAY)],
+    );
+    const chars = new Map(year.map((d) => [d.day, d.chars]));
+    const wrote = (i: number) => (chars.get(dayKey(Date.now() - i * DAY)) ?? 0) > 0;
+    let streak = 0;
+    for (let i = wrote(0) ? 0 : 1; i < 370 && wrote(i); i++) streak++;
+    let longest = 0;
+    let run = 0;
+    for (let i = 369; i >= 0; i--) {
+      run = wrote(i) ? run + 1 : 0;
+      longest = Math.max(longest, run);
+    }
+    const calendar: { day: string; chars: number }[] = [];
+    for (let i = 181; i >= 0; i--) {
+      const day = dayKey(Date.now() - i * DAY);
+      calendar.push({ day, chars: chars.get(day) ?? 0 });
+    }
+    res.json({ days, collaborators, topDocs, totals: totals[0], writing: { today: chars.get(dayKey(Date.now())) ?? 0, streak, longest, calendar } });
   });
 
   // ----------------------------------------------------- public profile
@@ -104,11 +124,15 @@ export function meRoutes(ctx: AppCtx) {
       [String(req.params.id)],
     );
     if (!d) throw new HttpError(404, 'This page is not published.');
-    // A loaded room may have newer text than the last save.
-    const room = ctx.rooms.loaded(String(req.params.id));
+    // The live room has the newest content, with formatting and images.
+    const room = await ctx.rooms.open(String(req.params.id));
+    const ok = room && !room.encrypted;
     res.json({
       title: d.title,
-      text: room && !room.encrypted ? room.doc.text() : d.content_text,
+      text: ok ? room.doc.text() : d.content_text,
+      tokens: ok ? room.doc.tokens() : null,
+      settings: ok ? room.doc.getObject('settings') : null,
+      readMinutes: Math.max(1, Math.round((ok ? room.doc.text() : d.content_text).split(/\s+/).length / 220)),
       updatedAt: d.updated_at,
       author: { name: d.name, username: d.username, avatar: d.avatar },
     });

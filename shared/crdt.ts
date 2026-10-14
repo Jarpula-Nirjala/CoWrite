@@ -624,6 +624,28 @@ export class Doc {
     return out;
   }
 
+  /**
+   * The document as it changed between two moments: every character visible at
+   * `a` or at `b`, in order, marked as kept, added (only at b) or removed (only at a).
+   */
+  compare(a: Vector, b: Vector): { token: Token; state: 'same' | 'added' | 'removed' }[] {
+    const has = (v: Vector, id: Id) => (v[id[0]] ?? 0) >= id[1];
+    const shown = (v: Vector, it: Item) => has(v, it.id) && !(it.del && has(v, it.del));
+    const out: { token: Token; state: 'same' | 'added' | 'removed' }[] = [];
+    for (const it of this.items) {
+      const inA = shown(a, it);
+      const inB = shown(b, it);
+      if (!inA && !inB) continue;
+      out.push({ token: { id: it.id, ch: it.ch, attrs: effective(it.attrs) }, state: inA && inB ? 'same' : inB ? 'added' : 'removed' });
+    }
+    return out;
+  }
+
+  /** Every item including deleted ones, in document order (for paragraph history and heatmaps). */
+  rawItems(): { id: Id; ch: string; del: Id | null; formats: Id[] }[] {
+    return this.items.map((it) => ({ id: it.id, ch: it.ch, del: it.del, formats: it.attrs ? [...it.attrs.values()].map((r) => r.id).filter((x) => !sameId(x, it.id)) : [] }));
+  }
+
   /** Inserts and deletes made by `site` after `vector` (for "undo their edits since…"). */
   editsBy(site: string, after: Vector): { inserted: Id[]; deleted: { id: Id; ch: string; attrs: Attrs }[] } {
     const since = after[site] ?? 0;

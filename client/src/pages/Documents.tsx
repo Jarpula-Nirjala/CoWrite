@@ -121,6 +121,20 @@ export function Documents() {
     }
   };
 
+  // A team template is copied (forked) into a new document of your own.
+  const pickTeamTemplate = async (t: { id: string; title: string }) => {
+    setTemplatesOpen(false);
+    setBusy(true);
+    try {
+      const r = await api<{ document: DocMeta }>(`/docs/${t.id}/fork`, { method: 'POST' });
+      await api(`/docs/${r.document.id}`, { method: 'PATCH', body: { title: t.title } });
+      navigate(`/d/${r.document.id}`);
+    } catch (e) {
+      setError(errorText(e, 'Could not use that template.'));
+      setBusy(false);
+    }
+  };
+
   const patch = async (d: DocMeta, body: Record<string, unknown>) => {
     try {
       await api(`/docs/${d.id}`, { method: 'PATCH', body });
@@ -499,6 +513,7 @@ export function Documents() {
             setTemplatesOpen(false);
             void createWith(item.title, item.build(), item.kind);
           }}
+          onPickTeam={user ? pickTeamTemplate : undefined}
         />
       )}
 

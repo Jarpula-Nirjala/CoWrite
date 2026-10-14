@@ -1,8 +1,9 @@
 import express from 'express';
+import { Doc } from '../shared/crdt.ts';
 import type { Role } from '../shared/protocol.ts';
 import { docAccess, type AppCtx } from './context.ts';
 import { DOC_KINDS, ROLES, cleanTags, cleanTitle, toMeta, type DocKind, type ListView } from './docs.ts';
-import { HttpError, requireUser, str } from './http.ts';
+import { HttpError, currentUser, requireUser, str } from './http.ts';
 
 const VIEWS: ListView[] = ['all', 'starred', 'shared', 'trash', 'recent'];
 const MAX_DOCS_PER_USER = 300;
@@ -107,6 +108,15 @@ export function docRoutes(ctx: AppCtx) {
       if (b.published === true && a.doc!.encrypted) throw new HttpError(400, 'Encrypted documents cannot be published, because the server cannot read them.');
       patch.published = b.published === true;
     }
+    if (b.workspaceId !== undefined) {
+      const wid = b.workspaceId === null ? null : str(b.workspaceId, 40);
+      if (wid) {
+        const [m] = await ctx.db.query<{ role: string }>('select role from workspace_members where workspace_id = $1 and user_id = $2', [wid, a.user!.id]);
+        if (!m || m.role === 'viewer') throw new HttpError(400, 'You cannot add documents to that workspace.');
+      }
+      patch.workspace_id = wid;
+    }
+    if (b.isTemplate !== undefined) patch.is_template = b.isTemplate === true;
     const doc = await docs.update(a.docId, patch);
     if (patch.title !== undefined) rooms.loaded(a.docId)?.notify('meta');
     res.json({ document: toMeta(doc) });
@@ -245,6 +255,57 @@ export function docRoutes(ctx: AppCtx) {
     if (a.role !== 'owner' && a.role !== 'editor') throw new HttpError(403, 'You need edit access to this fork.');
     const applied = fork.applyServerOps(original.doc.missingFor(fork.doc.vector), null);
     res.json({ applied: summary(applied) });
+  });
+
+  /** Side-by-side comparison of a fork and its original (they share character ids). */
+  r.get('/docs/:id/fork-compare', async (req, res) => {
+    const { parent, fork, original } = await forkPair(req, res);
+    if (fork.encrypted) throw new HttpError(400, 'Encrypted forks are compared in the browser only.');
+    // The original may have changed since the fork: only show it to people who can open it.
+    const { role: parentRole } = await docs.roleFor(parent.id, currentUser(res), null);
+    if (!parentRole) throw new HttpError(403, 'You do not have access to the original document.');
+    const merged = Doc.fromSnapshot('cmp', original.doc.snapshot());
+    merged.apply(fork.doc.missingFor(original.doc.vector));
+    const inParent = new Set(original.doc.tokens().map((t) => `${t.id[0]}:${t.id[1]}`));
+    const inFork = new Set(fork.doc.tokens().map((t) => `${t.id[0]}:${t.id[1]}`));
+    const items = merged
+      .rawItems()
+      .map((it) => ({ key: `${it.id[0]}:${it.id[1]}`, it }))
+      .filter(({ key }) => inParent.has(key) || inFork.has(key))
+      .map(({ key, it }) => ({ ch: it.ch, attrs: merged.attrsOf(it.id) ?? {}, p: inParent.has(key), f: inFork.has(key) }));
+    res.json({ parentTitle: parent.title, items });
+  });
+
+  /** The whole family tree of forks this document belongs to. */
+  r.get('/docs/:id/tree', async (req, res) => {
+    const a = await docAccess(ctx, req, res, 'viewer', { registered: true });
+    const user = currentUser(res);
+    // Walk up to the root, then collect every descendant.
+    let root = a.doc!;
+    for (let i = 0; i < 20 && root.parent_id; i++) {
+      const p = await docs.get(root.parent_id);
+      if (!p) break;
+      root = p;
+    }
+    const rows = await ctx.db.query<{ id: string; title: string; parent_id: string | null; owner_id: string; name: string; updated_at: number; deleted_at: number | null; published: boolean }>(
+      `with recursive fam as (select id from documents where id = $1 union select d.id from documents d join fam on d.parent_id = fam.id)
+       select d.id, d.title, d.parent_id, d.owner_id, u.name, d.updated_at, d.deleted_at, d.published from documents d join fam on fam.id = d.id join users u on u.id = d.owner_id limit 300`,
+      [root.id],
+    );
+    const visible = new Set<string>();
+    if (user) {
+      const mine = await ctx.db.query<{ doc_id: string }>('select doc_id from doc_members where user_id = $1 and doc_id = any($2)', [user.id, rows.map((r) => r.id)]);
+      for (const m of mine) visible.add(m.doc_id);
+    }
+    res.json({
+      current: a.docId,
+      nodes: rows
+        .filter((r) => !r.deleted_at)
+        .map((r) => {
+          const canSee = r.id === a.docId || r.published || (user && (r.owner_id === user.id || visible.has(r.id)));
+          return { id: r.id, parentId: r.parent_id, title: canSee ? r.title : 'Private fork', ownerName: r.name, updatedAt: r.updated_at, canOpen: !!canSee };
+        }),
+    });
   });
 
   r.get('/docs/:id/forks', async (req, res) => {

@@ -122,3 +122,24 @@ export function textColor(el: El, theme: SlideTheme, titleSlide: boolean): strin
 export function fontOf(el: El, theme: SlideTheme): string {
   return el.font ?? (el.role === 'title' || el.role === 'number' ? theme.titleFont : theme.bodyFont);
 }
+
+/** Objects for a deck from an outline (used by the AI slide generator). */
+export function deckFromOutline(outline: { title: string; subtitle: string; slides: { layout: string; title: string; bullets: string[]; notes: string }[] }, theme = 'navy') {
+  const objects: { key: string; fields: Record<string, unknown> }[] = [];
+  const specs = [{ layout: 'title' as LayoutId, title: outline.title, subtitle: outline.subtitle, bullets: [] as string[], notes: '' }, ...outline.slides.map((s) => ({ ...s, layout: (['title-content', 'two-column', 'quote', 'section'].includes(s.layout) ? s.layout : 'title-content') as LayoutId, subtitle: s.bullets[0] ?? '' }))];
+  let prev: string | null = null;
+  for (const s of specs) {
+    const id = uid();
+    prev = keyBetween(prev, null);
+    objects.push({ key: `slide:${id}`, fields: { order: prev, layout: s.layout, notes: s.notes } });
+    const half = Math.ceil(s.bullets.length / 2);
+    const content =
+      s.layout === 'two-column'
+        ? { title: s.title, bullets: s.bullets.slice(0, half), right: s.bullets.slice(half) }
+        : s.layout === 'quote'
+          ? { title: s.bullets[0] ? `“${s.bullets[0]}”` : s.title, subtitle: s.bullets[0] ? s.title : '' }
+          : { title: s.title, subtitle: s.subtitle, bullets: s.bullets };
+    for (const el of layoutElements(s.layout, id, content)) objects.push({ key: `el:${uid()}`, fields: el as Record<string, unknown> });
+  }
+  return { tokens: [], objects, settings: { theme, footer: '', numbers: true, logo: null } as Record<string, unknown> };
+}

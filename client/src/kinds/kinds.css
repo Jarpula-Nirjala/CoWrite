@@ -422,7 +422,7 @@
   margin: -5px;
   border: 1.5px solid #2c6bd6;
   border-radius: 2px;
-  background: #fff;
+  background: var(--surface);
   z-index: 2;
 }
 .h-nw { left: 0; top: 0; cursor: nwse-resize; }
@@ -850,7 +850,7 @@
 }
 input.col-title:focus {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--surface);
   outline: none;
 }
 .col-count {
@@ -899,7 +899,7 @@ input.col-title:focus {
   margin-bottom: 8px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 1px rgb(9 30 66 / 0.18);
   cursor: pointer;
   overflow: hidden;
@@ -1080,7 +1080,7 @@ input.col-title:focus {
   padding: 3px 10px;
   border: 2px solid var(--c);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   font: inherit;
   font-size: 0.85rem;
@@ -1288,7 +1288,7 @@ input.col-title:focus {
   position: sticky;
   top: 25px;
   z-index: 1;
-  background-color: #fff;
+  background-color: var(--surface);
   border-bottom: 2px solid #c3c8d0;
 }
 .sheet-grid.freeze tbody tr.first-row th {
@@ -1330,7 +1330,7 @@ input.col-title:focus {
   padding: 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   font-family: 'Segoe UI', Arial, sans-serif;
 }
 .chart-card header {
@@ -1421,7 +1421,7 @@ input.col-title:focus {
   padding: 5px 12px;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   font: inherit;
   font-size: 0.95rem;
   cursor: pointer;
@@ -1453,7 +1453,7 @@ input.col-title:focus {
   padding: 0 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -1562,7 +1562,7 @@ input.col-title:focus {
 .tpl-col i {
   height: 16px;
   border-radius: 3px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 1px 1px rgb(0 0 0 / 0.15);
 }
 .tpl-col i.ghost {
@@ -1574,7 +1574,7 @@ input.col-title:focus {
   position: absolute;
   inset: 0;
   padding: 8px;
-  background: #fff;
+  background: var(--surface);
 }
 .tpl-sheet table {
   width: 100%;

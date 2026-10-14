@@ -21,6 +21,8 @@ async function toAvatar(file: File): Promise<string> {
 
 type Msg = { ok: boolean; text: string } | null;
 
+import { AppearanceSection, BrandKitSection } from './AccountExtras.tsx';
+
 export function Account() {
   const { user, ready, setUser, signOut, providers } = useAuth();
   const [name, setName] = useState('');
@@ -139,6 +141,9 @@ export function Account() {
             Save profile
           </button>
         </form>
+
+        <AppearanceSection signedIn />
+        <BrandKitSection user={user} onSaved={(brand) => setUser({ ...user, brand })} />
 
         <form className="panel" onSubmit={changePassword}>
           <h2>{user.hasPassword ? 'Change password' : 'Set a password'}</h2>

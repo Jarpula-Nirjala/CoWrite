@@ -646,7 +646,7 @@ textarea {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   transition: transform 0.15s;
 }
 .switch input:checked {
@@ -1018,7 +1018,7 @@ textarea {
 .auth-side .brand {
   align-self: flex-start;
   padding: 10px 16px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 6px;
 }
 .auth-side blockquote {
@@ -1072,7 +1072,7 @@ textarea {
   padding: 0 0.85rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   font-size: 1.05rem;
 }
@@ -1321,7 +1321,7 @@ textarea {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.6rem 24px;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .doc-header-left {
@@ -1441,11 +1441,11 @@ textarea {
 .name-field input:hover,
 .name-field input:focus {
   border-color: var(--border-strong);
-  background: #fff;
+  background: var(--surface);
   outline: none;
 }
 .paper {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   min-height: 75vh;
@@ -1496,7 +1496,7 @@ textarea {
     flex-direction: column;
     gap: 0;
     padding: 0.5rem 24px 1rem;
-    background: #fff;
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow);
   }

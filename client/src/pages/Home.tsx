@@ -8,50 +8,83 @@ import { Link, navigate } from '../router.ts';
 
 const FEATURE_GROUPS = [
   {
-    title: 'Built on the merge engine',
+    title: 'Documents that look designed',
     items: [
-      ['Real-time collaboration', 'Everyone edits at once; changes reach every collaborator within milliseconds.'],
-      ['Time-travel replay', 'Scrub a slider to watch any document being written, keystroke by keystroke.'],
-      ['Who wrote what', 'Colour the text by author and see each person’s share of the document.'],
-      ['Branch & merge', 'Fork a document, rewrite freely, then merge it back. No merge conflicts, ever.'],
-      ['End-to-end encryption', 'Optional per document: the server stores and merges ciphertext it cannot read.'],
-      ['Works offline', 'Installable app; documents open and stay editable offline and sync on reconnect.'],
+      ['True rich-text editor', 'Real bold, fonts, sizes, colours, alignment, lists, tables and checklists, with no Markdown symbols in sight.'],
+      ['Notebook & diary paper', 'Ruled, college, dotted or grid pages with a margin line, a dated header and handwriting fonts.'],
+      ['50 designed templates', 'Diary, resume, proposal, invoice, research paper, pitch deck, retrospective, budget and many more, with live previews.'],
+      ['Page setup & print', 'A4 or Letter, margins, headers, footers, page numbers, page breaks and themed paper.'],
+      ['Images, crop & stock photos', 'Paste, drop, resize, crop and caption images, or insert free photos without leaving the page.'],
+      ['Embeds & link cards', 'YouTube, Maps, Figma, Gists, Spotify and tweets, plus preview cards for any link.'],
+      ['Maths, diagrams & code', 'LaTeX equations, Mermaid flowcharts and code blocks highlighted in 30+ languages.'],
+      ['Voice notes, sketches & files', 'Record audio, draw inline sketches and attach PDFs or any file as a card.'],
+      ['Slash commands & emoji', 'Type “/” to insert anything, “:” for emoji, “@” to mention, with an icon library.'],
+      ['Brand kit', 'Your logo, colours and font saved once, applied to any document or deck in one click.'],
     ],
   },
   {
-    title: 'Collaboration',
+    title: 'Slides, whiteboards, boards and sheets',
     items: [
-      ['Live cursors & presence', 'Named cursors and selections, typing, idle and away status, and follow mode.'],
-      ['Comments & threads', 'Comment on any passage; comments stay attached to it as the text changes.'],
-      ['Suggestion mode', 'Propose edits as tracked changes for the owner to accept or reject.'],
-      ['Document chat', 'A chat beside every document, with @mentions and notifications.'],
-      ['Share permissions', 'Invite links for viewers, commenters or editors, with expiry and revoke.'],
-      ['AI co-writer', 'Claude joins as a collaborator and types its suggestions in live. Keep or undo.'],
+      ['Presentation editor', 'Layouts, drag-and-drop text, shapes and images, speaker notes and a full-screen presenter.'],
+      ['12 slide themes', 'Gradients, decorations, logos and footers; export to editable PowerPoint or PDF.'],
+      ['Infinite whiteboard', 'Pen, highlighter, sticky notes, shapes, connectors and frames, with live cursors.'],
+      ['Kanban boards', 'Lists and cards with assignees, due dates, labels, checklists and work-in-progress limits.'],
+      ['Spreadsheets', 'Formulas (SUM, AVERAGE, IF, COUNTIF and more), formatting, sorting, charts and CSV.'],
     ],
   },
   {
-    title: 'Writing tools',
+    title: 'Only possible with a CRDT',
     items: [
-      ['Rich text in Markdown', 'Headings, lists, tables, code and links from a toolbar or shortcuts.'],
-      ['Live preview & outline', 'Split view with a rendered preview and a clickable table of contents.'],
-      ['Writing statistics', 'Word goals, reading time, readability score and words per session.'],
-      ['Focus & typewriter modes', 'Hide everything but the page; keep the line you are writing centred.'],
-      ['Voice typing & templates', 'Dictate with your microphone, or start from resumes, reports and more.'],
-      ['Command palette', 'Press Ctrl+K to search and run any action from the keyboard.'],
+      ['Compare any two moments', 'Pick 2 PM yesterday and now: additions in green, deletions in red, like Git.'],
+      ['Paragraph history', 'Every edit ever made to one paragraph, including text that was later deleted.'],
+      ['Undo one person’s edits', 'Roll back what someone changed since a time, without touching anyone else’s work.'],
+      ['Time-lapse replay & video', 'Watch the document being written, or export the replay as a video.'],
+      ['Branch explorer', 'Fork, see the family tree, compare side by side and merge back with no conflicts.'],
+      ['Private drafts', 'Write a section only you can see, then reveal it to everyone in one go.'],
+      ['Locked sections', 'Freeze paragraphs so only you and the owner can change them, enforced by the server.'],
+      ['Peer-to-peer sync', 'Browsers sync directly over WebRTC, so editing continues even if the server goes down.'],
+      ['Conflict heatmap', 'See where several people edited the same paragraph at the same moment.'],
+      ['Solo playback', 'Replay one person’s typing on its own, with everyone else greyed out.'],
+      ['End-to-end encryption & offline', 'The server merges ciphertext it cannot read; documents work offline and sync later.'],
     ],
   },
   {
-    title: 'Organisation & platform',
+    title: 'AI built in (Claude)',
     items: [
-      ['Folders, tags & stars', 'Organise documents, with a trash that keeps deletions for 30 days.'],
-      ['Full-text search', 'Search the contents of every document, with highlighted snippets.'],
-      ['Named versions', 'Save versions, preview them, and restore any of them in one click.'],
-      ['Export & import', 'Download PDF, Word, Markdown or text; import .md and .txt files.'],
-      ['Activity dashboard', 'Charts of your edits, top collaborators and most active documents.'],
-      ['Accounts & profiles', 'Email, Google or GitHub sign-in, password reset, avatars and public profiles.'],
+      ['Live AI co-writer', 'Claude joins as a collaborator with its own cursor; keep or undo its writing in one click.'],
+      ['Document → slides', 'Turn any document into a themed presentation with speaker notes.'],
+      ['Photos to text', 'Describe images, or turn a whiteboard or notebook photo into tidy notes.'],
+      ['Live translation', 'A linked copy in another language that re-translates itself as the original changes.'],
+      ['Meeting mode', 'Dictate a meeting; get the summary, decisions and action items written in.'],
+      ['AI reviewer & tone switcher', 'Editor-style comments on your draft, and one-click formal, casual or simpler rewrites.'],
+      ['Ask your documents', 'Ask questions across everything you have written, with links to the sources.'],
+    ],
+  },
+  {
+    title: 'Collaboration and teams',
+    items: [
+      ['Live cursors & follow mode', 'Named cursors, selections, typing and away status; follow anyone around the page.'],
+      ['Voice & video calls', 'Call everyone in the document right beside the page you are editing.'],
+      ['Comments, suggestions & reactions', 'Threads anchored to text, tracked-change suggestions and emoji reactions.'],
+      ['Approval workflow & e-signature', 'Draft, review, approved, with sign-off notes and a drawn signature block.'],
+      ['Tasks, calendar & reminders', 'Assign checklist items with due dates; see them on a calendar with reminders.'],
+      ['Workspaces & team templates', 'Shared spaces for teams, with templates everyone can start from.'],
+      ['Sharing & public pages', 'Invite links with roles and expiry, or publish as a blog post with comments.'],
+    ],
+  },
+  {
+    title: 'Personal and accessible',
+    items: [
+      ['Dark, sepia & dyslexia modes', 'Reading themes and the OpenDyslexic font, saved to your account.'],
+      ['Read aloud & reading mode', 'Text-to-speech that highlights each word, and a distraction-free reader.'],
+      ['Streaks & goals', 'A daily word goal, writing streaks and a six-month writing calendar.'],
+      ['Focus, voice typing & palette', 'Focus and typewriter modes, dictation and a Ctrl+K command palette.'],
+      ['Search, folders & export', 'Full-text search, folders, tags, versions, and export to PDF, Word or Markdown.'],
     ],
   },
 ];
+
+const FEATURE_COUNT = FEATURE_GROUPS.reduce((n, g) => n + g.items.length, 0);
 
 const STEPS = [
   {
@@ -163,8 +196,8 @@ export function Home() {
           <div className="container">
             <header className="section-head">
               <p className="kicker">Features</p>
-              <h2>Twenty-four reasons to write here</h2>
-              <p className="muted">From the first keystroke to the final draft, CoWrite keeps everyone on the same page.</p>
+              <h2>{FEATURE_COUNT} features, one editor</h2>
+              <p className="muted">Documents, slides, whiteboards, boards and spreadsheets on one merge engine built from scratch, with AI where it helps.</p>
             </header>
             {FEATURE_GROUPS.map((g) => (
               <div key={g.title} className="feature-group">

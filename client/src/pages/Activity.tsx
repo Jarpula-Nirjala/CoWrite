@@ -5,12 +5,14 @@ import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Spinner } from '../components/ui.tsx';
 import { Link, navigate } from '../router.ts';
+import { StreakPanel, type Writing } from './Streaks.tsx';
 
 interface ActivityData {
   days: { day: string; edits: number; mine: number }[];
   collaborators: { name: string; edits: number }[];
   topDocs: { id: string; title: string; edits: number }[];
   totals: { owned: number; shared: number; comments: number; written: number };
+  writing?: Writing;
 }
 
 // Validated categorical pair (lightness, chroma, CVD separation, contrast all pass).
@@ -140,6 +142,7 @@ export function Activity() {
           <Spinner />
         ) : (
           <>
+            {data.writing && <StreakPanel writing={data.writing} />}
             <dl className="tiles">
               <div className="tile">
                 <dt>Your edits (30 days)</dt>

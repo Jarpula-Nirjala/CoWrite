@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
+import { applyPrefs, localPrefs } from './lib/prefs.ts';
 import '@fontsource/caveat/400.css';
 import '@fontsource/caveat/700.css';
 import '@fontsource/opendyslexic/400.css';
@@ -8,7 +9,10 @@ import './styles.css';
 import './app.css';
 import './rich.css';
 import './kinds/kinds.css';
+import './features.css';
+import './themes.css';
 
+applyPrefs(localPrefs());
 createRoot(document.getElementById('root')!).render(<App />);
 
 // Installable app + offline shell (production builds only).

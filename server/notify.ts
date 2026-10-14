@@ -1,7 +1,7 @@
 import type { Db } from './db.ts';
 import { newId } from './docs.ts';
 
-export type NotificationKind = 'mention' | 'comment' | 'reply' | 'suggestion' | 'joined' | 'merge' | 'shared';
+export type NotificationKind = 'mention' | 'comment' | 'reply' | 'suggestion' | 'joined' | 'merge' | 'shared' | 'review' | 'task' | 'reminder';
 
 export interface NotificationRow {
   id: string;

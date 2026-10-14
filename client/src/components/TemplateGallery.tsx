@@ -1,4 +1,5 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { api } from '../api.ts';
 import type { Token } from '../../../shared/crdt.ts';
 import type { Obj } from '../kinds/objects.ts';
 import { Sheet, display } from '../kinds/sheet/formula.ts';
@@ -14,24 +15,52 @@ const KIND_ICON: Record<string, string> = { doc: '📄', slides: '📊', board: 
 const same = (s: string) => Promise.resolve(s);
 
 /** The “New from template” dialog with live previews of every template. */
-export function TemplateGallery({ onPick, onClose, busy, initial }: { onPick(item: GalleryItem): void; onClose(): void; busy: boolean; initial?: Category }) {
-  const [cat, setCat] = useState<Category | 'All'>(initial ?? 'All');
+export function TemplateGallery({
+  onPick,
+  onPickTeam,
+  onClose,
+  busy,
+  initial,
+}: {
+  onPick(item: GalleryItem): void;
+  onPickTeam?(t: { id: string; title: string }): void;
+  onClose(): void;
+  busy: boolean;
+  initial?: Category;
+}) {
+  const [cat, setCat] = useState<Category | 'All' | 'Team'>(initial ?? 'All');
   const [q, setQ] = useState('');
-  const items = GALLERY.filter((g) => (cat === 'All' || g.category === cat) && (!q || `${g.name} ${g.description}`.toLowerCase().includes(q.toLowerCase())));
+  const [team, setTeam] = useState<{ id: string; title: string; kind: string; workspace: string }[]>([]);
+  useEffect(() => {
+    if (onPickTeam) api<{ templates: typeof team }>('/templates/team').then((r) => setTeam(r.templates), () => {});
+  }, [onPickTeam]);
+  const items = GALLERY.filter((g) => (cat === 'All' || cat === 'Team' || g.category === cat) && (!q || `${g.name} ${g.description}`.toLowerCase().includes(q.toLowerCase())));
   return (
     <Modal title="Start from a template" onClose={onClose} wide>
       <div className="gallery-head">
         <div className="gallery-tabs" role="tablist">
-          {(['All', ...CATEGORIES] as const).map((c) => (
+          {([...(team.length ? ['Team' as const] : []), 'All' as const, ...CATEGORIES]).map((c) => (
             <button key={c} role="tab" aria-selected={cat === c} className={`gallery-tab ${cat === c ? 'active' : ''}`} onClick={() => setCat(c)} type="button">
-              {c}
+              {c === 'Team' ? '👥 Team templates' : c}
             </button>
           ))}
         </div>
         <input className="gallery-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search templates" aria-label="Search templates" />
       </div>
       <div className="gallery-grid">
-        {items.map((g) => (
+        {cat === 'Team' &&
+          team
+            .filter((t) => !q || t.title.toLowerCase().includes(q.toLowerCase()))
+            .map((t) => (
+              <button key={t.id} className="gallery-card" disabled={busy} onClick={() => onPickTeam?.(t)} type="button">
+                <span className="gallery-preview team-preview">
+                  <span>{KIND_ICON[t.kind] ?? '📄'}</span>
+                </span>
+                <span className="gallery-name">{t.title}</span>
+                <span className="muted small">From the “{t.workspace}” workspace</span>
+              </button>
+            ))}
+        {cat !== 'Team' && items.map((g) => (
           <button key={g.id} className="gallery-card" disabled={busy} onClick={() => onPick(g)} type="button">
             <span className="gallery-preview">
               <Preview item={g} />
@@ -42,7 +71,7 @@ export function TemplateGallery({ onPick, onClose, busy, initial }: { onPick(ite
             <span className="muted small">{g.description}</span>
           </button>
         ))}
-        {!items.length && <p className="muted">No templates match “{q}”.</p>}
+        {cat !== 'Team' && !items.length && <p className="muted">No templates match “{q}”.</p>}
       </div>
     </Modal>
   );

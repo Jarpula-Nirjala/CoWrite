@@ -2,20 +2,25 @@ import type { EditorState } from 'prosemirror-state';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { Doc, Id, Op, Token } from '../../../shared/crdt.ts';
 import { canComment as roleCanComment, canEdit as roleCanEdit, type PresenceState, type Selection } from '../../../shared/protocol.ts';
-import { blocksOf, plainText } from '../../../shared/rich.ts';
+import { blocksOf, markdownToTokens, plainText } from '../../../shared/rich.ts';
 import { api, errorText, type DocDetails, type Suggestion } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { Brand } from '../components/Brand.tsx';
 import type { RemoteCursor } from '../components/CollabEditor.tsx';
-import { NotificationBell, UserMenu } from '../components/SiteHeader.tsx';
+import { NotificationBell, ThemeToggle, UserMenu } from '../components/SiteHeader.tsx';
 import { Avatar, Dropdown, Icon, Spinner } from '../components/ui.tsx';
-import { AiPanel, type AiAction } from '../editor/ai.tsx';
+import { AiPanel, type AiAction, type AiTool } from '../editor/ai.tsx';
+import { deckFromOutline } from '../kinds/slides/model.ts';
 import { HistoryPanel, type Viewing } from '../editor/history.tsx';
 import { ImageSearch } from '../editor/imageSearch.tsx';
 import { PagePanel } from '../editor/pagePanel.tsx';
 import { CommandPalette, type Command } from '../editor/palette.tsx';
 import { ChatPanel, CommentsPanel, NetworkPanel, OutlinePanel, StatsPanel, SuggestionsPanel } from '../editor/panels.tsx';
 import { ShareDialog } from '../editor/share.tsx';
+import { DraftPanel, ReviewPanel } from '../editor/review.tsx';
+import { blockKey, heatmap, useLocks, useReactions, useWorkflow, type Lock } from '../editor/team.ts';
+import { TimeMachinePanel } from '../editor/timemachine.tsx';
+import { CallButton, CallDock, P2PSection, useCall, usePeerMesh } from '../editor/call.tsx';
 import { useSpeech } from '../editor/speech.ts';
 import { UndoStack } from '../editor/undo.ts';
 import { loadChatHistory, useAuthors, useComments, usePeople, useSuggestions, useVersions } from '../editor/useCollab.ts';
@@ -23,17 +28,17 @@ import { useDocSession, type DocSession } from '../editor/useDocSession.ts';
 import { useFiles } from '../editor/useFiles.ts';
 import { KindPage } from '../kinds/KindPage.tsx';
 import { exportDocx, exportMarkdown, exportPdf, exportText } from '../lib/exporters.ts';
-import { pendingContent } from '../lib/templates.ts';
+import { pendingContent, type InitialContent } from '../lib/templates.ts';
 import { countWords } from '../lib/text.ts';
 import { setBlock } from '../rich/commands.ts';
 import { attrsKey, diffTokens, flatten, tokensToDoc, type FlatToken } from '../rich/convert.ts';
-import { RichEditor, type RangeDeco, type RichHandle } from '../rich/RichEditor.tsx';
+import { RichEditor, type RangeDeco, type RichHandle, type WidgetDeco } from '../rich/RichEditor.tsx';
 import { RichToolbar } from '../rich/RichToolbar.tsx';
 import { DEFAULT_SETTINGS, paperProps, printCss, readSettings, settingsOps, type DocSettings } from '../rich/settings.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
 
-type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'stats' | 'page' | 'ai' | 'network';
+type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'time' | 'review' | 'draft' | 'stats' | 'page' | 'ai' | 'network';
 
 const PANELS: { id: PanelId; label: string; icon: string }[] = [
   { id: 'outline', label: 'Outline', icon: 'list' },
@@ -41,6 +46,9 @@ const PANELS: { id: PanelId; label: string; icon: string }[] = [
   { id: 'suggestions', label: 'Suggest', icon: 'check' },
   { id: 'chat', label: 'Chat', icon: 'chat' },
   { id: 'history', label: 'History', icon: 'history' },
+  { id: 'time', label: 'Time', icon: 'clock' },
+  { id: 'review', label: 'Review', icon: 'shield' },
+  { id: 'draft', label: 'Draft', icon: 'pencil' },
   { id: 'page', label: 'Page', icon: 'file' },
   { id: 'stats', label: 'Stats', icon: 'chart' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
@@ -93,6 +101,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   const [range, setRange] = useState({ start: 0, end: 0 });
   const selRef = useRef<Selection>(null);
   const [activeComment, setActiveComment] = useState<string | null>(null);
+  const [aiTool2, setAiTool2] = useState<{ busy: string | null; message: string | null }>({ busy: null, message: null });
   const [ai, setAi] = useState<{ busy: boolean; error: string | null; result: { inserted: Id[]; deleted: Id[]; original: Token[] } | null }>({ busy: false, error: null, result: null });
   const [chatSeen, setChatSeen] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
@@ -127,6 +136,15 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   const versions = useVersions(roomId, share, s.notifyVersion.versions);
   const authors = useAuthors(roomId, share, s.notifyVersion.members + (client?.peers.size ?? 0));
   const people = usePeople(roomId, share);
+  const registered = !!meta && !meta.encrypted;
+  const [heat, setHeat] = useState(false);
+  const [reading, setReading] = useState(false);
+  const call = useCall(client);
+  const p2p = usePeerMesh(client, roleCanEdit(role));
+  const locksQ = useLocks(roomId, share, !!meta, s.notifyVersion.locks);
+  const reactionsQ = useReactions(roomId, share, !!meta, s.notifyVersion.reactions);
+  const workflowQ = useWorkflow(roomId, share, !!meta, s.notifyVersion.workflow + s.notifyVersion.meta);
+  const locks: Lock[] = locksQ.data?.locks ?? [];
 
   // ------------------------------------------------------------- files
 
@@ -197,6 +215,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
         setFocus((f) => !f);
       } else if (e.key === 'Escape' && !paletteOpen) {
         setFocus(false);
+        setReading(false);
         setFollow(null);
       }
     };
@@ -371,6 +390,72 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     setAi({ busy: false, error: null, result: null });
   };
 
+  /** Inserts Markdown as new blocks after the paragraph holding the cursor. */
+  const insertMarkdown = (md: string) => {
+    if (!client || !doc) return;
+    const all = doc.tokens();
+    const from = Math.min(editor.current?.tokenSelection().end ?? all.length, all.length);
+    let at = all.findIndex((t, i) => i >= from && t.ch === '\n');
+    at = at < 0 ? all.length : at + 1;
+    const ops = doc.insertTokens(at, markdownToTokens(md));
+    client.edit(ops);
+    undo.current.record({ ops, removed: [], formats: [] });
+    bumpLocal();
+  };
+
+  const runTool = async (tool: AiTool) => {
+    const busyText: Record<AiTool['kind'], string> = {
+      review: 'Claude is reviewing the document…',
+      slides: 'Claude is designing your slides…',
+      translate: 'Translating…',
+      meeting: 'Writing meeting notes…',
+      'photo-notes': 'Reading the photo…',
+      'summary-card': '',
+    };
+    if (tool.kind === 'summary-card') {
+      editor.current?.insertAtom('summary', { text: '' });
+      return;
+    }
+    let file: File | null = null;
+    if (tool.kind === 'photo-notes') {
+      file = await new Promise<File | null>((done) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = () => done(input.files?.[0] ?? null);
+        input.click();
+      });
+      if (!file) return;
+    }
+    setAiTool2({ busy: busyText[tool.kind], message: null });
+    try {
+      if (tool.kind === 'review') {
+        const r = await api<{ added: number }>(`/docs/${roomId}/ai/review`, { method: 'POST', share, body: { focus: tool.focus } });
+        setAiTool2({ busy: null, message: r.added ? `Claude left ${r.added} comments. Open the Comments panel to read them.` : 'Claude found nothing to comment on.' });
+      } else if (tool.kind === 'slides') {
+        const r = await api<{ document: { id: string }; deck: Parameters<typeof deckFromOutline>[0] }>(`/docs/${roomId}/ai/slides`, { method: 'POST', share });
+        pendingContent.set(r.document.id, deckFromOutline(r.deck) as unknown as InitialContent);
+        setAiTool2({ busy: null, message: null });
+        navigate(`/d/${r.document.id}`);
+      } else if (tool.kind === 'translate') {
+        const r = await api<{ document: { id: string } }>(`/docs/${roomId}/ai/translate`, { method: 'POST', share, body: { lang: tool.lang } });
+        setAiTool2({ busy: null, message: null });
+        navigate(`/d/${r.document.id}`);
+      } else if (tool.kind === 'meeting') {
+        const r = await api<{ markdown: string }>(`/docs/${roomId}/ai/meeting`, { method: 'POST', share, body: { transcript: tool.transcript } });
+        insertMarkdown(r.markdown);
+        setAiTool2({ busy: null, message: 'Meeting notes added below your cursor.' });
+      } else if (tool.kind === 'photo-notes' && file) {
+        const up = await upload(file, file.name);
+        const text = await aiTool('whiteboard-to-text', { src: up.src });
+        insertMarkdown(text);
+        setAiTool2({ busy: null, message: 'Notes from the photo added below your cursor.' });
+      }
+    } catch (e) {
+      setAiTool2({ busy: null, message: errorText(e) });
+    }
+  };
+
   const aiTool = useCallback(
     async (tool: string, input: Record<string, unknown>) => {
       const r = await api<{ text: string }>(`/docs/${roomId}/ai/tool`, { method: 'POST', share, body: { tool, input } });
@@ -387,6 +472,18 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     for (const p of client?.peers.values() ?? []) m.set(p.site, p.color);
     return m;
   }, [authors, client, myColor, s.tick]);
+
+  // Locked sections as token ranges; the ones I may not edit are passed to the editor.
+  const lockRanges = useMemo(() => {
+    if (!doc) return [];
+    return locks.flatMap((l) => {
+      const a = doc.locate(l.start);
+      const b = doc.locate(l.end);
+      return a && b && b.pos >= a.pos ? [{ from: a.pos, to: b.pos + (b.deleted ? 0 : 1), lock: l }] : [];
+    });
+  }, [doc, version, locks]);
+  const lockedForMe = useMemo(() => lockRanges.filter((r) => role !== 'owner' && r.lock.createdBy !== user?.id), [lockRanges, role, user?.id]);
+  const [speakRange, setSpeakRange] = useState<{ from: number; to: number } | null>(null);
 
   const decorations = useMemo<RangeDeco[]>(() => {
     if (!doc) return [];
@@ -406,8 +503,153 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
       const c = comments.comments.find((x) => x.id === id);
       if (c && !c.resolved) out.push({ ...r, kind: id === activeComment ? 'comment-active' : 'comment', title: `${c.authorName}: ${c.body.slice(0, 80)}` });
     }
+    for (const l of lockRanges) out.push({ from: l.from, to: l.to, kind: 'locked', title: `Locked by ${l.lock.createdName}` });
+    if (heat) {
+      const spots = heatmap(doc);
+      const max = Math.max(1, ...spots.map((x) => x.score));
+      for (const h of spots) out.push({ from: h.from, to: h.to, kind: 'heat', color: `rgba(255, 120, 0, ${(0.12 + (0.45 * h.score) / max).toFixed(2)})`, title: `${h.sites} people edited this at about the same time` });
+    }
+    if (speakRange) out.push({ ...speakRange, kind: 'speak' });
     return out;
-  }, [doc, version, authorship, authorColor, suggestions.suggestions, suggestions.localTick, commentPositions, comments.comments, activeComment]);
+  }, [doc, version, authorship, authorColor, suggestions.suggestions, suggestions.localTick, commentPositions, comments.comments, activeComment, lockRanges, heat, speakRange]);
+
+  // ------------------------------------------------- blocks, reactions, read aloud
+
+  const blocks = useMemo(() => blocksOf(tokens), [tokens]);
+  const cursorBlock = useMemo(() => {
+    const b = blocks.find((x) => x.start <= range.start && range.start < x.end) ?? blocks[blocks.length - 1];
+    return b ? { start: b.start, end: Math.max(b.start, b.end - 1) } : null;
+  }, [blocks, range.start]);
+
+  const toggleReaction = useCallback(
+    async (target: string, emoji: string) => {
+      try {
+        await api(`/docs/${roomId}/reactions`, { method: 'POST', share, body: { target, emoji, name: myName, guest: client?.doc.site } });
+        reactionsQ.reload();
+      } catch (e) {
+        flash(errorText(e));
+      }
+    },
+    [roomId, share, myName, client, reactionsQ],
+  );
+
+  const widgets = useMemo<WidgetDeco[]>(() => {
+    if (!meta || viewing) return [];
+    const byTarget = new Map<string, NonNullable<typeof reactionsQ.data>['reactions']>();
+    for (const r of reactionsQ.data?.reactions ?? []) byTarget.set(r.target, [...(byTarget.get(r.target) ?? []), r]);
+    const out: WidgetDeco[] = [];
+    const EMOJI = ['👍', '❤️', '🎉', '😂', '🤔', '👀', '🔥', '✅'];
+    for (const b of blocks) {
+      if (b.type !== 'text' || !b.id) continue;
+      const key = blockKey(b.id);
+      const list = byTarget.get(key) ?? [];
+      const isCursor = !!cursorBlock && b.start === cursorBlock.start && canComment;
+      if (!list.length && !isCursor) continue;
+      const sig = `${key}|${list.map((r) => `${r.emoji}${r.count}${r.mine ? 1 : 0}`).join(',')}|${isCursor ? 1 : 0}`;
+      out.push({
+        at: b.end - 1,
+        key: `react-${sig}`,
+        render: () => {
+          const wrap = document.createElement('span');
+          wrap.className = 'reactions';
+          wrap.contentEditable = 'false';
+          for (const r of list) {
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = `reaction-chip${r.mine ? ' mine' : ''}`;
+            chip.textContent = `${r.emoji} ${r.count}`;
+            chip.title = r.names.join(', ');
+            chip.onmousedown = (e) => e.preventDefault();
+            chip.onclick = () => void toggleReaction(key, r.emoji);
+            wrap.appendChild(chip);
+          }
+          if (isCursor) {
+            const add = document.createElement('button');
+            add.type = 'button';
+            add.className = 'reaction-add';
+            add.textContent = '☺+';
+            add.title = 'React to this paragraph';
+            add.onmousedown = (e) => e.preventDefault();
+            add.onclick = () => {
+              wrap.querySelector('.reaction-pop')?.remove();
+              const pop = document.createElement('span');
+              pop.className = 'reaction-pop';
+              for (const em of EMOJI) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.textContent = em;
+                btn.onmousedown = (e) => e.preventDefault();
+                btn.onclick = () => {
+                  pop.remove();
+                  void toggleReaction(key, em);
+                };
+                pop.appendChild(btn);
+              }
+              wrap.appendChild(pop);
+            };
+            wrap.appendChild(add);
+          }
+          return wrap;
+        },
+      });
+    }
+    return out;
+  }, [meta, viewing, reactionsQ.data, blocks, cursorBlock, toggleReaction, canComment]);
+
+  const lockSelection = async () => {
+    if (!doc) return;
+    const lo = Math.min(range.start, range.end);
+    const hi = Math.max(range.start, range.end);
+    const covered = blocks.filter((b) => b.end > lo && b.start <= Math.max(lo, hi - 1));
+    if (!covered.length) return;
+    const first = covered[0];
+    const last = covered[covered.length - 1];
+    const startTok = tokens[first.start];
+    const endTok = tokens[Math.min(last.end - 1, tokens.length - 1)];
+    if (!startTok || !endTok) return;
+    const quote = plainText(tokens.slice(first.start, last.end)).slice(0, 200);
+    await api(`/docs/${roomId}/locks`, { method: 'POST', share, body: { start: startTok.id, end: endTok.id, quote } });
+    locksQ.reload();
+    flash('Section locked. Others can read it but not change it.');
+  };
+
+  const [speaking, setSpeaking] = useState(false);
+  const readAloud = () => {
+    if (!('speechSynthesis' in window)) return flash('Your browser cannot read aloud.');
+    if (speaking) {
+      window.speechSynthesis.cancel();
+      setSpeaking(false);
+      setSpeakRange(null);
+      return;
+    }
+    const from = range.end > range.start ? range.start : (cursorBlock?.start ?? 0);
+    const to = range.end > range.start ? range.end : tokens.length;
+    const txt = tokens
+      .slice(from, to)
+      .map((t) => (t.ch === '\uFFFC' ? ' ' : t.ch))
+      .join('');
+    const u = new SpeechSynthesisUtterance(txt);
+    u.onboundary = (e) => {
+      if (e.name !== 'word') return;
+      const len = e.charLength || /^\S+/.exec(txt.slice(e.charIndex))?.[0].length || 1;
+      setSpeakRange({ from: from + e.charIndex, to: from + e.charIndex + len });
+    };
+    u.onend = u.onerror = () => {
+      setSpeaking(false);
+      setSpeakRange(null);
+    };
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+    setSpeaking(true);
+  };
+  useEffect(() => () => window.speechSynthesis?.cancel(), []);
+
+  const applyOps = (ops: Op[]) => {
+    if (!client || !ops.length) return;
+    client.edit(ops);
+    undo.current.record({ ops, removed: [], formats: [] });
+    bumpLocal();
+  };
 
   const cursors: RemoteCursor[] = useMemo(() => (client ? [...client.peers.values()] : []), [client, s.tick]);
 
@@ -482,6 +724,13 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     { id: 'suggest', group: 'Edit', label: suggestMode ? 'Stop suggesting (edit directly)' : 'Start suggesting mode', disabled: !roleCanEdit(role), run: () => setSuggestMode(!suggestMode) },
     { id: 'voice', group: 'Edit', label: speech.listening ? 'Stop voice typing' : 'Start voice typing', disabled: !speech.supported || !canEdit, run: () => (speech.listening ? speech.stop() : speech.start()) },
     ...PANELS.map((p) => ({ id: `panel-${p.id}`, group: 'Panels', label: `Open ${p.label}`, run: () => setPanel(p.id) })),
+    { id: 'read-aloud', group: 'View', label: speaking ? 'Stop reading aloud' : 'Read aloud', run: readAloud },
+    { id: 'reading', group: 'View', label: 'Reading mode', run: () => setReading(true) },
+    { id: 'time', group: 'History', label: 'Compare two moments / paragraph history', run: () => setPanel('time') },
+    { id: 'heat', group: 'History', label: heat ? 'Hide conflict heatmap' : 'Show conflict heatmap', run: () => setHeat(!heat) },
+    { id: 'lock', group: 'Review', label: 'Lock the selected paragraphs', disabled: !meta || !canEdit || !user, run: () => void lockSelection().catch((e) => flash(errorText(e))) },
+    { id: 'review', group: 'Review', label: 'Send for review / approve', disabled: !meta, run: () => setPanel('review') },
+    { id: 'draft', group: 'Review', label: 'Private draft', run: () => setPanel('draft') },
     { id: 'focus', group: 'View', label: focus ? 'Exit focus mode' : 'Focus mode', shortcut: 'Ctrl+Shift+F', run: () => setFocus(!focus) },
     { id: 'typewriter', group: 'View', label: typewriter ? 'Turn off typewriter scrolling' : 'Typewriter scrolling', run: () => toggleTypewriter() },
     { id: 'authors', group: 'View', label: authorship ? 'Hide author colours' : 'Show who wrote what', run: () => setAuthorship(!authorship) },
@@ -618,8 +867,54 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
               flash('Restored. Everyone sees the change, and the history keeps every step.');
             }}
             onFork={fork}
+            title={title}
+            colors={authorColor}
           />
         );
+      case 'time':
+        return (
+          <TimeMachinePanel
+            doc={doc}
+            docVersion={version}
+            docId={roomId}
+            share={share}
+            registered={registered}
+            authors={authors}
+            canEdit={canEdit}
+            block={cursorBlock}
+            heat={heat}
+            setHeat={setHeat}
+            onView={setViewing}
+            onApply={applyOps}
+          />
+        );
+      case 'review':
+        return (
+          <ReviewPanel
+            docId={roomId}
+            share={share}
+            role={role}
+            registered={!!meta}
+            signedIn={!!user}
+            userId={user?.id ?? null}
+            workflow={workflowQ.data}
+            locks={locks}
+            selection={cursorBlock ? { quote: '' } : null}
+            onLock={lockSelection}
+            onUnlock={async (id) => {
+              await api(`/docs/${roomId}/locks/${id}`, { method: 'DELETE', share });
+              locksQ.reload();
+            }}
+            onJump={(l) => {
+              const r = lockRanges.find((x) => x.lock.id === l.id);
+              if (r) editor.current?.selectTokens(r.from, r.from);
+            }}
+            onSignature={() => editor.current?.insertAtom('signature', {})}
+            onChanged={() => workflowQ.reload()}
+          />
+        );
+      case 'draft':
+        return <DraftPanel docId={roomId} share={share} serverSide={!!meta && !meta.encrypted && !!user} canEdit={canEdit} onPublish={(md) => (insertMarkdown(md), flash('Your draft is now part of the document.'))} />;
       case 'page':
         return <PagePanel settings={settings} onChange={changeSettings} canEdit={roleCanEdit(role)} user={user} />;
       case 'stats':
@@ -654,12 +949,21 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
             error={ai.error}
             outcome={ai.result ? { inserted: ai.result.inserted.length, replaced: ai.result.deleted.length } : null}
             onRun={(a, i) => void runAi(a, i)}
+            onTool={(t) => void runTool(t)}
+            toolBusy={aiTool2.busy}
+            toolMessage={aiTool2.message}
+            signedIn={!!user}
             onKeep={() => setAi({ busy: false, error: null, result: null })}
             onUndo={undoAi}
           />
         );
       case 'network':
-        return <NetworkPanel client={client} manualOffline={manualOffline} setOffline={toggleOffline} />;
+        return (
+          <>
+            <NetworkPanel client={client} manualOffline={manualOffline} setOffline={toggleOffline} />
+            <P2PSection p2p={p2p} canEdit={canEdit} />
+          </>
+        );
       default:
         return null;
     }
@@ -668,8 +972,8 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
   const longDate = new Date(meta?.createdAt ?? Date.now()).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
   return (
-    <div className={`docpage ${focus ? 'focus-mode' : ''} ${panel ? 'with-panel' : ''}`}>
-      {!focus && (
+    <div className={`docpage ${focus || reading ? 'focus-mode' : ''} ${reading ? 'reading-mode' : ''} ${panel ? 'with-panel' : ''}`}>
+      {!focus && !reading && (
         <header className="doc-header">
           <div className="doc-header-left">
             <Brand compact />
@@ -744,6 +1048,8 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
             <button className="btn btn-primary btn-sm" onClick={() => setShareOpen(true)} type="button">
               <Icon name="share" size={15} /> Share
             </button>
+            <CallButton call={call} onError={flash} />
+            <ThemeToggle />
             <NotificationBell />
             {user ? (
               <UserMenu />
@@ -756,13 +1062,14 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
         </header>
       )}
 
-      {!focus && (
+      {!focus && !reading && (
         <RichToolbar
           state={editorState}
           handle={editor.current}
           disabled={!canEdit}
           onUndo={() => runUndo(false)}
           onRedo={() => runUndo(true)}
+          people={people}
           extra={
             <div className="tool-group">
               <button className={`tool ${suggestMode ? 'on' : ''}`} onClick={() => setSuggestMode(!suggestMode)} disabled={!roleCanEdit(role)} title="Suggesting mode: edits become suggestions" type="button">
@@ -779,6 +1086,12 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
                 type="button"
               >
                 <Icon name="mic" />
+              </button>
+              <button className={`tool ${speaking ? 'on' : ''}`} onClick={readAloud} title={speaking ? 'Stop reading aloud' : 'Read aloud from the cursor (or the selection)'} aria-label="Read aloud" aria-pressed={speaking} type="button">
+                <Icon name="speaker" />
+              </button>
+              <button className="tool" onClick={() => setReading(true)} title="Reading mode" aria-label="Reading mode" type="button">
+                <Icon name="book" />
               </button>
               <button className="tool" onClick={() => setFocus(true)} title="Focus mode (Ctrl+Shift+F)" aria-label="Focus mode" type="button">
                 <Icon name="focus" />
@@ -863,9 +1176,22 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
             )}
             {settings.dateHeader && <div className="diary-date">{longDate}</div>}
             {viewing ? (
-              <div className="readonly-view">
-                <StaticDoc tokens={viewing.doc.tokens()} resolve={resolve} siteColors={authorColor} />
-              </div>
+              viewing.side ? (
+                <div className="readonly-view side-by-side">
+                  <div>
+                    <h4 className="side-title">{viewing.side.leftTitle}</h4>
+                    <StaticDoc tokens={viewing.doc.tokens()} resolve={resolve} />
+                  </div>
+                  <div>
+                    <h4 className="side-title">{viewing.side.rightTitle}</h4>
+                    <StaticDoc tokens={viewing.side.doc.tokens()} resolve={resolve} />
+                  </div>
+                </div>
+              ) : (
+                <div className="readonly-view">
+                  <StaticDoc tokens={viewing.doc.tokens()} resolve={resolve} siteColors={viewing.colors ?? authorColor} />
+                </div>
+              )
             ) : (
               <RichEditor
                 handleRef={editor}
@@ -873,7 +1199,9 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
                 version={version}
                 cursors={cursors}
                 decorations={decorations}
-                readOnly={!canEdit}
+                widgets={widgets}
+                locked={lockedForMe}
+                readOnly={!canEdit || reading}
                 ctx={editorCtx}
                 onLocal={onLocal}
                 onSelection={onSelection}
@@ -917,11 +1245,12 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
         )}
       </div>
 
-      {focus && (
-        <button className="focus-exit btn btn-outline btn-sm" onClick={() => setFocus(false)} type="button">
-          Exit focus (Esc)
+      {(focus || reading) && (
+        <button className="focus-exit btn btn-outline btn-sm" onClick={() => (setFocus(false), setReading(false))} type="button">
+          {reading ? 'Exit reading mode (Esc)' : 'Exit focus (Esc)'}
         </button>
       )}
+      <CallDock call={call} client={client} />
       {toast && (
         <div className="toast" role="status">
           {toast}

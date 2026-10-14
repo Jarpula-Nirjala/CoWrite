@@ -1,3 +1,4 @@
+import { applyPrefs, localPrefs } from './lib/prefs.ts';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, api, cache, type Providers, type User } from './api.ts';
 
@@ -30,7 +31,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     api<{ user: User | null }>('/auth/me')
-      .then((r) => setUser(r.user))
+      .then((r) => {
+        setUser(r.user);
+        // Account preferences win over this device's (they follow you around).
+        if (r.user?.prefs) {
+          try {
+            localStorage.setItem('cowrite:prefs', JSON.stringify(r.user.prefs));
+          } catch {
+            // ignore
+          }
+          applyPrefs({ ...localPrefs(), ...r.user.prefs });
+        }
+      })
       .catch((e) => {
         // Offline: keep working as the last signed-in user.
         if (e instanceof ApiError && e.status === 0) {

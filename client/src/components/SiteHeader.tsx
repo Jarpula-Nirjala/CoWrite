@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { api, timeAgo, type Notification } from '../api.ts';
+import { api, timeAgo, type Notification, type Prefs } from '../api.ts';
+import { localPrefs, savePrefs } from '../lib/prefs.ts';
 import { useAuth } from '../auth.tsx';
 import { Link, navigate } from '../router.ts';
 import { Brand } from './Brand.tsx';
@@ -37,8 +38,17 @@ export function UserMenu() {
           <Link role="menuitem" to="/documents" onClick={close}>
             My documents
           </Link>
+          <Link role="menuitem" to="/calendar" onClick={close}>
+            Calendar &amp; tasks
+          </Link>
+          <Link role="menuitem" to="/workspaces" onClick={close}>
+            Teams &amp; workspaces
+          </Link>
+          <Link role="menuitem" to="/ask" onClick={close}>
+            Ask your documents (AI)
+          </Link>
           <Link role="menuitem" to="/activity" onClick={close}>
-            Activity
+            Activity, streaks &amp; goals
           </Link>
           <Link role="menuitem" to={`/u/${user.username}`} onClick={close}>
             Public profile
@@ -141,6 +151,32 @@ export function NotificationBell() {
   );
 }
 
+const THEME_NEXT = { light: 'dark', dark: 'sepia', sepia: 'light' } as const;
+const THEME_LABEL = { light: 'Light theme', dark: 'Dark theme', sepia: 'Sepia reading theme' } as const;
+
+/** Cycles light → dark → sepia; the choice follows your account. */
+export function ThemeToggle() {
+  const { user } = useAuth();
+  const [prefs, setPrefs] = useState(localPrefs);
+  useEffect(() => {
+    const on = (e: Event) => setPrefs((e as CustomEvent<Prefs>).detail);
+    window.addEventListener('cowrite:prefs', on);
+    return () => window.removeEventListener('cowrite:prefs', on);
+  }, []);
+  const next = THEME_NEXT[prefs.theme];
+  return (
+    <button
+      className="icon-button theme-toggle"
+      onClick={() => void savePrefs({ ...prefs, theme: next }, !!user)}
+      title={`${THEME_LABEL[prefs.theme]} · switch to ${THEME_LABEL[next].toLowerCase()}`}
+      aria-label={`Switch to ${THEME_LABEL[next].toLowerCase()}`}
+      type="button"
+    >
+      {prefs.theme === 'light' ? <Icon name="moon" size={18} /> : prefs.theme === 'dark' ? <span aria-hidden>📜</span> : <span aria-hidden>☀️</span>}
+    </button>
+  );
+}
+
 export function SiteHeader() {
   const { user, ready } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -177,6 +213,7 @@ export function SiteHeader() {
               </Link>
             </>
           )}
+          <ThemeToggle />
           <NotificationBell />
           <UserMenu />
         </div>

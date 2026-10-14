@@ -5,7 +5,7 @@ import { ApiError, api, shareTokens, type DocDetails } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { PEER_COLORS, loadIdentity } from '../identity.ts';
 import { createCipher, keyFromHash } from '../lib/e2e.ts';
-import { loadOffline, lockDoc, saveOffline } from '../lib/offline.ts';
+import { loadOffline, lockDoc, removeOffline, saveOffline } from '../lib/offline.ts';
 import type { Role } from '../../../shared/protocol.ts';
 
 export interface DocSession {
@@ -77,8 +77,9 @@ export function useDocSession(roomId: string): DocSession {
     let release: (() => void) | null = null;
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
+    let discard = false;
     const persist = () => {
-      if (!sync || !release) return;
+      if (!sync || !release || discard) return;
       void saveOffline({ id: roomId, title: titleRef.current, savedAt: Date.now(), state: sync.savedState() });
     };
 
@@ -148,6 +149,14 @@ export function useDocSession(roomId: string): DocSession {
             sync!.disconnect();
             setFatal('This document is end-to-end encrypted. Open it with the full link, including the part after “#key=”.');
           }
+        }
+        if (e === 'locked') {
+          // An edit landed in a section someone else locked: start again from the server's copy.
+          discard = true;
+          clearTimeout(saveTimer);
+          window.alert('That part of the document is locked, so your last change was not saved. The document will reload.');
+          void removeOffline(roomId).finally(() => window.location.reload());
+          return;
         }
         if (e === 'chat') setChat((m) => [...m, payload as ChatMessage]);
         if (e === 'notify') setNotify((n) => ({ ...n, [payload as NotifyTopic]: n[payload as NotifyTopic] + 1 }));

@@ -21,6 +21,7 @@ import { docRoutes } from './routes-docs.ts';
 import { meRoutes } from './routes-me.ts';
 import { mediaRoutes } from './routes-media.ts';
 import { aiRoutes, syncTranslation } from './routes-ai.ts';
+import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.ts';
 
 export interface ServerOptions {
   port: number;
@@ -50,6 +51,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   // Edits are counted in memory and written in small batches.
   const activity = new Map<string, { doc: string; site: string; day: string; userId: string | null; name: string; inserts: number; deletes: number }>();
   const lastTouch = new Map<string, number>();
+  const lastCheckpoint = new Map<string, number>();
   const encryptedRooms = new Set<string>();
 
   const hooks: RoomHooks = {
@@ -57,7 +59,8 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
       const [row] = await db.query<{ snapshot: Snapshot }>('select snapshot from rooms where id = $1', [roomId]);
       const doc = await docs.get(roomId);
       if (doc?.encrypted) encryptedRooms.add(roomId);
-      return { snapshot: row?.snapshot ?? null, encrypted: doc?.encrypted ?? false };
+      const locks = doc ? (await listLocks(ctx, roomId)).map((l) => ({ start: l.anchor_start, end: l.anchor_end, owner: l.created_by })) : [];
+      return { snapshot: row?.snapshot ?? null, encrypted: doc?.encrypted ?? false, locks };
     },
     async save(roomId, snapshot, text) {
       await db.query(
@@ -65,7 +68,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
          on conflict (id) do update set snapshot = excluded.snapshot, updated_at = excluded.updated_at`,
         [roomId, JSON.stringify(snapshot), Date.now()],
       );
-      if (text !== null) await db.query('update documents set content_text = $2 where id = $1', [roomId, text.replace(/￼/g, '')]);
+      if (text !== null) {
+        await db.query('update documents set content_text = $2 where id = $1', [roomId, text.replace(/￼/g, '')]);
+        const room = rooms.loaded(roomId);
+        if (room && !room.encrypted) await indexTasks(ctx, roomId, room.doc.tokens()).catch((err) => console.error('task index failed:', err));
+      }
     },
     joined(roomId, peer) {
       void db
@@ -83,6 +90,14 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
     edited(roomId, peer, inserts, deletes) {
       const now = Date.now();
       scheduleTranslations(roomId);
+      // A checkpoint (time -> state vector) at most once a minute powers "compare any two moments".
+      if (now - (lastCheckpoint.get(roomId) ?? 0) > 60_000) {
+        lastCheckpoint.set(roomId, now);
+        setTimeout(() => {
+          const room = rooms.loaded(roomId);
+          if (room) void db.query('insert into checkpoints (doc_id, at, vector) values ($1, $2, $3::jsonb) on conflict do nothing', [roomId, Date.now(), JSON.stringify(room.doc.vector)]).catch(() => {});
+        }, 5_000);
+      }
       const site = peer?.site ?? 'merge';
       const key = `${roomId}|${site}|${dayKey(now)}`;
       const a = activity.get(key) ?? { doc: roomId, site, day: dayKey(now), userId: peer?.userId ?? null, name: peer?.name ?? 'Merge', inserts: 0, deletes: 0 };
@@ -155,6 +170,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const timers = [
     setInterval(() => void flushActivity(), 10_000),
+    setInterval(() => void runReminders(ctx).catch((err) => console.error('reminders failed:', err)), 60_000),
     // Trash older than 30 days is deleted for good.
     setInterval(() => void docs.expiredTrash().then((ids) => docs.purge(ids)).catch(() => {}), 6 * 3600_000),
   ];
@@ -194,6 +210,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(meRoutes(ctx));
   api.use(mediaRoutes(ctx));
   api.use(aiRoutes(ctx));
+  api.use(teamRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

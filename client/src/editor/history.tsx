@@ -4,12 +4,17 @@ import type { OpCipher } from '../../../shared/sync-client.ts';
 import { api, errorText, formatDate, timeAgo, type DocDetails, type Version } from '../api.ts';
 import { Icon } from '../components/ui.tsx';
 import { Link } from '../router.ts';
+import { recordReplay } from './timeline.ts';
 
 export interface Viewing {
   title: string;
   doc: Doc;
   /** Present when the view can be restored into the live document. */
   restore?: () => void;
+  /** Colour text by author (site → colour). */
+  colors?: Map<string, string>;
+  /** Side-by-side comparison: a second document shown on the right. */
+  side?: { doc: Doc; leftTitle: string; rightTitle: string };
 }
 
 type Tab = 'versions' | 'replay' | 'branches';
@@ -30,6 +35,8 @@ export function HistoryPanel(props: {
   onView(v: Viewing | null): void;
   onRestore(tokens: Token[]): void;
   onFork(): Promise<void>;
+  title?: string;
+  colors?: Map<string, string>;
 }) {
   const [tab, setTab] = useState<Tab>('versions');
   return (
@@ -224,6 +231,47 @@ function Replay(props: Parameters<typeof HistoryPanel>[0]) {
       <p className="small muted">
         Step {step.toLocaleString()} of {history.length.toLocaleString()} operations.
       </p>
+      <VideoExport history={history} title={props.title ?? 'Document'} colors={props.colors ?? new Map()} />
+    </div>
+  );
+}
+
+/** Records the replay as a video file (WebM) you can share. */
+function VideoExport({ history, title, colors }: { history: Op[]; title: string; colors: Map<string, string> }) {
+  const [progress, setProgress] = useState<number | null>(null);
+  const [seconds, setSeconds] = useState(20);
+  const supported = typeof MediaRecorder !== 'undefined' && typeof HTMLCanvasElement.prototype.captureStream === 'function';
+  if (!supported) return null;
+  return (
+    <div className="video-export">
+      <h4>Time-lapse video</h4>
+      <p className="small muted">Export the replay as a video, each person’s text in their colour.</p>
+      <div className="row-actions">
+        <select className="input select-sm" value={seconds} onChange={(e) => setSeconds(Number(e.target.value))} aria-label="Video length" disabled={progress !== null}>
+          <option value={10}>10 seconds</option>
+          <option value={20}>20 seconds</option>
+          <option value={40}>40 seconds</option>
+        </select>
+        <button
+          className="btn btn-outline btn-sm"
+          disabled={progress !== null || !history.length}
+          onClick={async () => {
+            setProgress(0);
+            try {
+              const blob = await recordReplay(history, title, colors, { seconds, onProgress: setProgress });
+              const a = document.createElement('a');
+              a.href = URL.createObjectURL(blob);
+              a.download = `${title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'replay'} - replay.webm`;
+              a.click();
+            } finally {
+              setProgress(null);
+            }
+          }}
+          type="button"
+        >
+          <Icon name="download" size={14} /> {progress === null ? 'Export video' : `Recording… ${Math.round(progress * 100)}%`}
+        </button>
+      </div>
     </div>
   );
 }
@@ -300,6 +348,33 @@ function Branches(props: Parameters<typeof HistoryPanel>[0]) {
         </section>
       )}
       {message && <p className="small notice">{message}</p>}
+      {meta.parentId && (
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={async () => {
+            try {
+              const r = await api<{ parentTitle: string; items: { ch: string; attrs: Record<string, unknown>; p: boolean; f: boolean }[] }>(`/docs/${props.docId}/fork-compare`, { share: props.share });
+              const left = new Doc('left');
+              const right = new Doc('right');
+              left.insertTokens(
+                0,
+                r.items.filter((x) => x.p).map((x) => ({ ch: x.ch, a: !x.f && x.ch !== '\n' ? { ...x.attrs, bg: '#fbd5d2', s: true, color: '#9b1c1c' } : x.attrs })),
+              );
+              right.insertTokens(
+                0,
+                r.items.filter((x) => x.f).map((x) => ({ ch: x.ch, a: !x.p && x.ch !== '\n' ? { ...x.attrs, bg: '#c9f2d2' } : x.attrs })),
+              );
+              props.onView({ title: 'Compare with the original', doc: left, side: { doc: right, leftTitle: `Original: ${r.parentTitle}`, rightTitle: 'This fork' } });
+            } catch (e) {
+              setMessage(errorText(e));
+            }
+          }}
+          type="button"
+        >
+          Compare side by side
+        </button>
+      )}
+      <BranchTree docId={props.docId} share={props.share} version={props.docVersion} />
       {forks.length > 0 && (
         <section>
           <h4>Forks of this document</h4>
@@ -318,5 +393,49 @@ function Branches(props: Parameters<typeof HistoryPanel>[0]) {
         </section>
       )}
     </div>
+  );
+}
+
+interface TreeNode {
+  id: string;
+  parentId: string | null;
+  title: string;
+  ownerName: string;
+  updatedAt: number;
+  canOpen: boolean;
+}
+
+/** The family tree of this document and all its forks. */
+function BranchTree({ docId, share, version }: { docId: string; share: string | null; version: number }) {
+  const [data, setData] = useState<{ current: string; nodes: TreeNode[] } | null>(null);
+  useEffect(() => {
+    api<{ current: string; nodes: TreeNode[] }>(`/docs/${docId}/tree`, { share }).then(setData, () => setData(null));
+  }, [docId, share, Math.floor(version / 200)]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!data || data.nodes.length < 2) return null;
+  const children = new Map<string | null, TreeNode[]>();
+  const ids = new Set(data.nodes.map((n) => n.id));
+  for (const n of data.nodes) {
+    const parent = n.parentId && ids.has(n.parentId) ? n.parentId : null;
+    children.set(parent, [...(children.get(parent) ?? []), n]);
+  }
+  const hash = window.location.hash;
+  const render = (parent: string | null, depth: number): React.ReactNode =>
+    (children.get(parent) ?? []).map((n) => (
+      <li key={n.id} className={n.id === data.current ? 'current' : ''}>
+        <span className="tree-node" style={{ paddingLeft: depth * 16 }}>
+          <span className="tree-branch">{depth ? '└' : '●'}</span>
+          {n.canOpen ? <Link to={`/d/${n.id}${hash}`}>{n.title}</Link> : <span className="muted">{n.title}</span>}
+          <span className="muted small">
+            {n.ownerName} · {timeAgo(n.updatedAt)}
+          </span>
+        </span>
+        {children.has(n.id) && <ul>{render(n.id, depth + 1)}</ul>}
+      </li>
+    ));
+  return (
+    <section className="branch-tree">
+      <h4>Branch explorer</h4>
+      <ul>{render(null, 0)}</ul>
+    </section>
   );
 }

@@ -1,5 +1,5 @@
 import { WebSocket } from 'ws';
-import { Doc, type Op, type Snapshot } from '../shared/crdt.ts';
+import { Doc, type Id, type Op, type Snapshot } from '../shared/crdt.ts';
 import {
   canEdit,
   type ChatMessage,
@@ -9,7 +9,7 @@ import {
   type Role,
   type ServerMsg,
 } from '../shared/protocol.ts';
-import { DELETED_CODE, FORBIDDEN_CODE, batches } from '../shared/sync-client.ts';
+import { DELETED_CODE, FORBIDDEN_CODE, LOCKED_CODE, batches } from '../shared/sync-client.ts';
 
 export interface RoomLimits {
   /** Max items (characters incl. tombstones) per document. */
@@ -22,6 +22,13 @@ export interface RoomLimits {
 
 export const DEFAULT_LIMITS: RoomLimits = { maxItems: 200_000, maxRooms: 500, idleMs: 5 * 60_000 };
 
+/** A locked section: only its creator (and the owner) may change characters from start to end. */
+export interface RoomLock {
+  start: Id;
+  end: Id;
+  owner: string | null;
+}
+
 export interface Connection {
   role: Role;
   userId: string | null;
@@ -29,7 +36,7 @@ export interface Connection {
 
 /** Persistence and side effects, supplied by the app. */
 export interface RoomHooks {
-  load(roomId: string): Promise<{ snapshot: Snapshot | null; encrypted: boolean }>;
+  load(roomId: string): Promise<{ snapshot: Snapshot | null; encrypted: boolean; locks?: RoomLock[] }>;
   save(roomId: string, snapshot: Snapshot, text: string | null): Promise<void>;
   /** A connected peer said hello (record its site for authorship). */
   joined(roomId: string, peer: PeerInfo): void;
@@ -65,6 +72,7 @@ export class Room {
   readonly virtualPeers = new Map<string, PeerInfo>();
   dirty = false;
   removed = false;
+  locks: RoomLock[] = [];
 
   private readonly limits: RoomLimits;
   private readonly hooks: RoomHooks;
@@ -124,6 +132,12 @@ export class Room {
         if (this.doc.size + inserts > this.limits.maxItems) {
           return send(ws, { t: 'error', message: 'This document reached its size limit; new edits are not saved.' });
         }
+        if (this.locks.length && conn.role !== 'owner' && this.touchesLock(msg.ops, conn.userId)) {
+          // The client applied this locally already; disconnecting makes it
+          // drop its copy and reload the server's state.
+          ws.close(LOCKED_CODE, 'locked');
+          return;
+        }
         const applied = this.doc.apply(msg.ops);
         if (applied.length) {
           this.dirty = true;
@@ -168,6 +182,25 @@ export class Room {
           .catch((err) => console.error('chat failed:', err));
         return;
     }
+  }
+
+  /** Whether any op changes characters inside a section locked by someone else. */
+  touchesLock(ops: Op[], userId: string | null): boolean {
+    const ranges = this.locks
+      .filter((l) => !userId || l.owner !== userId)
+      .map((l) => [this.doc.indexOf(l.start), this.doc.indexOf(l.end)] as const)
+      .filter(([a, b]) => a >= 0 && b >= a);
+    if (!ranges.length) return false;
+    const inside = (id: Id | null, endExclusive: boolean) => {
+      if (!id) return false;
+      const i = this.doc.indexOf(id);
+      return i >= 0 && ranges.some(([a, b]) => i >= a && (endExclusive ? i < b : i <= b));
+    };
+    for (const op of ops) {
+      if (op.k === 'i' && inside(op.o, true)) return true;
+      if ((op.k === 'd' || op.k === 'f') && inside(op.t, false)) return true;
+    }
+    return false;
   }
 
   leave(ws: WebSocket): void {
@@ -263,8 +296,9 @@ export class RoomManager {
     if (this.rooms.size >= this.limits.maxRooms) return null;
     let p = this.loading.get(id);
     if (!p) {
-      p = this.hooks.load(id).then(({ snapshot, encrypted }) => {
+      p = this.hooks.load(id).then(({ snapshot, encrypted, locks }) => {
         const room = new Room(id, this.limits, this.hooks, snapshot, encrypted);
+        room.locks = locks ?? [];
         this.rooms.set(id, room);
         this.loading.delete(id);
         return room;
@@ -295,6 +329,8 @@ export class RoomManager {
     const now = Date.now();
     for (const room of [...this.rooms.values()]) {
       if (room.dirty) await this.save(room);
+      // Rooms opened by HTTP requests (AI, public pages) have no sockets: start their idle clock.
+      if (room.conns.size === 0 && !this.idleSince.has(room.id)) this.idleSince.set(room.id, now);
       const since = this.idleSince.get(room.id);
       if (room.conns.size === 0 && since !== undefined && (force || now - since >= this.limits.idleMs)) {
         this.rooms.delete(room.id);

@@ -8,7 +8,7 @@ textarea.input {
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   color: var(--text);
   font-family: var(--font);
   font-size: 1rem;
@@ -259,7 +259,7 @@ kbd {
   width: min(520px, 100%);
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  background: #fff;
+  background: var(--surface);
   border-radius: 6px;
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.25);
 }
@@ -302,7 +302,7 @@ kbd {
 }
 .palette {
   width: min(600px, 100%);
-  background: #fff;
+  background: var(--surface);
   border-radius: 6px;
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.3);
   overflow: hidden;
@@ -422,7 +422,7 @@ kbd {
   align-items: center;
   gap: 0.25rem 0.5rem;
   padding: 0.35rem 16px;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .tool-group {
@@ -624,7 +624,7 @@ kbd {
   gap: 2px;
   width: 74px;
   padding: 8px 6px;
-  background: #fff;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   overflow-y: auto;
 }
@@ -658,7 +658,7 @@ kbd {
   order: 1;
   width: 360px;
   padding: 0 1rem 1.5rem;
-  background: #fff;
+  background: var(--surface);
   border-left: 1px solid var(--border);
   overflow-y: auto;
 }
@@ -671,7 +671,7 @@ kbd {
   justify-content: space-between;
   margin: 0 -1rem 0.75rem;
   padding: 0.75rem 1rem;
-  background: #fff;
+  background: var(--surface);
   border-bottom: 1px solid var(--border);
 }
 .panel-head h2 {
@@ -750,7 +750,7 @@ kbd {
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
 }
 .comment.active {
@@ -796,7 +796,7 @@ kbd {
   list-style: none;
   margin: 0;
   padding: 4px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
@@ -1009,7 +1009,7 @@ kbd {
   padding: 0.55rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   font-family: var(--font);
   text-align: left;
   cursor: pointer;
@@ -1072,7 +1072,7 @@ kbd {
 
 /* focus mode */
 .focus-mode {
-  background: #fff;
+  background: var(--surface);
 }
 .focus-mode .doc-main {
   padding-top: 4rem;
@@ -1189,7 +1189,7 @@ kbd {
   padding: 0.1rem 0.55rem;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   color: var(--text-2);
   font-family: var(--font);
   font-size: 0.88rem;
@@ -1287,7 +1287,7 @@ kbd {
   padding: 0.75rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   font-family: var(--font);
   text-align: left;
   cursor: pointer;
@@ -1375,7 +1375,7 @@ kbd {
   padding: 1rem 1.1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
 }
 .tile dt {
   font-size: 0.85rem;
@@ -1420,7 +1420,7 @@ kbd {
   padding: 0.45rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--shadow);
   font-size: 0.88rem;
   white-space: nowrap;

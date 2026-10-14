@@ -16,9 +16,11 @@ import {
 export const DELETED_CODE = 4404;
 /** WebSocket close code for "you may not open this document". */
 export const FORBIDDEN_CODE = 4403;
+/** Close code for "your edit touched a section someone locked": reload from the server. */
+export const LOCKED_CODE = 4409;
 
 export type SyncStatus = 'connecting' | 'online' | 'offline';
-export type SyncEvent = 'doc' | 'peers' | 'status' | 'error' | 'chat' | 'notify' | 'role' | 'stats' | 'signal';
+export type SyncEvent = 'doc' | 'peers' | 'status' | 'error' | 'chat' | 'notify' | 'role' | 'stats' | 'signal' | 'locked' | 'local';
 
 export function randomSite(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(9));
@@ -150,6 +152,19 @@ export class SyncClient {
     for (const op of ops) this.outbox.push(op);
     if (this.status === 'online') this.sendOps(ops);
     this.emit('status');
+    this.emit('local', ops);
+  }
+
+  /** Applies ops that arrived some other way (peer-to-peer); returns the ones that were new. */
+  applyRemote(ops: Op[]): Op[] {
+    const applied = this.doc.apply(ops);
+    if (applied.length) {
+      this.stats.receivedOps += applied.length;
+      this.emit('doc');
+      // Pass them on so the server has them too, even if their author is offline.
+      this.relay(applied);
+    }
+    return applied;
   }
 
   setSelection(sel: Selection): void {
@@ -223,6 +238,10 @@ export class SyncClient {
       if (this.ws !== ws) return;
       this.ws = null;
       this.dropPeers();
+      if (ev.code === LOCKED_CODE) {
+        this.wantOnline = false;
+        this.emit('locked');
+      }
       if (ev.code === DELETED_CODE || ev.code === FORBIDDEN_CODE) {
         this.wantOnline = false;
         this.error =

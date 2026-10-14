@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { PeerInfo } from '../../../shared/protocol.ts';
 import { canEdit as roleCanEdit } from '../../../shared/protocol.ts';
 import type { SyncClient } from '../../../shared/sync-client.ts';
+import type { Brand as BrandKit } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { Brand } from '../components/Brand.tsx';
 import type { RemoteCursor } from '../components/CollabEditor.tsx';
@@ -14,6 +15,7 @@ import type { DocSession } from '../editor/useDocSession.ts';
 import { useFiles } from '../editor/useFiles.ts';
 import { pendingContent } from '../lib/templates.ts';
 import { Link } from '../router.ts';
+import { CallButton, CallDock, useCall } from '../editor/call.tsx';
 import { useObjApi, type ObjApi } from './api.ts';
 
 const SlidesEditor = lazy(() => import('./slides/SlidesEditor.tsx'));
@@ -37,6 +39,7 @@ export interface KindProps {
   resolve(src: string): Promise<string>;
   upload(file: Blob, name: string): Promise<{ src: string; name: string; size: number; mime: string }>;
   flash(msg: string): void;
+  brand: BrandKit | null;
 }
 
 export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
@@ -48,6 +51,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
   const [follow, setFollow] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const people = usePeople(roomId, share);
+  const call = useCall(client);
   const online = client?.status === 'online';
   const title = meta?.title ?? 'Untitled';
 
@@ -115,9 +119,12 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
         onMeta={s.setMeta}
         onError={flash}
         extra={
+          <>
+          <CallButton call={call} onError={(m) => setToast(m)} />
           <button className={`btn btn-ghost btn-sm ${chatOpen ? 'active' : ''}`} onClick={() => setChatOpen((o) => !o)} type="button" aria-pressed={chatOpen}>
             <Icon name="chat" size={15} /> Chat{unread ? ` (${unread})` : ''}
           </button>
+          </>
         }
       />
       <div className="kind-body">
@@ -139,6 +146,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
                 resolve,
                 upload,
                 flash,
+                brand: user?.brand ?? null,
               }}
             />
           </Suspense>
@@ -155,6 +163,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
           </aside>
         )}
       </div>
+      <CallDock call={call} client={client} />
       {toast && (
         <div className="toast" role="status">
           {toast}

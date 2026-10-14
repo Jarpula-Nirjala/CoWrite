@@ -271,6 +271,11 @@ export class Docs {
         if (user) await this.addMember(docId, user.id, role);
       }
     }
+    // Members of the document's workspace can open it.
+    if (user && doc.workspace_id && (!role || role === 'viewer')) {
+      const [w] = await this.db.query<{ role: string }>('select role from workspace_members where workspace_id = $1 and user_id = $2', [doc.workspace_id, user.id]);
+      if (w) role = role ? higher(role, w.role === 'viewer' ? 'viewer' : 'editor') : w.role === 'viewer' ? 'viewer' : 'editor';
+    }
     if (!role && doc.published) role = 'viewer';
     return { role, doc };
   }

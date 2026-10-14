@@ -3,7 +3,7 @@ import { PAPERS, THEMES, type DocSettings } from '../rich/settings.ts';
 
 /** Page setup, paper and theme for the document (shared with collaborators). */
 export function PagePanel({ settings, onChange, canEdit, user }: { settings: DocSettings; onChange(p: Partial<DocSettings>): void; canEdit: boolean; user: User | null }) {
-  const brand = (user as (User & { brand?: { logo?: string; accent?: string; name?: string; font?: string } }) | null)?.brand;
+  const brand = user?.brand;
   const set = <K extends keyof DocSettings>(k: K, v: DocSettings[K]) => onChange({ [k]: v } as Partial<DocSettings>);
   return (
     <fieldset className="page-panel" disabled={!canEdit}>

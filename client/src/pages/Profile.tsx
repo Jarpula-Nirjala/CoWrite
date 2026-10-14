@@ -3,7 +3,6 @@ import { api, errorText, formatDate } from '../api.ts';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Avatar, Spinner } from '../components/ui.tsx';
-import { renderMarkdown } from '../lib/text.ts';
 import { Link } from '../router.ts';
 
 interface ProfileData {
@@ -62,52 +61,6 @@ export function Profile({ username }: { username: string }) {
               ))}
             </div>
           </>
-        )}
-      </main>
-      <SiteFooter />
-    </div>
-  );
-}
-
-export function PublicDoc({ id }: { id: string }) {
-  const [data, setData] = useState<{ title: string; text: string; updatedAt: number; author: { name: string; username: string; avatar: string | null } } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<NonNullable<typeof data>>(`/public/${id}`).then(
-      (d) => {
-        setData(d);
-        document.title = `${d.title} · CoWrite`;
-      },
-      (e) => setError(errorText(e)),
-    );
-  }, [id]);
-  return (
-    <div className="page">
-      <SiteHeader />
-      <main className="container narrow public-doc">
-        {error && (
-          <div className="not-found">
-            <h1>Not available</h1>
-            <p className="muted">{error}</p>
-          </div>
-        )}
-        {!data && !error && <Spinner />}
-        {data && (
-          <article>
-            <header className="byline">
-              <Link to={`/u/${data.author.username}`} className="byline-author">
-                <Avatar name={data.author.name} src={data.author.avatar} size={40} />
-                <span>
-                  <strong>{data.author.name}</strong>
-                  <span className="muted small">Updated {formatDate(data.updatedAt)}</span>
-                </span>
-              </Link>
-            </header>
-            <div className="markdown-preview published" dangerouslySetInnerHTML={{ __html: renderMarkdown(data.text) }} />
-            <p className="muted small made-with">
-              Written collaboratively with <Link to="/">CoWrite</Link>.
-            </p>
-          </article>
         )}
       </main>
       <SiteFooter />

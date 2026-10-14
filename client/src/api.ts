@@ -12,8 +12,22 @@ export interface User {
   google: boolean;
   github: boolean;
   createdAt: number;
-  brand?: { logo?: string; accent?: string; name?: string; font?: string } | null;
-  prefs?: Record<string, unknown> | null;
+  brand?: Brand | null;
+  prefs?: Prefs | null;
+}
+
+export interface Brand {
+  name: string;
+  logo: string | null;
+  accent: string;
+  font: string;
+  deckTheme: string;
+}
+
+export interface Prefs {
+  theme: 'light' | 'dark' | 'sepia';
+  dyslexic: boolean;
+  dailyGoal: number;
 }
 
 export interface DocMeta {

@@ -4,7 +4,7 @@ import type { SyncClient } from '../../../shared/sync-client.ts';
 import { api, errorText, type DocDetails, type User } from '../api.ts';
 import { Brand } from '../components/Brand.tsx';
 import type { RemoteCursor } from '../components/CollabEditor.tsx';
-import { NotificationBell, UserMenu } from '../components/SiteHeader.tsx';
+import { NotificationBell, ThemeToggle, UserMenu } from '../components/SiteHeader.tsx';
 import { Avatar, Icon } from '../components/ui.tsx';
 import { Link } from '../router.ts';
 
@@ -109,7 +109,8 @@ export function DocHeader(props: {
         <button className="btn btn-primary btn-sm" onClick={props.onShare} type="button">
           <Icon name="share" size={15} /> Share
         </button>
-        <NotificationBell />
+        <ThemeToggle />
+            <NotificationBell />
         {user ? (
           <UserMenu />
         ) : (

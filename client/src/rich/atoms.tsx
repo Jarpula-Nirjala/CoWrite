@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { CropOverlay, cropImage } from './crop.tsx';
 import { createRoot, type Root } from 'react-dom/client';
 import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
@@ -207,6 +208,8 @@ function ImageBlock(p: AtomProps) {
   const align = String(p.data.align ?? 'center');
   const [dragW, setDragW] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cropping, setCropping] = useState(false);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   const startResize = (e: React.PointerEvent) => {
@@ -240,6 +243,16 @@ function ImageBlock(p: AtomProps) {
           {n}%
         </button>
       ))}
+      {!p.readOnly && url && natural && (
+        <button type="button" className={`atom-tool ${cropping ? 'on' : ''}`} onClick={() => setCropping(!cropping)} title="Crop">
+          <Icon name="crop" size={14} /> Crop
+        </button>
+      )}
+      {!p.readOnly && typeof p.data.original === 'string' && p.data.original !== p.data.src && (
+        <button type="button" className="atom-tool" onClick={() => p.update({ src: p.data.original })} title="Undo the crop">
+          Reset crop
+        </button>
+      )}
       {p.ctx.aiEnabled && (
         <button
           type="button"
@@ -267,8 +280,31 @@ function ImageBlock(p: AtomProps) {
     <Frame p={p} tools={tools} label="Image">
       <div className={`img-wrap align-${align}`}>
         <div className="img-box" ref={box} style={{ width: `${dragW ?? w}%` }}>
-          {url ? <img src={url} alt={String(p.data.alt ?? p.data.caption ?? '')} draggable={false} /> : <div className="img-loading">Loading image…</div>}
-          {p.selected && !p.readOnly && <span className="resize-handle" onPointerDown={startResize} data-stop title="Drag to resize" />}
+          {url ? (
+            <img src={url} alt={String(p.data.alt ?? p.data.caption ?? '')} draggable={false} onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
+          ) : (
+            <div className="img-loading">Loading image…</div>
+          )}
+          {p.selected && !p.readOnly && !cropping && <span className="resize-handle" onPointerDown={startResize} data-stop title="Drag to resize" />}
+          {cropping && url && natural && (
+            <CropOverlay
+              natural={natural}
+              onCancel={() => setCropping(false)}
+              onApply={async (r) => {
+                setBusy(true);
+                try {
+                  const blob = await cropImage(url, r, String(p.data.mime ?? ''));
+                  const up = await p.ctx.upload(blob, 'cropped.jpg');
+                  p.update({ src: up.src, original: p.data.original ?? p.data.src });
+                  setCropping(false);
+                } catch (e) {
+                  window.alert((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            />
+          )}
         </div>
       </div>
       <Caption p={p} />

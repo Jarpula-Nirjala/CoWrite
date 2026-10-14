@@ -56,6 +56,34 @@ export function authRoutes(ctx: AppCtx) {
     res.json({ user: toPublic(await auth.updateProfile(user.id, { name, username, bio, avatar })) });
   });
 
+  r.put('/me/prefs', async (req, res) => {
+    const user = requireUser(res);
+    const b = req.body ?? {};
+    const prefs = {
+      theme: b.theme === 'dark' || b.theme === 'sepia' ? b.theme : 'light',
+      dyslexic: b.dyslexic === true,
+      dailyGoal: Math.max(0, Math.min(20_000, Math.round(Number(b.dailyGoal) || 0))),
+    };
+    await ctx.db.query('update users set prefs = $2::jsonb where id = $1', [user.id, JSON.stringify(prefs)]);
+    res.json({ prefs });
+  });
+
+  r.put('/me/brand', async (req, res) => {
+    const user = requireUser(res);
+    const b = req.body ?? {};
+    const hex = (v: unknown, d: string) => (typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v) ? v : d);
+    const logo = typeof b.logo === 'string' && /^\/api\/files\/[\w-]+$/.test(b.logo) ? b.logo : null;
+    const brand = {
+      name: typeof b.name === 'string' ? b.name.trim().slice(0, 60) : '',
+      logo,
+      accent: hex(b.accent, '#1f3a68'),
+      font: typeof b.font === 'string' && /^[a-z]{2,12}$/.test(b.font) ? b.font : 'serif',
+      deckTheme: typeof b.deckTheme === 'string' && /^[a-z-]{2,20}$/.test(b.deckTheme) ? b.deckTheme : 'navy',
+    };
+    await ctx.db.query('update users set brand = $2::jsonb where id = $1', [user.id, JSON.stringify(brand)]);
+    res.json({ brand });
+  });
+
   r.post('/password', limiter, async (req, res) => {
     const user = requireUser(res);
     await auth.changePassword(user.id, req.body?.current, req.body?.password);

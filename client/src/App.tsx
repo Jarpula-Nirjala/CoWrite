@@ -2,12 +2,16 @@ import { useEffect } from 'react';
 import { AuthProvider } from './auth.tsx';
 import { Account } from './pages/Account.tsx';
 import { Activity } from './pages/Activity.tsx';
+import { Ask } from './pages/Ask.tsx';
+import { CalendarPage } from './pages/Calendar.tsx';
+import { Workspaces } from './pages/Workspaces.tsx';
 import { AuthPage, ForgotPage, ResetPage } from './pages/AuthPage.tsx';
 import { DocPage } from './pages/DocPage.tsx';
 import { Documents } from './pages/Documents.tsx';
 import { Home } from './pages/Home.tsx';
 import { NotFound } from './pages/NotFound.tsx';
-import { Profile, PublicDoc } from './pages/Profile.tsx';
+import { Profile } from './pages/Profile.tsx';
+import { PublicDoc } from './pages/PublicPage.tsx';
 import { usePath } from './router.ts';
 
 function Routes() {
@@ -41,6 +45,12 @@ function Routes() {
       return <Account />;
     case '/activity':
       return <Activity />;
+    case '/ask':
+      return <Ask />;
+    case '/calendar':
+      return <CalendarPage />;
+    case '/workspaces':
+      return <Workspaces />;
     default:
       return <NotFound />;
   }
