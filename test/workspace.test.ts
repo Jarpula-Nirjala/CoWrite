@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import { aiDeck, PRO_DECKS, PRO_DOCS } from '../client/src/lib/proTemplates.ts';
 import { SLIDE_THEMES } from '../client/src/kinds/slides/themes.ts';
 import { startServer, type RunningServer } from '../server/app.ts';
-import { keyCandidates, keyProvider } from '../server/llm.ts';
+import { cleanKey, keyCandidates, keyProvider } from '../server/llm.ts';
 import { DECK_STYLES, PHOTOS } from '../server/routes-tools.ts';
 
 describe('professional templates', () => {
@@ -48,6 +48,12 @@ describe('professional templates', () => {
     const ids = new Set(SLIDE_THEMES.map((t) => t.id));
     for (const list of Object.values(DECK_STYLES)) for (const t of list) assert.ok(ids.has(t), t);
     for (const p of PHOTOS) assert.ok(fs.existsSync(`client/public/tpl/${p}.jpg`), p);
+  });
+
+  it('cleans what copying adds to a key', () => {
+    const k = 'AQ.Ab8abcdefghijklmnop-XYZ';
+    for (const messy of [` ${k}
+`, `"${k}"`, `﻿${k} `, `${k.slice(0, 6)}​${k.slice(6)}`, `Bearer ${k}`]) assert.equal(cleanKey(messy), k);
   });
 
   it('recognises personal key providers', () => {

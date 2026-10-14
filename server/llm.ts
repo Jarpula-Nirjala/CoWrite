@@ -568,34 +568,80 @@ export function llmForKey(key: string, source: 'user' | 'server', provider?: str
   return new CompatLlm(p, key, source);
 }
 
-/** Whether a provider accepts the key, with a read-only request that spends no tokens. */
-async function accepts(p: Provider, key: string): Promise<boolean> {
-  const t = AbortSignal.timeout(12_000);
-  if (p === 'gemini') {
-    const res = await fetch(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key }, signal: t });
-    if (res.ok) return true;
-    return (await fetch(`${GEMINI_BASE}/models?pageSize=1&key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(12_000) })).ok;
+/** Removes what copying often adds: spaces, line breaks, invisible characters, quotes and a "Bearer " prefix. */
+export function cleanKey(raw: string): string {
+  return raw
+    .replace(/[\s​-‍⁠﻿]+/g, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/^Bearer/i, '');
+}
+
+/** 'yes' / 'no' from the provider; 'unknown' when it could not answer (busy, rate limit, network). */
+type Verdict = { ok: 'yes' | 'no' | 'unknown'; reason?: string };
+
+async function probe(url: string, init: RequestInit): Promise<Verdict> {
+  // One retry: free endpoints are sometimes slow or briefly unavailable.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const res = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
+      if (res.ok) return { ok: 'yes' };
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt === 0) continue;
+        return { ok: 'unknown', reason: `busy (${res.status})` };
+      }
+      const body = (await res.json().catch(() => null)) as { error?: { message?: string; details?: { reason?: string }[] } | string } | null;
+      const err = typeof body?.error === 'string' ? { message: body.error } : body?.error;
+      return { ok: 'no', reason: err?.details?.find((d) => d.reason)?.reason ?? err?.message ?? `HTTP ${res.status}` };
+    } catch {
+      if (attempt === 0) continue;
+      return { ok: 'unknown', reason: 'no answer' };
+    }
   }
-  if (p === 'anthropic') return (await fetch('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: t })).ok;
+  return { ok: 'unknown' };
+}
+
+/** Whether a provider accepts the key, with a read-only request that spends no tokens. */
+async function accepts(p: Provider, key: string): Promise<Verdict> {
+  if (p === 'gemini') {
+    const v = await probe(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key } });
+    if (v.ok !== 'no') return v;
+    const alt = await probe(`${GEMINI_BASE}/models?pageSize=1&key=${encodeURIComponent(key)}`, {});
+    return alt.ok === 'no' ? v : alt;
+  }
+  if (p === 'anthropic') return probe('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } });
   const cfg: CompatConfig = COMPAT[p];
   if (cfg.check === 'chat') {
-    const res = await fetch(`${cfg.base}/chat/completions`, {
+    return probe(`${cfg.base}/chat/completions`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: cfg.fallback, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
-      signal: t,
     });
-    return res.ok;
   }
-  const url = cfg.check.startsWith('http') ? cfg.check : `${cfg.base}${cfg.check}`;
-  return (await fetch(url, { headers: { authorization: `Bearer ${key}` }, signal: t })).ok;
+  return probe(cfg.check.startsWith('http') ? cfg.check : `${cfg.base}${cfg.check}`, { headers: { authorization: `Bearer ${key}` } });
 }
 
-/** Finds which service accepts a key; null when none does. */
+export interface KeyCheck {
+  /** The service the key belongs to; null when every candidate refused it. */
+  provider: Provider | null;
+  /** False when the service could not be reached, so the key was taken on trust. */
+  verified: boolean;
+  /** The provider's own reason for refusing, when it gave one. */
+  reason?: string;
+}
+
+/** Finds which service accepts a key. */
+export async function inspectKey(key: string): Promise<KeyCheck> {
+  const candidates = keyCandidates(key);
+  const verdicts = await Promise.all(candidates.map((p) => accepts(p, key)));
+  const yes = verdicts.findIndex((v) => v.ok === 'yes');
+  if (yes >= 0) return { provider: candidates[yes], verified: true };
+  const unknown = verdicts.findIndex((v) => v.ok === 'unknown');
+  if (unknown >= 0) return { provider: candidates[unknown], verified: false };
+  return { provider: null, verified: true, reason: verdicts[0]?.reason };
+}
+
 export async function detectProvider(key: string): Promise<Provider | null> {
-  const found = await Promise.all(keyCandidates(key).map((p) => accepts(p, key).catch(() => false)));
-  const i = found.indexOf(true);
-  return i < 0 ? null : keyCandidates(key)[i];
+  return (await inspectKey(key)).provider;
 }
 
 /** Kept for callers that only need a yes or no. */

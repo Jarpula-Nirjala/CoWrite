@@ -4,7 +4,7 @@ import { SESSION_TTL_MS, toPublic, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
 import { HttpError, SESSION_COOKIE, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
-import { detectProvider, keyCandidates, PROVIDER_NAMES } from './llm.ts';
+import { cleanKey, inspectKey, keyCandidates, PROVIDER_NAMES } from './llm.ts';
 import { authorizeUrl, enabledProviders, fetchProfile, type Provider } from './oauth.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
@@ -72,15 +72,22 @@ export function authRoutes(ctx: AppCtx) {
   /** Connect your own free Gemini key: AI then runs on your own quota. */
   r.put('/me/ai-key', limiter, async (req, res) => {
     const user = requireUser(res);
-    const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
-    if (key.length < 16 || key.length > 400 || /\s/.test(key)) throw new HttpError(400, 'That does not look like an API key. Copy the whole key with its Copy button and paste it here.');
-    const provider = await detectProvider(key);
-    if (!provider) {
-      const names = keyCandidates(key).map((p) => PROVIDER_NAMES[p]);
-      throw new HttpError(400, `${names.join(', ')} did not accept this key. Copy it again with the Copy key button (no spaces), and check that the key is active.`);
+    const key = typeof req.body?.key === 'string' ? cleanKey(req.body.key) : '';
+    if (key.length < 16 || key.length > 400) throw new HttpError(400, 'That does not look like an API key. Copy the whole key with its Copy button and paste it here.');
+    const check = await inspectKey(key);
+    if (!check.provider) {
+      const names = keyCandidates(key).map((p) => PROVIDER_NAMES[p]).join(' / ');
+      const typo = /API_KEY_INVALID|ACCESS_TOKEN_TYPE_UNSUPPORTED|invalid/i.test(check.reason ?? '');
+      throw new HttpError(
+        400,
+        typo
+          ? `${names} says this key is not valid (${check.reason}). This is almost always one wrong character: capital I and small l, or O and 0, look alike. Don’t type the key: open it in Google AI Studio, press “Copy key” and paste.`
+          : `${names} did not accept this key (${check.reason ?? 'refused'}). Check that the key is active, then copy it again with its Copy button.`,
+      );
     }
+    const provider = check.provider;
     await ctx.db.query('update users set ai_key = $2, ai_provider = $3 where id = $1', [user.id, await vault.seal(key), provider]);
-    res.json({ aiConnected: true, aiProvider: provider, aiName: PROVIDER_NAMES[provider] });
+    res.json({ aiConnected: true, aiProvider: provider, aiName: PROVIDER_NAMES[provider], verified: check.verified });
   });
 
   r.delete('/me/ai-key', async (_req, res) => {

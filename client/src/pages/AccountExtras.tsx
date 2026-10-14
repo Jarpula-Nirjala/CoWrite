@@ -244,10 +244,10 @@ export function AiKeySection({ user, onChange }: { user: User; onChange(connecte
     setBusy(true);
     setMsg(null);
     try {
-      const r = await api<{ aiProvider: string }>('/auth/me/ai-key', { method: 'PUT', body: { key: key.replace(/\s+/g, '') } });
+      const r = await api<{ aiProvider: string; verified: boolean }>('/auth/me/ai-key', { method: 'PUT', body: { key: key.replace(/[\s​-‍⁠﻿]+/g, '') } });
       setKey('');
       onChange(true, r.aiProvider);
-      setMsg({ ok: true, text: `Connected to ${AI_PROVIDER_NAMES[r.aiProvider] ?? 'your AI'}. Every AI feature now runs on your own key.` });
+      setMsg({ ok: true, text: r.verified ? `Connected to ${AI_PROVIDER_NAMES[r.aiProvider] ?? 'your AI'}. Every AI feature now runs on your own key.` : `Saved. ${AI_PROVIDER_NAMES[r.aiProvider] ?? 'The service'} was too busy to confirm the key just now; it will be used as soon as it answers.` });
     } catch (e) {
       setMsg({ ok: false, text: errorText(e) });
     } finally {
