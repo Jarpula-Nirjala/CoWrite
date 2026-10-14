@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, errorText } from '../api.ts';
 import { useAuth } from '../auth.tsx';
-import { AppRail } from '../components/AppRail.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Modal, Spinner } from '../components/ui.tsx';
 import { Link, navigate, useSearch } from '../router.ts';
@@ -87,7 +86,6 @@ export function Drive() {
     <div className="page">
       <SiteHeader />
       <div className="rail-layout">
-        <AppRail active="cloud" />
         <main className="drive">
           <header className="drive-head">
             <div>

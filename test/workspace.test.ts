@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import { aiDeck, PRO_DECKS, PRO_DOCS } from '../client/src/lib/proTemplates.ts';
 import { SLIDE_THEMES } from '../client/src/kinds/slides/themes.ts';
 import { startServer, type RunningServer } from '../server/app.ts';
-import { keyProvider } from '../server/llm.ts';
+import { keyCandidates, keyProvider } from '../server/llm.ts';
 import { DECK_STYLES, PHOTOS } from '../server/routes-tools.ts';
 
 describe('professional templates', () => {
@@ -55,6 +55,13 @@ describe('professional templates', () => {
     assert.equal(keyProvider('sk-or-v1-abc'), 'openrouter');
     assert.equal(keyProvider('AQ.Ab8RN6abc'), 'gemini');
     assert.equal(keyProvider('AIzaSyabc'), 'gemini');
+    assert.deepEqual(keyCandidates('csk-abc'), ['cerebras']);
+    assert.deepEqual(keyCandidates('hf_abc'), ['huggingface']);
+    assert.deepEqual(keyCandidates('github_pat_abc'), ['github']);
+    assert.deepEqual(keyCandidates('sk-ant-abc'), ['anthropic']);
+    assert.deepEqual(keyCandidates('sk-proj-abc'), ['openai', 'deepseek']);
+    // Keys with no known prefix (Mistral, Together…) are tried against several services.
+    assert.ok(keyCandidates('a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6').includes('mistral'));
   });
 });
 

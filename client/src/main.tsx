@@ -17,6 +17,7 @@ import './apps.css';
 import './workspace.css';
 import './calendar.css';
 import './themes.css';
+import './layout.css';
 
 applyPrefs(localPrefs());
 createRoot(document.getElementById('root')!).render(<App />);

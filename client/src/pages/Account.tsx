@@ -76,7 +76,7 @@ export function Account() {
   return (
     <div className="page">
       <SiteHeader />
-      <main className="container narrow">
+      <main className="container account-page">
         <p className="kicker">Account</p>
         <h1>Account settings</h1>
 

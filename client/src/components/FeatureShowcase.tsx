@@ -145,17 +145,10 @@ export function FeatureShowcase() {
     return () => clearTimeout(t);
   }, [i, inView]);
 
-  const N = CARDS.length;
-  // Card size follows the stage width; the centre card is larger and in focus.
-  const CW = Math.max(200, Math.min(340, stageW * 0.3));
-  const STEP = CW * 0.82;
+  const CW = Math.min(380, stageW * 0.78);
+  const GAP = 22;
+  const offset = stageW / 2 - CW / 2 - i * (CW + GAP);
   const first = (gi: number) => CARDS.findIndex((c) => c.gi === gi);
-  const rel = (k: number) => {
-    let d = (k - i) % N;
-    if (d > N / 2) d -= N;
-    if (d < -N / 2) d += N;
-    return d;
-  };
 
   return (
     <div className="showcase" ref={root} style={{ '--fc': group.color } as CSSProperties}>
@@ -172,46 +165,37 @@ export function FeatureShowcase() {
         })}
       </nav>
 
-      <div className="stage3d" ref={stage} style={{ height: CW * 1.34 + 150 }}>
-        {CARDS.map((c, k) => {
-          const d = rel(k);
-          if (Math.abs(d) > 3) return null;
-          const a = Math.abs(d);
-          const g = FEATURE_GROUPS[c.gi];
-          const scale = d === 0 ? 1.12 : 1 - a * 0.08;
-          return (
-            <article
-              key={k}
-              className={`scard ${d === 0 ? 'center' : ''}`}
-              style={
-                {
-                  '--gc': g.color,
-                  width: CW,
-                  height: CW * 1.34,
-                  transform: `translate(-50%, 0) translateX(${d * STEP}px) translateY(${a * 14}px) scale(${scale})`,
-                  zIndex: 10 - a,
-                  opacity: a === 3 ? 0 : 1,
-                } as CSSProperties
-              }
-              aria-hidden={d !== 0}
-              onClick={() => setI(k)}
-            >
-              <img src={`/features/${IMAGES[k]}.jpg`} alt="" draggable={false} />
-              <span className="scard-shade" />
-              <span className="scard-badge">
-                {c.icon} {g.title}
-              </span>
-              {d !== 0 && <span className="scard-title">{c.title}</span>}
-            </article>
-          );
-        })}
-        <div className="scard-caption" key={i} style={{ width: Math.min(stageW * 0.9, CW * 1.9), '--gc': group.color } as CSSProperties}>
-          <span className="scard-count">
-            {group.icon} {group.title} · {i - first(card.gi) + 1} / {group.items.length}
-          </span>
-          <h4>{card.title}</h4>
-          <p>{card.body}</p>
-          {inView && <span className="scard-timer" />}
+      <div className="carousel" ref={stage} aria-live="polite">
+        <div className="carousel-track" style={{ transform: `translateX(${offset}px)` }}>
+          {CARDS.map((c, k) => {
+            const g = FEATURE_GROUPS[c.gi];
+            const near = Math.abs(k - i) <= 3;
+            return (
+              <article
+                key={c.title}
+                className={`fcard ${k === i ? 'active' : ''}`}
+                style={{ '--gc': g.color, width: CW } as CSSProperties}
+                aria-hidden={k !== i}
+                onClick={() => setI(k)}
+              >
+                <div className="fcard-photo">
+                  {near && <img src={`/features/${IMAGES[k]}.jpg`} alt="" loading="lazy" draggable={false} />}
+                  <span className="fcard-badge">
+                    {g.icon} {g.title}
+                  </span>
+                </div>
+                <div className="fcard-body">
+                  <span className="fcard-icon">{c.icon}</span>
+                  <span className="fcard-count">
+                    {k - first(c.gi) + 1} / {g.items.length}
+                  </span>
+                  <h4>{c.title}</h4>
+                  <p>{c.body}</p>
+                </div>
+                {k === i && inView && <span className="fcard-timer" key={`t${i}`} />}
+              </article>
+            );
+          })}
         </div>
       </div>
 

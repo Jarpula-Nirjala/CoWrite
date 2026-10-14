@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { api, errorText } from '../api.ts';
 import { useAuth } from '../auth.tsx';
-import { AppRail } from '../components/AppRail.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Modal, Spinner } from '../components/ui.tsx';
 import { navigate } from '../router.ts';
@@ -88,7 +87,6 @@ export function Keep() {
     <div className="page">
       <SiteHeader />
       <div className="rail-layout">
-        <AppRail active="keep" />
         <main className="keep">
           <div className="keep-top">
             <nav className="keep-views">

@@ -42,121 +42,159 @@
   transition: width 0.5s ease;
 }
 
-/* Dark stage like a product launch page: dot grid, glow, tall photo cards. */
-.stage3d {
+.carousel {
   position: relative;
+  padding: 26px 0 34px;
   overflow: hidden;
   border-radius: 28px;
   background:
-    radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--fc) 55%, transparent) 0%, transparent 55%),
-    radial-gradient(circle at 15% 85%, rgb(66 133 244 / 0.18), transparent 40%),
-    #070b14;
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--fc) 26%, transparent), transparent 45%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--fc) 22%, transparent), transparent 45%),
+    radial-gradient(circle at 70% 10%, rgb(255 200 120 / 0.18), transparent 35%),
+    linear-gradient(135deg, color-mix(in srgb, var(--fc) 8%, var(--bg-alt)), var(--bg-alt));
   transition: background 0.8s ease;
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
 }
-.stage3d::before {
+.carousel::before {
+  /* soft dot texture */
   content: '';
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgb(255 255 255 / 0.22) 1px, transparent 1px);
+  background-image: radial-gradient(color-mix(in srgb, var(--fc) 25%, transparent) 1px, transparent 1px);
   background-size: 22px 22px;
-  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  opacity: 0.35;
   pointer-events: none;
 }
-.scard {
-  position: absolute;
-  left: 50%;
-  top: 34px;
+.carousel-track {
+  position: relative;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  transition: transform 0.9s cubic-bezier(0.65, 0, 0.25, 1);
+  will-change: transform;
+}
+
+.fcard {
+  --gc: #1f3a68;
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
   border-radius: 22px;
   overflow: hidden;
   cursor: pointer;
-  background: #111827;
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.55);
-  filter: brightness(0.55) saturate(0.8);
-  transform-origin: 50% 0%;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--gc) 30%, transparent), transparent 55%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--gc) 20%, transparent), transparent 50%),
+    linear-gradient(160deg, color-mix(in srgb, var(--gc) 10%, #ffffff), color-mix(in srgb, var(--gc) 4%, #ffffff));
+  box-shadow: 0 10px 30px rgb(17 20 24 / 0.12);
+  opacity: 0.55;
+  transform: scale(0.86);
+  filter: saturate(0.7);
   transition: transform 0.9s cubic-bezier(0.65, 0, 0.25, 1), opacity 0.9s, filter 0.9s, box-shadow 0.9s;
 }
-.scard.center {
+.fcard.active {
+  opacity: 1;
+  transform: scale(1);
   filter: none;
-  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.15), 0 30px 80px color-mix(in srgb, var(--gc) 55%, rgb(0 0 0 / 0.6));
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--gc) 35%, rgb(0 0 0 / 0.2));
 }
-.scard img {
+.fcard-photo {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--gc) 25%, #dfe3ea);
+}
+.fcard-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  transform: scale(1.12);
-  transition: transform 3.4s ease-out;
+  transform: scale(1.08);
+  transition: transform 3.2s ease-out;
 }
-.scard.center img {
+.fcard.active .fcard-photo img {
   transform: scale(1);
 }
-.scard-shade {
+.fcard-photo::after {
+  content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgb(0 0 0 / 0.35) 0%, transparent 30%, transparent 55%, rgb(0 0 0 / 0.7) 100%);
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.35) 0%, transparent 35%, transparent 60%, color-mix(in srgb, var(--gc) 55%, transparent) 100%);
 }
-.scard-badge {
-  position: absolute;
-  left: 12px;
-  top: 12px;
-  padding: 4px 10px;
-  border: 1px solid rgb(255 255 255 / 0.25);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 0.35);
-  backdrop-filter: blur(6px);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 700;
-}
-.scard-title {
+.fcard-badge {
   position: absolute;
   left: 14px;
-  right: 14px;
-  bottom: 14px;
-  color: #fff;
-  font-size: 1.05rem;
+  top: 12px;
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.9);
+  color: #1b1f24;
+  font-size: 0.8rem;
   font-weight: 700;
-  line-height: 1.25;
-  text-shadow: 0 2px 8px rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(4px);
 }
-.scard-caption {
-  --gc: #1f3a68;
+.fcard-icon {
   position: absolute;
-  left: 50%;
-  bottom: 22px;
-  z-index: 20;
-  padding: 20px 24px 22px;
-  border: 1px solid rgb(255 255 255 / 0.14);
-  border-radius: 20px;
-  background: rgb(23 29 43 / 0.78);
-  backdrop-filter: blur(14px);
-  color: #e8ecf4;
-  box-shadow: 0 20px 50px rgb(0 0 0 / 0.45);
-  transform: translateX(-50%);
-  overflow: hidden;
-  animation: caption-in 0.7s 0.15s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+  right: 16px;
+  top: -30px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 4px solid #fff;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--gc), color-mix(in srgb, var(--gc) 60%, #ffffff));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--gc) 40%, transparent);
+  font-size: 1.6rem;
 }
-.scard-count {
-  color: color-mix(in srgb, var(--gc) 45%, #ffffff);
+.fcard.active .fcard-icon {
+  animation: fcard-pop 0.7s 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.fcard-body {
+  position: relative;
+  padding: 22px 22px 26px;
+}
+.fcard-body::before {
+  /* subtle diagonal lines */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--gc) 6%, transparent) 14px 15px);
+  pointer-events: none;
+}
+.fcard-count {
+  position: relative;
+  color: var(--gc);
   font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
 }
-.scard-caption h4 {
-  margin: 4px 0 6px;
-  color: #fff;
-  font-size: 1.45rem;
+.fcard-body h4 {
+  position: relative;
+  margin: 4px 0 8px;
+  color: #111418;
+  font-size: 1.4rem;
+  line-height: 1.2;
 }
-.scard-caption p {
+.fcard-body p {
+  position: relative;
   margin: 0;
-  color: #c9d1e0;
+  color: #3a3f47;
+  min-height: 3.2em;
 }
-.scard-timer {
+.fcard.active .fcard-body h4,
+.fcard.active .fcard-body p {
+  animation: fcard-rise 0.6s 0.25s ease both;
+}
+.fcard-timer {
   position: absolute;
   left: 0;
   bottom: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--gc), #8ab4f8);
+  height: 4px;
+  background: linear-gradient(90deg, var(--gc), color-mix(in srgb, var(--gc) 50%, #ffffff));
   animation: fcard-timer 3s linear both;
 }
 @keyframes fcard-timer {
@@ -167,28 +205,36 @@
     width: 100%;
   }
 }
-@keyframes caption-in {
+@keyframes fcard-pop {
+  from {
+    transform: scale(0.3) rotate(-20deg);
+  }
+}
+@keyframes fcard-rise {
   from {
     opacity: 0;
-    transform: translate(-50%, 18px);
+    transform: translateY(12px);
   }
+}
+:root[data-tone='dark'] .fcard-body h4 {
+  color: #111418;
 }
 @media (max-width: 700px) {
   .showcase-chip {
     padding: 6px 12px;
     font-size: 0.85rem;
   }
-  .scard-caption h4 {
-    font-size: 1.15rem;
-  }
 }
 @media (prefers-reduced-motion: reduce) {
-  .scard,
-  .scard img {
+  .carousel-track,
+  .fcard,
+  .fcard-photo img {
     transition: none;
   }
-  .scard-caption,
-  .scard-timer {
+  .fcard-timer,
+  .fcard.active .fcard-icon,
+  .fcard.active .fcard-body h4,
+  .fcard.active .fcard-body p {
     animation: none;
   }
 }

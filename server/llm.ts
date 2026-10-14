@@ -35,8 +35,13 @@ function claudeError(err: unknown): HttpError {
 export class ClaudeLlm implements Llm {
   readonly name = 'Claude';
   readonly color = '#c15f3c';
-  readonly source = 'server' as const;
-  private readonly client = new Anthropic();
+  readonly source: 'user' | 'server';
+  private readonly client: Anthropic;
+
+  constructor(key?: string, source: 'user' | 'server' = 'server') {
+    this.client = key ? new Anthropic({ apiKey: key }) : new Anthropic();
+    this.source = source;
+  }
 
   async text(system: string, prompt: string, maxTokens = 8000): Promise<string> {
     try {
@@ -131,8 +136,18 @@ export class ClaudeLlm implements Llm {
 // ------------------------------------------------------------------- Gemini
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
-const GEMINI_TTS_MODEL = process.env.GEMINI_TTS_MODEL || 'gemini-2.5-flash-preview-tts';
+/**
+ * Google retires model versions for new keys (gemini-2.5-flash answers 404 for keys made after its retirement),
+ * so text requests go to the always-current alias first and fall back through newer and older versions.
+ */
+const GEMINI_MODEL = 'text';
+const GEMINI_TTS_MODEL = 'tts';
+const MODEL_CHAINS: Record<string, string[]> = {
+  text: [...(process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : []), 'gemini-flash-latest', 'gemini-3.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash'],
+  tts: [...(process.env.GEMINI_TTS_MODEL ? [process.env.GEMINI_TTS_MODEL] : []), 'gemini-2.5-flash-preview-tts', 'gemini-3.8-flash-tts', 'gemini-3.1-flash-tts-preview'],
+};
+/** The model that last worked, per chain, so later requests skip retired ones. */
+const workingModel = new Map<string, string>();
 
 type GeminiPart = { text?: string; inlineData?: { mimeType: string; data: string } };
 interface GeminiResponse {
@@ -157,8 +172,10 @@ function geminiError(status: number, body: GeminiResponse | null, source: 'user'
   }
   if (status === 400 && /API key/i.test(msg)) return new HttpError(source === 'user' ? 400 : 503, source === 'user' ? 'Your Gemini API key is not valid. Check it in Account settings.' : 'The site’s Gemini key is not valid.');
   if (status === 403) return new HttpError(403, 'Gemini refused this key. Make sure the Generative Language API is enabled for it in Google AI Studio.');
-  if (status === 400) return new HttpError(400, 'Gemini could not process this request.');
-  return new HttpError(502, `Gemini returned an error (${status}).`);
+  if (status === 401) return new HttpError(source === 'user' ? 400 : 503, source === 'user' ? 'Google did not accept your Gemini key. Copy it again from Google AI Studio.' : 'The site’s Gemini key is not valid.');
+  if (status === 400) return new HttpError(400, `Gemini could not process this request${msg ? ` (${msg.slice(0, 140)})` : ''}.`);
+  if (status === 503) return new HttpError(503, 'Gemini is very busy right now. Please try again in a moment.');
+  return new HttpError(502, `Gemini returned an error (${status}${msg ? `: ${msg.slice(0, 120)}` : ''}).`);
 }
 
 export class GeminiLlm implements Llm {
@@ -172,23 +189,54 @@ export class GeminiLlm implements Llm {
     this.source = source;
   }
 
-  private async call(model: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
-    let res: Response;
-    try {
-      res = await fetch(`${GEMINI_BASE}/models/${model}:${method}`, {
+  private async call(chain: string, method: string, body: unknown, signal?: AbortSignal): Promise<Response> {
+    const all = MODEL_CHAINS[chain] ?? [chain];
+    const first = workingModel.get(chain);
+    const models = first ? [first, ...all.filter((m) => m !== first)] : all;
+    // Some models reject `thinkingBudget: 0`; those get the same request without it.
+    const plain = (b: unknown) => {
+      const g = (b as { generationConfig?: Record<string, unknown> }).generationConfig;
+      if (!g?.thinkingConfig) return null;
+      const { thinkingConfig: _t, ...rest } = g;
+      return { ...(b as object), generationConfig: rest };
+    };
+    const send = (model: string, b: unknown) =>
+      fetch(`${GEMINI_BASE}/models/${model}:${method}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', 'x-goog-api-key': this.key },
-        body: JSON.stringify(body),
+        body: JSON.stringify(b),
         signal: signal ?? AbortSignal.timeout(120_000),
       });
-    } catch {
-      throw new HttpError(502, 'Could not reach Gemini. Please try again.');
+    let last: HttpError | null = null;
+    // Two rounds: a model that is merely busy (503) often answers a moment later.
+    for (let round = 0; round < 2; round++) {
+      let busy = false;
+      for (const model of models) {
+        let res: Response;
+        try {
+          res = await send(model, body);
+          if (res.status === 400 && plain(body)) {
+            const retry = await send(model, plain(body));
+            if (retry.ok || retry.status !== 400) res = retry;
+          }
+        } catch {
+          throw new HttpError(502, 'Could not reach Gemini. Please try again.');
+        }
+        if (res.ok) {
+          workingModel.set(chain, model);
+          return res;
+        }
+        const err = (await res.json().catch(() => null)) as GeminiResponse | null;
+        last = geminiError(res.status, err, this.source);
+        if (res.status === 503 || res.status === 500) busy = true;
+        // Retired or unknown model, or one that is overloaded right now: try the next one.
+        if (res.status === 404 || res.status === 500 || res.status === 503) continue;
+        throw last;
+      }
+      if (!busy) break;
+      await new Promise((r) => setTimeout(r, 1500));
     }
-    if (!res.ok) {
-      const err = (await res.json().catch(() => null)) as GeminiResponse | null;
-      throw geminiError(res.status, err, this.source);
-    }
-    return res;
+    throw last ?? new HttpError(502, 'Gemini is unavailable right now. Please try again.');
   }
 
   private request(system: string, parts: GeminiPart[], maxTokens: number, extra: Record<string, unknown> = {}) {
@@ -258,41 +306,159 @@ export class GeminiLlm implements Llm {
   }
 }
 
-// ---------------------------------------------- Groq and OpenRouter (free tiers)
+// ------------------------------------- other providers (OpenAI-compatible APIs)
 
-/** Chat-completions providers with free tiers: Groq (keys start "gsk_") and OpenRouter ("sk-or-"). */
+interface CompatConfig {
+  name: string;
+  base: string;
+  /** Model preferences, best first; the first one this key can use wins. */
+  prefer: RegExp[];
+  /** Used when the model list cannot be read. */
+  fallback: string;
+  /** Vision model preferences (image tools); empty when the provider has none. */
+  vision: RegExp[];
+  /** Read-only request that fails for a wrong key (relative to base, or absolute). */
+  check: string;
+}
+
+/** Chat-completions services, most with free tiers. Keys are recognised by their prefix where they have one. */
 const COMPAT = {
   groq: {
     name: 'Groq',
     base: 'https://api.groq.com/openai/v1',
-    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
-    vision: process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    prefer: [/^llama-3\.3-70b-versatile$/, /^openai\/gpt-oss-120b$/, /^meta-llama\/llama-4-maverick/, /llama.*70b/, /^qwen/],
+    fallback: 'llama-3.3-70b-versatile',
+    vision: [/llama-4-scout/, /llama-4-maverick/, /vision/],
     check: '/models',
   },
   openrouter: {
     name: 'OpenRouter',
     base: 'https://openrouter.ai/api/v1',
-    model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
-    vision: process.env.OPENROUTER_VISION_MODEL || 'google/gemma-3-27b-it:free',
+    prefer: [/^meta-llama\/llama-3\.3-70b-instruct:free$/, /^openai\/gpt-oss-120b:free$/, /^deepseek\/.*:free$/, /^qwen\/.*:free$/, /^google\/gemma.*:free$/, /:free$/],
+    fallback: 'meta-llama/llama-3.3-70b-instruct:free',
+    vision: [/^google\/gemma-3.*:free$/, /^meta-llama\/llama-4.*:free$/, /vl.*:free$/],
     check: '/key',
   },
-} as const;
+  cerebras: {
+    name: 'Cerebras',
+    base: 'https://api.cerebras.ai/v1',
+    prefer: [/^gpt-oss-120b$/, /^llama-3\.3-70b$/, /^qwen-3.*instruct/, /^llama/],
+    fallback: 'llama-3.3-70b',
+    vision: [],
+    check: '/models',
+  },
+  mistral: {
+    name: 'Mistral',
+    base: 'https://api.mistral.ai/v1',
+    prefer: [/^mistral-medium-latest$/, /^mistral-small-latest$/, /^mistral-large-latest$/, /^open-mistral/],
+    fallback: 'mistral-small-latest',
+    vision: [/^mistral-medium-latest$/, /^mistral-small-latest$/, /^pixtral/],
+    check: '/models',
+  },
+  huggingface: {
+    name: 'Hugging Face',
+    base: 'https://router.huggingface.co/v1',
+    prefer: [/Llama-3\.3-70B-Instruct/i, /gpt-oss-120b/i, /Qwen.*Instruct/i, /DeepSeek-V3/i],
+    fallback: 'meta-llama/Llama-3.3-70B-Instruct',
+    vision: [/Llama-4-Scout/i, /Qwen.*VL/i, /gemma-3/i],
+    check: 'https://huggingface.co/api/whoami-v2',
+  },
+  github: {
+    name: 'GitHub Models',
+    base: 'https://models.github.ai/inference',
+    prefer: [],
+    fallback: 'openai/gpt-4.1-mini',
+    vision: [],
+    check: 'chat',
+  },
+  together: {
+    name: 'Together AI',
+    base: 'https://api.together.xyz/v1',
+    prefer: [/Llama-3\.3-70B-Instruct-Turbo-Free/i, /Llama-3\.3-70B-Instruct-Turbo/i, /gpt-oss-120b/i, /Qwen.*Instruct/i],
+    fallback: 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free',
+    vision: [/Llama-4-Scout/i, /Llama-Vision-Free/i, /VL/],
+    check: '/models',
+  },
+  deepseek: {
+    name: 'DeepSeek',
+    base: 'https://api.deepseek.com/v1',
+    prefer: [/^deepseek-chat$/],
+    fallback: 'deepseek-chat',
+    vision: [],
+    check: '/models',
+  },
+  openai: {
+    name: 'ChatGPT',
+    base: 'https://api.openai.com/v1',
+    prefer: [/^gpt-5(\.\d+)?-mini$/, /^gpt-4\.1-mini$/, /^gpt-4o-mini$/],
+    fallback: 'gpt-4o-mini',
+    vision: [/^gpt-5(\.\d+)?-mini$/, /^gpt-4\.1-mini$/, /^gpt-4o-mini$/],
+    check: '/models',
+  },
+} satisfies Record<string, CompatConfig>;
 export type CompatProvider = keyof typeof COMPAT;
+export type Provider = 'gemini' | 'anthropic' | CompatProvider;
+
+/** Display names, for the account page and the AI's byline. */
+export const PROVIDER_NAMES: Record<Provider, string> = {
+  gemini: 'Gemini',
+  anthropic: 'Claude',
+  ...(Object.fromEntries(Object.entries(COMPAT).map(([k, v]) => [k, v.name])) as Record<CompatProvider, string>),
+};
 
 type ChatReply = { choices?: { message?: { content?: string } }[] };
+
+/** Model ids each key can use, cached for an hour. */
+const modelLists = new Map<string, { at: number; ids: string[] }>();
+async function modelIds(cfg: CompatConfig, key: string): Promise<string[]> {
+  const id = `${cfg.base}|${key.slice(-12)}`;
+  const hit = modelLists.get(id);
+  if (hit && Date.now() - hit.at < 3_600_000) return hit.ids;
+  let ids: string[] = [];
+  try {
+    const res = await fetch(`${cfg.base}/models`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
+    if (res.ok) {
+      const j = (await res.json()) as { data?: { id: string }[] } | { id: string }[];
+      ids = (Array.isArray(j) ? j : (j.data ?? [])).map((m) => m.id).filter(Boolean);
+    }
+  } catch {
+    // Fall back to the configured default model.
+  }
+  modelLists.set(id, { at: Date.now(), ids });
+  return ids;
+}
+const choose = (ids: string[], prefer: RegExp[]) => {
+  for (const re of prefer) {
+    const m = ids.find((x) => re.test(x));
+    if (m) return m;
+  }
+  return null;
+};
 
 export class CompatLlm implements Llm {
   readonly name: string;
   readonly color = '#7c3aed';
   readonly source: 'user' | 'server';
   private readonly key: string;
-  private readonly cfg: (typeof COMPAT)[CompatProvider];
+  private readonly cfg: CompatConfig;
 
   constructor(provider: CompatProvider, key: string, source: 'user' | 'server') {
     this.cfg = COMPAT[provider];
     this.name = this.cfg.name;
     this.key = key;
     this.source = source;
+  }
+
+  private async model(vision = false): Promise<string> {
+    const ids = await modelIds(this.cfg, this.key);
+    if (vision) {
+      if (!this.cfg.vision.length) throw new HttpError(400, `${this.name} cannot read images. Connect a free Gemini key in Account → AI to use photo and PDF tools.`);
+      const v = choose(ids, this.cfg.vision);
+      if (v) return v;
+      if (ids.length) throw new HttpError(400, `${this.name} has no model that can read images for your key. Connect a free Gemini key to use photo tools.`);
+      return this.cfg.fallback;
+    }
+    return choose(ids, this.cfg.prefer) ?? (ids.includes(this.cfg.fallback) || !ids.length ? this.cfg.fallback : ids[0]);
   }
 
   private async call(body: Record<string, unknown>): Promise<Response> {
@@ -310,6 +476,7 @@ export class CompatLlm implements Llm {
     if (!res.ok) {
       if (res.status === 429) throw new HttpError(429, `The free ${this.name} limit is used up for now. Please wait a minute and try again.`);
       if (res.status === 401 || res.status === 403) throw new HttpError(400, `${this.name} did not accept your key. Check it in Account settings.`);
+      if (res.status === 402) throw new HttpError(402, `Your ${this.name} account has no free credit left. Connect a free Gemini or Groq key instead.`);
       throw new HttpError(502, `${this.name} returned an error (${res.status}).`);
     }
     return res;
@@ -320,12 +487,12 @@ export class CompatLlm implements Llm {
   }
 
   async text(system: string, prompt: string, maxTokens = 8000): Promise<string> {
-    const res = await this.call({ model: this.cfg.model, max_tokens: Math.min(maxTokens, 8000), messages: this.messages(system, prompt) });
+    const res = await this.call({ model: await this.model(), max_tokens: Math.min(maxTokens, 8000), messages: this.messages(system, prompt) });
     return (((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '').trim();
   }
 
   async *stream(system: string, prompt: string, maxTokens = 8000): AsyncIterable<string> {
-    const res = await this.call({ model: this.cfg.model, max_tokens: Math.min(maxTokens, 8000), stream: true, messages: this.messages(system, prompt) });
+    const res = await this.call({ model: await this.model(), max_tokens: Math.min(maxTokens, 8000), stream: true, messages: this.messages(system, prompt) });
     const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
     for (;;) {
@@ -350,7 +517,7 @@ export class CompatLlm implements Llm {
 
   async json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens = 8000): Promise<T> {
     const res = await this.call({
-      model: this.cfg.model,
+      model: await this.model(),
       max_tokens: Math.min(maxTokens, 8000),
       response_format: { type: 'json_object' },
       messages: this.messages(`${system}\n\nReply with a single JSON object that matches this JSON Schema, and nothing else:\n${JSON.stringify(schema)}`, prompt),
@@ -366,7 +533,7 @@ export class CompatLlm implements Llm {
   async image(data: Buffer, mime: string, ask: string, maxTokens = 2000): Promise<string> {
     if (mime === 'application/pdf') throw new HttpError(400, `${this.name} cannot read PDFs. Connect a free Gemini key in Account → AI to use PDF tools.`);
     const res = await this.call({
-      model: this.cfg.vision,
+      model: await this.model(true),
       max_tokens: Math.min(maxTokens, 8000),
       messages: [{ role: 'user', content: [{ type: 'text', text: ask }, { type: 'image_url', image_url: { url: `data:${mime || 'image/png'};base64,${data.toString('base64')}` } }] }],
     });
@@ -374,33 +541,64 @@ export class CompatLlm implements Llm {
   }
 }
 
-/** Which service a personal key belongs to, from its shape. */
-export function keyProvider(key: string): 'gemini' | CompatProvider {
-  if (key.startsWith('gsk_')) return 'groq';
-  if (key.startsWith('sk-or-')) return 'openrouter';
-  return 'gemini';
+/** Services a key might belong to, judged from its shape; keys without a known prefix are tried against several. */
+export function keyCandidates(key: string): Provider[] {
+  if (key.startsWith('gsk_')) return ['groq'];
+  if (key.startsWith('sk-or-')) return ['openrouter'];
+  if (key.startsWith('sk-ant-')) return ['anthropic'];
+  if (key.startsWith('csk-')) return ['cerebras'];
+  if (key.startsWith('hf_')) return ['huggingface'];
+  if (key.startsWith('ghp_') || key.startsWith('github_pat_')) return ['github'];
+  if (key.startsWith('tgp_')) return ['together'];
+  if (key.startsWith('AIza') || key.startsWith('AQ.')) return ['gemini'];
+  if (key.startsWith('sk-')) return ['openai', 'deepseek'];
+  return ['gemini', 'mistral', 'together', 'groq', 'cerebras'];
+}
+
+/** Best guess of a key's service without a network call (used for keys saved before providers were stored). */
+export function keyProvider(key: string): Provider {
+  return keyCandidates(key)[0];
 }
 
 /** The model for a personal key. */
-export function llmForKey(key: string, source: 'user' | 'server'): Llm {
-  const p = keyProvider(key);
-  return p === 'gemini' ? new GeminiLlm(key, source) : new CompatLlm(p, key, source);
+export function llmForKey(key: string, source: 'user' | 'server', provider?: string | null): Llm {
+  const p = (provider && provider in PROVIDER_NAMES ? provider : keyProvider(key)) as Provider;
+  if (p === 'gemini') return new GeminiLlm(key, source);
+  if (p === 'anthropic') return new ClaudeLlm(key, source);
+  return new CompatLlm(p, key, source);
 }
 
-/** Checks a key with its provider without spending tokens. */
-export async function checkKey(key: string): Promise<boolean> {
-  const p = keyProvider(key);
-  try {
-    if (p === 'gemini') {
-      // Older keys start "AIza"; newer AI Studio keys start "AQ.". Try the header, then the query parameter.
-      const res = await fetch(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(10_000) });
-      if (res.ok) return true;
-      const alt = await fetch(`${GEMINI_BASE}/models?pageSize=1&key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(10_000) });
-      return alt.ok;
-    }
-    const res = await fetch(`${COMPAT[p].base}${COMPAT[p].check}`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
-    return res.ok;
-  } catch {
-    return false;
+/** Whether a provider accepts the key, with a read-only request that spends no tokens. */
+async function accepts(p: Provider, key: string): Promise<boolean> {
+  const t = AbortSignal.timeout(12_000);
+  if (p === 'gemini') {
+    const res = await fetch(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key }, signal: t });
+    if (res.ok) return true;
+    return (await fetch(`${GEMINI_BASE}/models?pageSize=1&key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(12_000) })).ok;
   }
+  if (p === 'anthropic') return (await fetch('https://api.anthropic.com/v1/models', { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' }, signal: t })).ok;
+  const cfg: CompatConfig = COMPAT[p];
+  if (cfg.check === 'chat') {
+    const res = await fetch(`${cfg.base}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: cfg.fallback, max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] }),
+      signal: t,
+    });
+    return res.ok;
+  }
+  const url = cfg.check.startsWith('http') ? cfg.check : `${cfg.base}${cfg.check}`;
+  return (await fetch(url, { headers: { authorization: `Bearer ${key}` }, signal: t })).ok;
+}
+
+/** Finds which service accepts a key; null when none does. */
+export async function detectProvider(key: string): Promise<Provider | null> {
+  const found = await Promise.all(keyCandidates(key).map((p) => accepts(p, key).catch(() => false)));
+  const i = found.indexOf(true);
+  return i < 0 ? null : keyCandidates(key)[i];
+}
+
+/** Kept for callers that only need a yes or no. */
+export async function checkKey(key: string): Promise<boolean> {
+  return (await detectProvider(key)) !== null;
 }

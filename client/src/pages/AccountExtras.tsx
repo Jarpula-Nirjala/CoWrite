@@ -1,3 +1,4 @@
+import { AI_PROVIDER_NAMES } from '../auth.tsx';
 import { useEffect, useState } from 'react';
 import { api, errorText, type Brand, type User } from '../api.ts';
 import { downscale, pickFile } from '../editor/useFiles.ts';
@@ -210,9 +211,26 @@ const KEY_GUIDES = [
     ],
     note: 'Free models have lower daily limits.',
   },
+  {
+    id: 'other',
+    name: 'Any other key',
+    tag: 'Auto-detected',
+    url: 'https://cloud.cerebras.ai',
+    prefix: 'any',
+    steps: () => [
+      <>
+        Paste a key from any of these and CoWrite works out which service it belongs to: <strong>Cerebras</strong> (free, <code>csk-</code>), <strong>Mistral</strong> (free tier at console.mistral.ai),{' '}
+        <strong>Hugging Face</strong> (free, <code>hf_</code>), <strong>GitHub Models</strong> (free, a <code>github_pat_</code> token), <strong>Together AI</strong>, <strong>DeepSeek</strong>,{' '}
+        <strong>ChatGPT / OpenAI</strong> (<code>sk-</code>) or <strong>Claude</strong> (<code>sk-ant-</code>).
+      </>,
+      <>Paid services (OpenAI, Claude, DeepSeek) only work if your account has credit.</>,
+      <>Photo and PDF tools work best with Gemini; text tools, Smart Create and the assistant work with every service.</>,
+    ],
+    note: 'Keys are encrypted before they are stored and are only used for your own requests.',
+  },
 ];
 
-/** Connect a personal (free) AI key: Gemini, Groq or OpenRouter. */
+/** Connect a personal AI key from any supported service; the server detects which one it is. */
 export function AiKeySection({ user, onChange }: { user: User; onChange(connected: boolean, provider?: string | null): void }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -220,16 +238,16 @@ export function AiKeySection({ user, onChange }: { user: User; onChange(connecte
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const connected = !!user.aiConnected;
   const g = KEY_GUIDES.find((x) => x.id === guide)!;
-  const providerName = KEY_GUIDES.find((x) => x.id === (user.aiProvider ?? 'gemini'))?.name ?? 'Gemini';
+  const providerName = AI_PROVIDER_NAMES[user.aiProvider ?? 'gemini'] ?? 'Gemini';
 
   const save = async () => {
     setBusy(true);
     setMsg(null);
     try {
-      const r = await api<{ aiProvider: string }>('/auth/me/ai-key', { method: 'PUT', body: { key: key.trim() } });
+      const r = await api<{ aiProvider: string }>('/auth/me/ai-key', { method: 'PUT', body: { key: key.replace(/\s+/g, '') } });
       setKey('');
       onChange(true, r.aiProvider);
-      setMsg({ ok: true, text: 'Connected. Every AI feature now runs on your own free key.' });
+      setMsg({ ok: true, text: `Connected to ${AI_PROVIDER_NAMES[r.aiProvider] ?? 'your AI'}. Every AI feature now runs on your own key.` });
     } catch (e) {
       setMsg({ ok: false, text: errorText(e) });
     } finally {

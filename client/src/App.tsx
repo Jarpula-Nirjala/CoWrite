@@ -22,6 +22,7 @@ import { NotFound } from './pages/NotFound.tsx';
 import { Profile } from './pages/Profile.tsx';
 import { PublicDoc } from './pages/PublicPage.tsx';
 import { usePath } from './router.ts';
+import { AppRail, railHidden } from './components/AppRail.tsx';
 
 function Routes() {
   const path = usePath().replace(/\/+$/, '') || '/';
@@ -83,9 +84,15 @@ function Routes() {
   }
 }
 
+function Rail() {
+  const path = usePath().replace(/\/+$/, '') || '/';
+  return railHidden(path) ? null : <AppRail />;
+}
+
 export function App() {
   return (
     <AuthProvider>
+      <Rail />
       <Routes />
     </AuthProvider>
   );

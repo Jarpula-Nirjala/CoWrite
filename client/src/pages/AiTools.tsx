@@ -3,7 +3,6 @@ import type { Token } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { api, errorText, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
-import { AppRail } from '../components/AppRail.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { SmartCreate } from '../components/SmartCreate.tsx';
@@ -77,7 +76,6 @@ export function AiTools() {
     <div className="page">
       <SiteHeader />
       <div className="rail-layout">
-        <AppRail active="ai" />
         <main className="ai-tools-page">
           <header className="tools-hero">
             <div>

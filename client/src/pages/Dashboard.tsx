@@ -3,26 +3,27 @@ import { api, errorText, timeAgo, type DocKind, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
-import { AppRail } from '../components/AppRail.tsx';
 import { SmartCreate } from '../components/SmartCreate.tsx';
 import { readImport } from '../lib/exporters.ts';
 import { htmlToTokens } from '../rich/importHtml.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { Preview, TemplateGallery } from '../components/TemplateGallery.tsx';
 import { Icon, Spinner } from '../components/ui.tsx';
-import { BLANKS, GALLERY, type GalleryItem } from '../lib/gallery.ts';
+import { GALLERY, type GalleryItem } from '../lib/gallery.ts';
 import { pendingContent } from '../lib/templates.ts';
 import { localPrefs } from '../lib/prefs.ts';
 import { Link, navigate } from '../router.ts';
 
-const KINDS: { kind: DocKind; label: string; icon: string; tint: string }[] = [
-  { kind: 'doc', label: 'Document', icon: '📄', tint: '#1f3a68' },
-  { kind: 'slides', label: 'Presentation', icon: '📊', tint: '#b3541e' },
-  { kind: 'board', label: 'Whiteboard', icon: '🧩', tint: '#6a1b9a' },
-  { kind: 'kanban', label: 'Kanban board', icon: '🗂️', tint: '#0a66c2' },
-  { kind: 'sheet', label: 'Spreadsheet', icon: '📈', tint: '#2e7d32' },
+const BADGE: Record<string, string> = { doc: 'D', slides: 'P', board: 'W', kanban: 'K', sheet: 'S' };
+const KIND_LABEL: Record<string, string> = { doc: 'Document', slides: 'Presentation', board: 'Whiteboard', kanban: 'Kanban board', sheet: 'Spreadsheet' };
+const RECENT_FILTERS: { id: DocKind | 'all'; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'doc', label: 'Documents' },
+  { id: 'slides', label: 'Presentations' },
+  { id: 'sheet', label: 'Spreadsheets' },
+  { id: 'board', label: 'Whiteboards' },
+  { id: 'kanban', label: 'Boards' },
 ];
-const ICON: Record<string, string> = { doc: '📄', slides: '📊', board: '🧩', kanban: '🗂️', sheet: '📈' };
 const FEATURED = ['pro-growth', 'gdoc-report-luxe', 'pro-corporate-brochure', 'gdoc-paperback', 'pro-data-insights', 'gdoc-project-plan', 'pro-pioneering', 'resume'];
 const ACTIONS: { label: string; icon: string; to?: string; tint: string }[] = [
   { label: 'Blank', icon: '➕', tint: '#1a73e8' },
@@ -60,6 +61,7 @@ export function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [question, setQuestion] = useState('');
   const openInput = useRef<HTMLInputElement>(null);
+  const [recentKind, setRecentKind] = useState<DocKind | 'all'>('all');
 
   useEffect(() => {
     document.title = 'Home · CoWrite';
@@ -105,7 +107,6 @@ export function Dashboard() {
     <div className="page">
       <SiteHeader />
       <div className="rail-layout">
-      <AppRail active="home" />
       <main className="container dashboard">
         <header className="dash-hello">
           <div>
@@ -145,25 +146,6 @@ export function Dashboard() {
 
         <SmartCreate compact />
 
-        <section className="quick-create" aria-label="Create">
-          {KINDS.map((k) => (
-            <button key={k.kind} className="create-tile" style={{ '--tint': k.tint } as React.CSSProperties} disabled={busy} onClick={() => void create(GALLERY.find((g) => g.id === BLANKS[k.kind])!)} type="button">
-              <span className="create-icon">{k.icon}</span>
-              <span>
-                <strong>{k.label}</strong>
-                <small>Blank</small>
-              </span>
-              <Icon name="plus" size={16} />
-            </button>
-          ))}
-          <button className="create-tile templates" onClick={() => setGallery(true)} type="button">
-            <span className="create-icon">✨</span>
-            <span>
-              <strong>Templates</strong>
-              <small>{GALLERY.length} designs</small>
-            </span>
-          </button>
-        </section>
 
         <section className="dash-section">
           <div className="row-between">
@@ -199,21 +181,46 @@ export function Dashboard() {
             ) : !docs.length ? (
               <p className="muted">Nothing yet. Create your first document above, or try a template.</p>
             ) : (
-              <ul className="recent-grid">
-                {docs.slice(0, 8).map((d) => (
-                  <li key={d.id}>
-                    <Link className="recent-card" to={`/d/${d.id}`}>
-                      <span className="recent-icon">{ICON[d.kind] ?? '📄'}</span>
-                      <span className="recent-title">{d.title}</span>
-                      <span className="muted small">
-                        {timeAgo(d.updatedAt)}
-                        {d.role && d.role !== 'owner' ? ` · shared by ${d.ownerName ?? 'someone'}` : ''}
-                      </span>
-                      {d.snippet && <span className="recent-snippet">{d.snippet.replace(/<[^>]+>/g, '').slice(0, 90)}</span>}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <div className="recent-filter" role="tablist">
+                  {RECENT_FILTERS.map((f) => (
+                    <button key={f.id} role="tab" aria-selected={recentKind === f.id} className={recentKind === f.id ? 'on' : ''} onClick={() => setRecentKind(f.id)} type="button">
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+                <table className="recent-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th className="hide-sm">Owner</th>
+                      <th>Last modified</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {docs
+                      .filter((d) => recentKind === 'all' || d.kind === recentKind)
+                      .slice(0, 10)
+                      .map((d) => (
+                        <tr key={d.id} onClick={() => navigate(`/d/${d.id}`)}>
+                          <td>
+                            <Link className="recent-name" to={`/d/${d.id}`} onClick={(e) => e.stopPropagation()}>
+                              <span className={`file-badge fb-${d.kind}`} aria-hidden>
+                                {BADGE[d.kind] ?? 'D'}
+                              </span>
+                              <span>
+                                <b>{d.title}</b>
+                                <small>{KIND_LABEL[d.kind] ?? 'Document'}{d.starred ? ' · ★ Starred' : ''}</small>
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="hide-sm">{d.role && d.role !== 'owner' ? (d.ownerName ?? 'Shared') : 'me'}</td>
+                          <td className="muted">{timeAgo(d.updatedAt)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </>
             )}
           </section>
 

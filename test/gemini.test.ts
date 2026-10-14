@@ -24,7 +24,7 @@ test('text: sends the key in a header, the system prompt separately, and reads t
   const calls = stub(() => json(answer('  Hello there  ')));
   const g = new GeminiLlm('AIzaTEST', 'user');
   assert.equal(await g.text('Be brief.', 'Say hi', 100), 'Hello there');
-  assert.match(calls[0].url, /models\/gemini-2\.5-flash:generateContent$/);
+  assert.match(calls[0].url, /models\/gemini-flash-latest:generateContent$/);
   assert.equal(calls[0].headers['x-goog-api-key'], 'AIzaTEST');
   assert.equal(calls[0].body.systemInstruction.parts[0].text, 'Be brief.');
   assert.equal(calls[0].body.contents[0].parts[0].text, 'Say hi');
@@ -67,4 +67,23 @@ test('speech: returns the PCM audio bytes', async () => {
   assert.deepEqual([...out], [1, 0, 2, 0]);
   assert.match(calls[0].url, /preview-tts:generateContent$/);
   assert.equal(calls[0].body.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Kore');
+});
+
+test('falls back to the next model when one is retired for new keys', async () => {
+  const calls = stub((url) => (url.includes('/gemini-flash-latest:') ? json({ error: { code: 404, message: 'This model is no longer available to new users.' } }, 404) : json(answer('ok'))));
+  const g = new GeminiLlm('AQ.Ab8newstylekey', 'user');
+  assert.equal(await g.text('', 'hi', 50), 'ok');
+  assert.match(calls[0].url, /gemini-flash-latest/);
+  assert.match(calls[1].url, /gemini-3\.5-flash:/);
+  // The working model is remembered, so the retired one is not tried again.
+  await g.text('', 'again', 50);
+  assert.match(calls[2].url, /gemini-3\.5-flash:/);
+});
+
+test('retries without thinkingConfig when a model rejects it', async () => {
+  const calls = stub((_url, body) => (body.generationConfig.thinkingConfig ? json({ error: { code: 400, message: 'Request contains an invalid argument.' } }, 400) : json(answer('fine'))));
+  const g = new GeminiLlm('AIzaTEST', 'user');
+  assert.equal(await g.text('', 'hi', 50), 'fine');
+  assert.ok(calls[0].body.generationConfig.thinkingConfig);
+  assert.equal(calls[1].body.generationConfig.thinkingConfig, undefined);
 });

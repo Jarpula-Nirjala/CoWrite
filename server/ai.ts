@@ -82,9 +82,9 @@ export class AiHub {
   /** The writer for a user (their own key if they connected one). */
   async for(userId: string | null | undefined): Promise<AiWriter> {
     if (userId) {
-      const [row] = await this.db.query<{ ai_key: string | null }>('select ai_key from users where id = $1', [userId]);
+      const [row] = await this.db.query<{ ai_key: string | null; ai_provider: string | null }>('select ai_key, ai_provider from users where id = $1', [userId]);
       const key = row?.ai_key ? await this.vault.open(row.ai_key) : null;
-      if (key) return new AiWriter(llmForKey(key, 'user'));
+      if (key) return new AiWriter(llmForKey(key, 'user', row?.ai_provider));
     }
     if (!this.server) throw new HttpError(503, 'AI is not set up yet. Connect your free Gemini key in Account settings → AI assistant.');
     return new AiWriter(this.server);

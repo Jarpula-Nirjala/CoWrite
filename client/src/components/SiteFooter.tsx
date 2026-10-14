@@ -21,6 +21,16 @@ export function SiteFooter() {
             ))}
           </div>
         </div>
+        <div className="footer-col footer-apps">
+          <h4>Solutions</h4>
+          <div className="footer-apps-grid">
+            {SOLUTIONS.map((x) => (
+              <Link key={x.name} to={`/templates?cat=${encodeURIComponent(x.cat)}`}>
+                {x.name}
+              </Link>
+            ))}
+          </div>
+        </div>
         <div className="footer-col">
           <h4>Security and management</h4>
           {MANAGEMENT.map((m) => (
@@ -28,18 +38,10 @@ export function SiteFooter() {
               {m.name}
             </Link>
           ))}
-          <h4 className="footer-sub">Solutions</h4>
-          {SOLUTIONS.map((x) => (
-            <Link key={x.name} to={`/templates?cat=${encodeURIComponent(x.cat)}`}>
-              {x.name}
-            </Link>
-          ))}
-        </div>
-        <div className="footer-col">
-          <h4>Product</h4>
+          <h4 className="footer-sub">Product</h4>
           <Link to="/#features">Features</Link>
           <Link to="/#playground">Live demo</Link>
-          <Link to="/documents">My documents</Link>
+          <Link to="/templates">Templates</Link>
           <Link to="/signup">Create an account</Link>
         </div>
         <div className="footer-col">
@@ -49,9 +51,7 @@ export function SiteFooter() {
           <a href={REPO_URL} target="_blank" rel="noreferrer">
             Source code
           </a>
-        </div>
-        <div className="footer-col">
-          <h4>Contact</h4>
+          <h4 className="footer-sub">Contact</h4>
           <a href={`mailto:${AUTHOR.email}`}>{AUTHOR.email}</a>
           <a href={AUTHOR.linkedin} target="_blank" rel="noreferrer">
             LinkedIn
