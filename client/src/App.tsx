@@ -1,10 +1,55 @@
+import { useEffect } from 'react';
+import { AuthProvider } from './auth.tsx';
+import { Account } from './pages/Account.tsx';
+import { Activity } from './pages/Activity.tsx';
+import { AuthPage, ForgotPage, ResetPage } from './pages/AuthPage.tsx';
 import { DocPage } from './pages/DocPage.tsx';
-import { Landing } from './pages/Landing.tsx';
+import { Documents } from './pages/Documents.tsx';
+import { Home } from './pages/Home.tsx';
+import { NotFound } from './pages/NotFound.tsx';
+import { Profile, PublicDoc } from './pages/Profile.tsx';
 import { usePath } from './router.ts';
 
-export function App() {
-  const path = usePath();
-  const doc = /^\/d\/([A-Za-z0-9_-]{1,64})\/?$/.exec(path);
+function Routes() {
+  const path = usePath().replace(/\/+$/, '') || '/';
+
+  useEffect(() => {
+    if (path === '/') document.title = 'CoWrite: Real-Time Collaborative Editor';
+  }, [path]);
+
+  const doc = /^\/d\/([A-Za-z0-9_-]{1,64})$/.exec(path);
   if (doc) return <DocPage key={doc[1]} roomId={doc[1]} />;
-  return <Landing />;
+  const user = /^\/u\/([a-z0-9-]{1,40})$/.exec(path);
+  if (user) return <Profile key={user[1]} username={user[1]} />;
+  const pub = /^\/p\/([A-Za-z0-9_-]{1,64})$/.exec(path);
+  if (pub) return <PublicDoc key={pub[1]} id={pub[1]} />;
+
+  switch (path) {
+    case '/':
+      return <Home />;
+    case '/signin':
+      return <AuthPage mode="signin" />;
+    case '/signup':
+      return <AuthPage mode="signup" />;
+    case '/forgot':
+      return <ForgotPage />;
+    case '/reset':
+      return <ResetPage />;
+    case '/documents':
+      return <Documents />;
+    case '/account':
+      return <Account />;
+    case '/activity':
+      return <Activity />;
+    default:
+      return <NotFound />;
+  }
+}
+
+export function App() {
+  return (
+    <AuthProvider>
+      <Routes />
+    </AuthProvider>
+  );
 }

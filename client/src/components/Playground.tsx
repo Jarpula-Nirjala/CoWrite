@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { SimNetwork, type SimReplica } from '../sim.ts';
-import { CollabEditor, type RemoteCursor } from './CollabEditor.tsx';
+import { CollabEditor, plainChange, type RemoteCursor } from './CollabEditor.tsx';
 import { Inspector } from './Inspector.tsx';
 
 const PEOPLE = [
-  { name: 'Alice', color: '#e5484d' },
-  { name: 'Bob', color: '#3e63dd' },
-  { name: 'Carol', color: '#30a46c' },
+  { name: 'Alice', color: '#b4442c' },
+  { name: 'Bob', color: '#2f5d8a' },
+  { name: 'Carol', color: '#2e7d5b' },
 ];
 
 const SEED = `Three replicas, one unreliable network.
@@ -127,7 +127,11 @@ export function Playground() {
               doc={r.doc}
               version={tick}
               cursors={cursorsFor(r)}
-              onLocalOps={(ops) => net.sendOps(r, ops)}
+              onChange={(pos, del, ins) => {
+                const result = plainChange(r.doc, pos, del, ins);
+                net.sendOps(r, result.ops);
+                return result;
+              }}
               onSelection={(sel) => net.sendSelection(r, sel)}
               label={`${r.name}'s editor`}
               minRows={6}

@@ -1,11 +1,25 @@
-import { useEffect, useState } from 'react';
+import { createElement, useEffect, useState, type AnchorHTMLAttributes, type MouseEvent } from 'react';
 
 const EVENT = 'cowrite:navigate';
 
-export function navigate(path: string): void {
-  window.history.pushState(null, '', path);
-  window.dispatchEvent(new Event(EVENT));
-  window.scrollTo(0, 0);
+function scrollToHash(hash: string): void {
+  // Wait for the new route to render before looking for the target.
+  requestAnimationFrame(() =>
+    requestAnimationFrame(() => {
+      const el = hash ? document.getElementById(hash.slice(1)) : null;
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo(0, 0);
+    }),
+  );
+}
+
+export function navigate(to: string, { replace = false } = {}): void {
+  const url = new URL(to, window.location.href);
+  const samePage = url.pathname === window.location.pathname && url.search === window.location.search;
+  if (replace) window.history.replaceState(null, '', url);
+  else window.history.pushState(null, '', url);
+  if (!samePage) window.dispatchEvent(new Event(EVENT));
+  scrollToHash(url.hash);
 }
 
 export function usePath(): string {
@@ -14,10 +28,26 @@ export function usePath(): string {
     const update = () => setPath(window.location.pathname);
     window.addEventListener('popstate', update);
     window.addEventListener(EVENT, update);
+    if (window.location.hash) scrollToHash(window.location.hash);
     return () => {
       window.removeEventListener('popstate', update);
       window.removeEventListener(EVENT, update);
     };
   }, []);
   return path;
+}
+
+export function queryParam(name: string): string | null {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
+/** In-app link: plain clicks navigate without a reload; modified clicks behave normally. */
+export function Link({ to, onClick, ...rest }: { to: string } & AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const handle = (e: MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(e);
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    navigate(to);
+  };
+  return createElement('a', { href: to, onClick: handle, ...rest });
 }

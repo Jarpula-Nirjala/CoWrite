@@ -1,12 +1,41 @@
-import { Doc, type Op } from './crdt.ts';
-import { MAX_BATCH, type ClientMsg, type PeerInfo, type Selection, type ServerMsg } from './protocol.ts';
+import { Doc, type Op, type Snapshot } from './crdt.ts';
+import {
+  MAX_BATCH,
+  type ChatMessage,
+  type ClientMsg,
+  type NotifyTopic,
+  type PeerInfo,
+  type PresenceState,
+  type Role,
+  type Selection,
+  type ServerMsg,
+} from './protocol.ts';
+
+/** WebSocket close code the server uses when a document is deleted. */
+export const DELETED_CODE = 4404;
+/** WebSocket close code for "you may not open this document". */
+export const FORBIDDEN_CODE = 4403;
 
 export type SyncStatus = 'connecting' | 'online' | 'offline';
-export type SyncEvent = 'doc' | 'peers' | 'status' | 'error';
+export type SyncEvent = 'doc' | 'peers' | 'status' | 'error' | 'chat' | 'notify' | 'role' | 'stats';
 
 export function randomSite(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(9));
   return Array.from(bytes, (b) => (b % 36).toString(36)).join('');
+}
+
+/** End-to-end encryption hooks: ops leave the browser encrypted. */
+export interface OpCipher {
+  encryptOps(ops: Op[]): Promise<Op[]>;
+  decryptOps(ops: Op[]): Promise<Op[]>;
+  encryptText(text: string): Promise<string>;
+  decryptText(text: string): Promise<string>;
+}
+
+export interface SavedState {
+  site: string;
+  snapshot: Snapshot;
+  outbox: Op[];
 }
 
 export interface SyncClientOptions {
@@ -14,7 +43,20 @@ export interface SyncClientOptions {
   name: string;
   color: string;
   site?: string;
+  /** Previously persisted state (offline support). */
+  saved?: SavedState;
+  cipher?: OpCipher;
+  /** Custom socket constructor (tests use it to send cookies). */
+  createSocket?: (url: string) => WebSocket;
 }
+
+export interface NetworkStats {
+  sentOps: number;
+  receivedOps: number;
+  inFlight: number;
+}
+
+type Listener = (e: SyncEvent, payload?: unknown) => void;
 
 /**
  * Keeps a local Doc in sync with a room on the server.
@@ -30,23 +72,45 @@ export class SyncClient {
   readonly peers = new Map<string, PeerInfo>();
   status: SyncStatus = 'offline';
   error: string | null = null;
+  role: Role | null = null;
+  encrypted = false;
   name: string;
   color: string;
+  /** Artificial one-way delay in ms (chaos panel). */
+  latency = 0;
+  jitter = false;
+  readonly stats: NetworkStats = { sentOps: 0, receivedOps: 0, inFlight: 0 };
 
   private readonly url: string;
+  private readonly cipher: OpCipher | null;
+  private readonly createSocket: (url: string) => WebSocket;
   private ws: WebSocket | null = null;
   private outbox: Op[] = [];
   private sel: Selection = null;
+  private presenceState: PresenceState = 'active';
+  private typing = false;
   private wantOnline = false;
   private attempts = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
-  private listeners = new Set<(e: SyncEvent) => void>();
+  private listeners = new Set<Listener>();
+  // Encryption is async; these chains keep messages in their original order.
+  private recvChain: Promise<void> = Promise.resolve();
+  private sendChain: Promise<void> = Promise.resolve();
+  private linkDue = { up: 0, down: 0 };
 
   constructor(opts: SyncClientOptions) {
     this.url = opts.url;
     this.name = opts.name;
     this.color = opts.color;
-    this.doc = new Doc(opts.site ?? randomSite());
+    this.cipher = opts.cipher ?? null;
+    this.createSocket = opts.createSocket ?? ((url) => new WebSocket(url));
+    if (opts.saved) {
+      this.doc = Doc.fromSnapshot(opts.saved.site, opts.saved.snapshot);
+      this.outbox = opts.saved.outbox.slice();
+      this.doc.apply(this.outbox);
+    } else {
+      this.doc = new Doc(opts.site ?? randomSite());
+    }
   }
 
   /** Unacknowledged local ops. */
@@ -54,9 +118,13 @@ export class SyncClient {
     return this.outbox.length;
   }
 
-  on(cb: (e: SyncEvent) => void): () => void {
+  on(cb: Listener): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
+  }
+
+  savedState(): SavedState {
+    return { site: this.doc.site, snapshot: this.doc.snapshot(), outbox: this.outbox.slice() };
   }
 
   connect(): void {
@@ -87,9 +155,24 @@ export class SyncClient {
     this.sendPresence();
   }
 
+  setPresence(state: PresenceState, typing: boolean): void {
+    if (state === this.presenceState && typing === this.typing) return;
+    this.presenceState = state;
+    this.typing = typing;
+    this.sendPresence();
+  }
+
   setName(name: string): void {
     this.name = name;
     this.sendPresence();
+  }
+
+  sendChat(body: string): void {
+    if (this.status !== 'online') return;
+    this.sendChain = this.sendChain.then(async () => {
+      const wire = this.cipher ? await this.cipher.encryptText(body) : body;
+      this.send({ t: 'chat', body: wire });
+    });
   }
 
   // ------------------------------------------------------------ transport
@@ -97,18 +180,34 @@ export class SyncClient {
   private open(): void {
     if (this.ws || !this.wantOnline) return;
     this.setStatus('connecting');
-    const ws = new WebSocket(this.url);
+    const ws = this.createSocket(this.url);
     this.ws = ws;
+    this.linkDue = { up: 0, down: 0 };
     ws.onopen = () => {
       this.send({ t: 'hello', site: this.doc.site, vector: this.doc.vector, name: this.name, color: this.color });
     };
     ws.onmessage = (ev) => {
-      if (this.ws === ws) this.receive(JSON.parse(String(ev.data)) as ServerMsg);
+      const msg = JSON.parse(String(ev.data)) as ServerMsg;
+      this.delay('down', () => {
+        if (this.ws !== ws) return;
+        this.recvChain = this.recvChain.then(() => this.receive(msg)).catch((err) => {
+          this.error = `Could not process an update: ${(err as Error).message}`;
+          this.emit('error');
+        });
+      });
     };
-    ws.onclose = () => {
+    // Errors are followed by a close event, which handles reconnecting.
+    ws.onerror = () => {};
+    ws.onclose = (ev) => {
       if (this.ws !== ws) return;
       this.ws = null;
       this.dropPeers();
+      if (ev.code === DELETED_CODE || ev.code === FORBIDDEN_CODE) {
+        this.wantOnline = false;
+        this.error =
+          ev.code === DELETED_CODE ? 'This document was deleted by its owner.' : 'You do not have access to this document.';
+        this.emit('error');
+      }
       if (!this.wantOnline) return this.setStatus('offline');
       this.setStatus('connecting');
       const delay = Math.min(10_000, 500 * 2 ** this.attempts++);
@@ -116,25 +215,33 @@ export class SyncClient {
     };
   }
 
-  private receive(msg: ServerMsg): void {
+  private async receive(msg: ServerMsg): Promise<void> {
     switch (msg.t) {
       case 'welcome': {
         this.attempts = 0;
         this.error = null;
-        const changed = this.doc.apply(msg.ops).length > 0;
+        this.role = msg.role;
+        this.encrypted = msg.encrypted;
+        const ops = await this.decrypt(msg.ops);
+        const changed = this.doc.apply(ops).length > 0;
         this.ack(msg.vector[this.doc.site] ?? 0);
         this.peers.clear();
         for (const p of msg.peers) this.peers.set(p.site, p);
         this.setStatus('online');
         if (this.outbox.length) this.sendOps(this.outbox);
         this.sendPresence();
+        this.emit('role');
         if (changed) this.emit('doc');
         this.emit('peers');
         break;
       }
-      case 'ops':
-        if (this.doc.apply(msg.ops).length) this.emit('doc');
+      case 'ops': {
+        const ops = await this.decrypt(msg.ops);
+        this.stats.receivedOps += ops.length;
+        if (this.doc.apply(ops).length) this.emit('doc');
+        this.emit('stats');
         break;
+      }
       case 'ack':
         this.ack(msg.clock);
         this.emit('status');
@@ -147,11 +254,23 @@ export class SyncClient {
         this.peers.delete(msg.site);
         this.emit('peers');
         break;
+      case 'chat': {
+        const body = this.cipher ? await this.cipher.decryptText(msg.message.body).catch(() => '[could not decrypt]') : msg.message.body;
+        this.emit('chat', { ...msg.message, body } satisfies ChatMessage);
+        break;
+      }
+      case 'notify':
+        this.emit('notify', msg.topic satisfies NotifyTopic);
+        break;
       case 'error':
         this.error = msg.message;
         this.emit('error');
         break;
     }
+  }
+
+  private decrypt(ops: Op[]): Promise<Op[]> {
+    return this.cipher && ops.length ? this.cipher.decryptOps(ops) : Promise.resolve(ops);
   }
 
   /** Drop outbox entries the server has confirmed (all own ops up to `clock`). */
@@ -160,15 +279,42 @@ export class SyncClient {
   }
 
   private sendOps(ops: Op[]): void {
-    for (let i = 0; i < ops.length; i += MAX_BATCH) this.send({ t: 'ops', ops: ops.slice(i, i + MAX_BATCH) });
+    const batch = ops.slice();
+    this.stats.sentOps += batch.length;
+    this.emit('stats');
+    this.sendChain = this.sendChain.then(async () => {
+      const wire = this.cipher ? await this.cipher.encryptOps(batch) : batch;
+      for (let i = 0; i < wire.length; i += MAX_BATCH) this.send({ t: 'ops', ops: wire.slice(i, i + MAX_BATCH) });
+    });
   }
 
   private sendPresence(): void {
-    if (this.status === 'online') this.send({ t: 'presence', name: this.name, color: this.color, sel: this.sel });
+    if (this.status === 'online') {
+      this.send({ t: 'presence', name: this.name, color: this.color, sel: this.sel, state: this.presenceState, typing: this.typing });
+    }
   }
 
   private send(msg: ClientMsg): void {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+    const ws = this.ws;
+    this.delay('up', () => {
+      if (ws && ws === this.ws && ws.readyState === 1 /* OPEN */) ws.send(JSON.stringify(msg));
+    });
+  }
+
+  /** Runs `fn` after the simulated latency, keeping each direction FIFO. */
+  private delay(dir: 'up' | 'down', fn: () => void): void {
+    if (this.latency <= 0) return fn();
+    const now = Date.now();
+    const d = this.jitter ? this.latency * (0.25 + Math.random() * 1.5) : this.latency;
+    const due = Math.max(now + d, this.linkDue[dir]);
+    this.linkDue[dir] = due;
+    this.stats.inFlight++;
+    this.emit('stats');
+    setTimeout(() => {
+      this.stats.inFlight--;
+      fn();
+      this.emit('stats');
+    }, due - now);
   }
 
   private dropPeers(): void {
@@ -183,7 +329,7 @@ export class SyncClient {
     this.emit('status');
   }
 
-  private emit(e: SyncEvent): void {
-    for (const cb of this.listeners) cb(e);
+  private emit(e: SyncEvent, payload?: unknown): void {
+    for (const cb of this.listeners) cb(e, payload);
   }
 }

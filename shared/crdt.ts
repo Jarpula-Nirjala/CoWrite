@@ -128,8 +128,11 @@ export class Doc {
 
   // ---------------------------------------------------------------- local edits
 
-  /** Inserts `text` at visible position `pos` and returns the ops to broadcast. */
-  insert(pos: number, text: string): InsertOp[] {
+  /**
+   * Inserts `text` at visible position `pos` and returns the ops to broadcast.
+   * `site` lets a server-side author (the AI co-writer) write under its own id.
+   */
+  insert(pos: number, text: string, site = this.site): InsertOp[] {
     if (pos < 0 || pos > this.visible) throw new RangeError(`insert position ${pos} out of range`);
     if (!text) return [];
 
@@ -146,7 +149,7 @@ export class Doc {
     const ops: InsertOp[] = [];
     const created: Item[] = [];
     for (let i = 0; i < text.length; i++) {
-      const id: Id = [this.site, ++this.clock];
+      const id: Id = [site, ++this.clock];
       const item: Item = { id, origin, ch: text[i], del: null };
       created.push(item);
       this.byKey.set(keyOf(id), item);
@@ -155,7 +158,7 @@ export class Doc {
     }
     spliceIn(this.items, index, created);
     this.visible += text.length;
-    this.vec[this.site] = this.clock;
+    this.vec[site] = this.clock;
     return ops;
   }
 
@@ -175,6 +178,21 @@ export class Doc {
     }
     this.visible -= len;
     this.vec[this.site] = this.clock;
+    return ops;
+  }
+
+  /** Deletes specific characters by id (unknown or already deleted ids are skipped). */
+  deleteIds(ids: Id[], site = this.site): DeleteOp[] {
+    const ops: DeleteOp[] = [];
+    for (const target of ids) {
+      const it = this.byKey.get(keyOf(target));
+      if (!it || it.del) continue;
+      const id: Id = [site, ++this.clock];
+      it.del = id;
+      this.visible--;
+      ops.push({ k: 'd', id, t: it.id });
+    }
+    if (ops.length) this.vec[site] = this.clock;
     return ops;
   }
 
@@ -317,6 +335,100 @@ export class Doc {
       if (!it.del) pos++;
     }
     return -1;
+  }
+
+  /** Id of the visible character at `pos`. */
+  idAt(pos: number): Id {
+    return this.items[this.visibleIndex(pos)].id;
+  }
+
+  /**
+   * Where a character is: its visible position, or for a tombstone the
+   * position it would occupy. Null if this replica has never seen it.
+   */
+  locate(id: Id): { pos: number; deleted: boolean } | null {
+    const target = this.byKey.get(keyOf(id));
+    if (!target) return null;
+    let pos = 0;
+    for (const it of this.items) {
+      if (it === target) return { pos, deleted: it.del !== null };
+      if (!it.del) pos++;
+    }
+    return null;
+  }
+
+  /** Ids of the visible characters in [from, to). */
+  idsInRange(from: number, to: number): Id[] {
+    const out: Id[] = [];
+    let pos = 0;
+    for (const it of this.items) {
+      if (it.del) continue;
+      if (pos >= to) break;
+      if (pos >= from) out.push(it.id);
+      pos++;
+    }
+    return out;
+  }
+
+  /** The still-visible characters among `ids`, in document order, with their text. */
+  visibleAmong(ids: Id[]): { ids: Id[]; text: string; first: number } {
+    const want = new Set(ids.map(keyOf));
+    const out: Id[] = [];
+    let text = '';
+    let first = -1;
+    let pos = 0;
+    for (const it of this.items) {
+      if (it.del) continue;
+      if (want.has(keyOf(it.id))) {
+        out.push(it.id);
+        text += it.ch;
+        if (first < 0) first = pos;
+      }
+      pos++;
+    }
+    return { ids: out, text, first };
+  }
+
+  /** Visible ranges [from, to) covered by the characters whose keys are in `keys`. */
+  rangesOf(keys: Set<string>): { from: number; to: number }[] {
+    const out: { from: number; to: number }[] = [];
+    let pos = 0;
+    for (const it of this.items) {
+      if (it.del) continue;
+      if (keys.has(keyOf(it.id))) {
+        const last = out[out.length - 1];
+        if (last && last.to === pos) last.to++;
+        else out.push({ from: pos, to: pos + 1 });
+      }
+      pos++;
+    }
+    return out;
+  }
+
+  /** Visible text split into runs by the site that typed each character. */
+  runs(): { site: string; text: string }[] {
+    const out: { site: string; text: string }[] = [];
+    for (const it of this.items) {
+      if (it.del) continue;
+      const last = out[out.length - 1];
+      if (last && last.site === it.id[0]) last.text += it.ch;
+      else out.push({ site: it.id[0], text: it.ch });
+    }
+    return out;
+  }
+
+  /**
+   * Every operation this replica knows, in Lamport order. Lamport order is
+   * causal (an insert's origin and a delete's target always carry smaller
+   * clocks), so replaying this list op by op rebuilds the document's history.
+   */
+  history(): Op[] {
+    const ops: Op[] = [];
+    for (const it of this.items) {
+      ops.push({ k: 'i', id: it.id, o: it.origin, ch: it.ch });
+      if (it.del) ops.push({ k: 'd', id: it.del, t: it.id });
+    }
+    return ops.sort((a, b) => compareIds(a.id, b.id));
   }
 
   inspect(limit = Infinity): InspectItem[] {

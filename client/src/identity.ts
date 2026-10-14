@@ -1,4 +1,4 @@
-export const PEER_COLORS = ['#e5484d', '#3e63dd', '#30a46c', '#f76b15', '#8e4ec6', '#0d74ce', '#d6409f', '#ad7f58'];
+export const PEER_COLORS = ['#b4442c', '#2f5d8a', '#2e7d5b', '#a8642a', '#6b4c9a', '#1f6f8b', '#9c3d6b', '#7a6a2f'];
 
 const ADJECTIVES = ['Curious', 'Brave', 'Quiet', 'Swift', 'Clever', 'Gentle', 'Bold', 'Witty', 'Calm', 'Lucky'];
 const ANIMALS = ['Otter', 'Falcon', 'Panda', 'Lynx', 'Heron', 'Koala', 'Tiger', 'Dolphin', 'Fox', 'Owl'];

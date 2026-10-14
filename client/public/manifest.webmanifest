@@ -1,0 +1,14 @@
+{
+  "name": "CoWrite – Real-Time Collaborative Editor",
+  "short_name": "CoWrite",
+  "description": "Write together in real time, online or offline, on a conflict-free merge engine built from scratch.",
+  "start_url": "/documents",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f3a68",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

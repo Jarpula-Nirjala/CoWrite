@@ -10,3 +10,25 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "24"
+      # Postgres connection string (e.g. from Neon). Without it, data lives on
+      # the service's temporary disk and is lost on every restart.
+      - key: DATABASE_URL
+        sync: false
+      # Public address, used in password-reset emails and OAuth redirects.
+      - key: PUBLIC_URL
+        sync: false
+      # Optional features: each switches on when its value is set.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
