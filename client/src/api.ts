@@ -24,8 +24,10 @@ export interface Brand {
   deckTheme: string;
 }
 
+export type ThemeId = 'light' | 'dark' | 'sepia' | 'ocean' | 'forest' | 'rose' | 'midnight';
+
 export interface Prefs {
-  theme: 'light' | 'dark' | 'sepia';
+  theme: ThemeId;
   dyslexic: boolean;
   dailyGoal: number;
 }

@@ -282,6 +282,17 @@ export function Documents() {
                   <Dropdown className="btn btn-outline btn-lg" label="New ▾">
                     {(close) => (
                       <>
+                        <button
+                          role="menuitem"
+                          type="button"
+                          className="menu-strong"
+                          onClick={() => {
+                            close();
+                            setTemplatesOpen('All');
+                          }}
+                        >
+                          ✨ Templates
+                        </button>
                         {NEW_KINDS.map((k) => (
                           <button
                             key={k.kind}
@@ -297,16 +308,6 @@ export function Documents() {
                           </button>
                         ))}
                         <hr className="menu-sep" />
-                        <button
-                          role="menuitem"
-                          type="button"
-                          onClick={() => {
-                            close();
-                            setTemplatesOpen('All');
-                          }}
-                        >
-                          From a template…
-                        </button>
                         <button
                           role="menuitem"
                           type="button"

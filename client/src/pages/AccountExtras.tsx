@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, errorText, type Brand, type User } from '../api.ts';
 import { downscale, pickFile } from '../editor/useFiles.ts';
 import { SLIDE_THEMES } from '../kinds/slides/themes.ts';
-import { DEFAULT_PREFS, localPrefs, savePrefs } from '../lib/prefs.ts';
+import { APP_THEMES, DEFAULT_PREFS, localPrefs, savePrefs } from '../lib/prefs.ts';
 
 const FONTS: [string, string][] = [
   ['serif', 'Times New Roman'],
@@ -29,16 +29,10 @@ export function AppearanceSection({ signedIn }: { signedIn: boolean }) {
     <div className="panel">
       <h2>Appearance &amp; accessibility</h2>
       <div className="theme-picks">
-        {(
-          [
-            ['light', 'Light', '#ffffff', '#111418'],
-            ['dark', 'Dark', '#1f242c', '#e7e9ee'],
-            ['sepia', 'Sepia', '#f8f1e0', '#3b2f22'],
-          ] as const
-        ).map(([id, label, bg, fg]) => (
-          <button key={id} className={`theme-pick ${p.theme === id ? 'active' : ''}`} style={{ background: bg, color: fg }} onClick={() => set({ theme: id })} aria-pressed={p.theme === id} type="button">
+        {APP_THEMES.map((t) => (
+          <button key={t.id} className={`theme-pick ${p.theme === t.id ? 'active' : ''}`} style={{ background: t.bg, color: t.fg, borderBottom: `4px solid ${t.accent}` }} onClick={() => set({ theme: t.id })} aria-pressed={p.theme === t.id} type="button">
             <span>Aa</span>
-            {label}
+            {t.name}
           </button>
         ))}
       </div>

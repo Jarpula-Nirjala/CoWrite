@@ -30,7 +30,7 @@ export interface Brand {
 
 /** Personal settings that follow the account across devices. */
 export interface Prefs {
-  theme: 'light' | 'dark' | 'sepia';
+  theme: 'light' | 'dark' | 'sepia' | 'ocean' | 'forest' | 'rose' | 'midnight';
   dyslexic: boolean;
   dailyGoal: number;
 }

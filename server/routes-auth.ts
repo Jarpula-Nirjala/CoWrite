@@ -60,7 +60,7 @@ export function authRoutes(ctx: AppCtx) {
     const user = requireUser(res);
     const b = req.body ?? {};
     const prefs = {
-      theme: b.theme === 'dark' || b.theme === 'sepia' ? b.theme : 'light',
+      theme: ['dark', 'sepia', 'ocean', 'forest', 'rose', 'midnight'].includes(b.theme) ? b.theme : 'light',
       dyslexic: b.dyslexic === true,
       dailyGoal: Math.max(0, Math.min(20_000, Math.round(Number(b.dailyGoal) || 0))),
     };

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, timeAgo, type Notification, type Prefs } from '../api.ts';
-import { localPrefs, savePrefs } from '../lib/prefs.ts';
+import { APP_THEMES, localPrefs, savePrefs } from '../lib/prefs.ts';
 import { useAuth } from '../auth.tsx';
 import { Link, navigate } from '../router.ts';
 import { Brand } from './Brand.tsx';
@@ -151,10 +151,7 @@ export function NotificationBell() {
   );
 }
 
-const THEME_NEXT = { light: 'dark', dark: 'sepia', sepia: 'light' } as const;
-const THEME_LABEL = { light: 'Light theme', dark: 'Dark theme', sepia: 'Sepia reading theme' } as const;
-
-/** Cycles light → dark → sepia; the choice follows your account. */
+/** Colour theme picker; the choice follows your account. */
 export function ThemeToggle() {
   const { user } = useAuth();
   const [prefs, setPrefs] = useState(localPrefs);
@@ -163,17 +160,36 @@ export function ThemeToggle() {
     window.addEventListener('cowrite:prefs', on);
     return () => window.removeEventListener('cowrite:prefs', on);
   }, []);
-  const next = THEME_NEXT[prefs.theme];
+  const cur = APP_THEMES.find((t) => t.id === prefs.theme) ?? APP_THEMES[0];
   return (
-    <button
+    <Dropdown
       className="icon-button theme-toggle"
-      onClick={() => void savePrefs({ ...prefs, theme: next }, !!user)}
-      title={`${THEME_LABEL[prefs.theme]} · switch to ${THEME_LABEL[next].toLowerCase()}`}
-      aria-label={`Switch to ${THEME_LABEL[next].toLowerCase()}`}
-      type="button"
+      ariaLabel={`Colour theme: ${cur.name}`}
+      label={<span className="theme-dot" style={{ background: `linear-gradient(135deg, ${cur.bg} 50%, ${cur.accent} 50%)` }} />}
     >
-      {prefs.theme === 'light' ? <Icon name="moon" size={18} /> : prefs.theme === 'dark' ? <span aria-hidden>📜</span> : <span aria-hidden>☀️</span>}
-    </button>
+      {(close) => (
+        <div className="theme-menu" role="menu">
+          <span className="menu-label">Colour theme</span>
+          {APP_THEMES.map((t) => (
+            <button
+              key={t.id}
+              role="menuitemradio"
+              aria-checked={t.id === prefs.theme}
+              className={`theme-option ${t.id === prefs.theme ? 'on' : ''}`}
+              onClick={() => {
+                void savePrefs({ ...prefs, theme: t.id }, !!user);
+                close();
+              }}
+              type="button"
+            >
+              <span className="theme-dot" style={{ background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }} />
+              {t.name}
+              {t.id === prefs.theme && <span className="theme-check">✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </Dropdown>
   );
 }
 

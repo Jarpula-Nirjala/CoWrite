@@ -1,90 +1,11 @@
 import { useAuth } from '../auth.tsx';
+import { FeatureShowcase } from '../components/FeatureShowcase.tsx';
 import { Playground } from '../components/Playground.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { AUTHOR, PROJECTS, REPO_URL } from '../content.ts';
 import { newRoomId } from '../identity.ts';
 import { Link, navigate } from '../router.ts';
-
-const FEATURE_GROUPS = [
-  {
-    title: 'Documents that look designed',
-    items: [
-      ['True rich-text editor', 'Real bold, fonts, sizes, colours, alignment, lists, tables and checklists, with no Markdown symbols in sight.'],
-      ['Notebook & diary paper', 'Ruled, college, dotted or grid pages with a margin line, a dated header and handwriting fonts.'],
-      ['50 designed templates', 'Diary, resume, proposal, invoice, research paper, pitch deck, retrospective, budget and many more, with live previews.'],
-      ['Page setup & print', 'A4 or Letter, margins, headers, footers, page numbers, page breaks and themed paper.'],
-      ['Images, crop & stock photos', 'Paste, drop, resize, crop and caption images, or insert free photos without leaving the page.'],
-      ['Embeds & link cards', 'YouTube, Maps, Figma, Gists, Spotify and tweets, plus preview cards for any link.'],
-      ['Maths, diagrams & code', 'LaTeX equations, Mermaid flowcharts and code blocks highlighted in 30+ languages.'],
-      ['Voice notes, sketches & files', 'Record audio, draw inline sketches and attach PDFs or any file as a card.'],
-      ['Slash commands & emoji', 'Type “/” to insert anything, “:” for emoji, “@” to mention, with an icon library.'],
-      ['Brand kit', 'Your logo, colours and font saved once, applied to any document or deck in one click.'],
-    ],
-  },
-  {
-    title: 'Slides, whiteboards, boards and sheets',
-    items: [
-      ['Presentation editor', 'Layouts, drag-and-drop text, shapes and images, speaker notes and a full-screen presenter.'],
-      ['12 slide themes', 'Gradients, decorations, logos and footers; export to editable PowerPoint or PDF.'],
-      ['Infinite whiteboard', 'Pen, highlighter, sticky notes, shapes, connectors and frames, with live cursors.'],
-      ['Kanban boards', 'Lists and cards with assignees, due dates, labels, checklists and work-in-progress limits.'],
-      ['Spreadsheets', 'Formulas (SUM, AVERAGE, IF, COUNTIF and more), formatting, sorting, charts and CSV.'],
-    ],
-  },
-  {
-    title: 'Only possible with a CRDT',
-    items: [
-      ['Compare any two moments', 'Pick 2 PM yesterday and now: additions in green, deletions in red, like Git.'],
-      ['Paragraph history', 'Every edit ever made to one paragraph, including text that was later deleted.'],
-      ['Undo one person’s edits', 'Roll back what someone changed since a time, without touching anyone else’s work.'],
-      ['Time-lapse replay & video', 'Watch the document being written, or export the replay as a video.'],
-      ['Branch explorer', 'Fork, see the family tree, compare side by side and merge back with no conflicts.'],
-      ['Private drafts', 'Write a section only you can see, then reveal it to everyone in one go.'],
-      ['Locked sections', 'Freeze paragraphs so only you and the owner can change them, enforced by the server.'],
-      ['Peer-to-peer sync', 'Browsers sync directly over WebRTC, so editing continues even if the server goes down.'],
-      ['Conflict heatmap', 'See where several people edited the same paragraph at the same moment.'],
-      ['Solo playback', 'Replay one person’s typing on its own, with everyone else greyed out.'],
-      ['End-to-end encryption & offline', 'The server merges ciphertext it cannot read; documents work offline and sync later.'],
-    ],
-  },
-  {
-    title: 'AI built in (Claude)',
-    items: [
-      ['Live AI co-writer', 'Claude joins as a collaborator with its own cursor; keep or undo its writing in one click.'],
-      ['Document → slides', 'Turn any document into a themed presentation with speaker notes.'],
-      ['Photos to text', 'Describe images, or turn a whiteboard or notebook photo into tidy notes.'],
-      ['Live translation', 'A linked copy in another language that re-translates itself as the original changes.'],
-      ['Meeting mode', 'Dictate a meeting; get the summary, decisions and action items written in.'],
-      ['AI reviewer & tone switcher', 'Editor-style comments on your draft, and one-click formal, casual or simpler rewrites.'],
-      ['Ask your documents', 'Ask questions across everything you have written, with links to the sources.'],
-    ],
-  },
-  {
-    title: 'Collaboration and teams',
-    items: [
-      ['Live cursors & follow mode', 'Named cursors, selections, typing and away status; follow anyone around the page.'],
-      ['Voice & video calls', 'Call everyone in the document right beside the page you are editing.'],
-      ['Comments, suggestions & reactions', 'Threads anchored to text, tracked-change suggestions and emoji reactions.'],
-      ['Approval workflow & e-signature', 'Draft, review, approved, with sign-off notes and a drawn signature block.'],
-      ['Tasks, calendar & reminders', 'Assign checklist items with due dates; see them on a calendar with reminders.'],
-      ['Workspaces & team templates', 'Shared spaces for teams, with templates everyone can start from.'],
-      ['Sharing & public pages', 'Invite links with roles and expiry, or publish as a blog post with comments.'],
-    ],
-  },
-  {
-    title: 'Personal and accessible',
-    items: [
-      ['Dark, sepia & dyslexia modes', 'Reading themes and the OpenDyslexic font, saved to your account.'],
-      ['Read aloud & reading mode', 'Text-to-speech that highlights each word, and a distraction-free reader.'],
-      ['Streaks & goals', 'A daily word goal, writing streaks and a six-month writing calendar.'],
-      ['Focus, voice typing & palette', 'Focus and typewriter modes, dictation and a Ctrl+K command palette.'],
-      ['Search, folders & export', 'Full-text search, folders, tags, versions, and export to PDF, Word or Markdown.'],
-    ],
-  },
-];
-
-const FEATURE_COUNT = FEATURE_GROUPS.reduce((n, g) => n + g.items.length, 0);
 
 const STEPS = [
   {
@@ -146,8 +67,8 @@ export function Home() {
                   <dd>collaboration libraries</dd>
                 </div>
                 <div>
-                  <dt>24</dt>
-                  <dd>collaboration features</dd>
+                  <dt>50+</dt>
+                  <dd>features</dd>
                 </div>
                 <div>
                   <dt>RGA</dt>
@@ -196,22 +117,10 @@ export function Home() {
           <div className="container">
             <header className="section-head">
               <p className="kicker">Features</p>
-              <h2>{FEATURE_COUNT} features, one editor</h2>
+              <h2>50+ features, one editor</h2>
               <p className="muted">Documents, slides, whiteboards, boards and spreadsheets on one merge engine built from scratch, with AI where it helps.</p>
             </header>
-            {FEATURE_GROUPS.map((g) => (
-              <div key={g.title} className="feature-group">
-                <h3 className="feature-group-title">{g.title}</h3>
-                <div className="feature-grid">
-                  {g.items.map(([title, body]) => (
-                    <article key={title} className="feature">
-                      <h4>{title}</h4>
-                      <p>{body}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            ))}
+            <FeatureShowcase />
           </div>
         </section>
 
@@ -329,13 +238,12 @@ export function Home() {
               </div>
             </div>
 
-            <h3 className="projects-title">Selected projects</h3>
-            <div className="project-grid">
+            <div className="project-strip">
+              <span className="projects-label">Other projects</span>
               {PROJECTS.map((p) => (
-                <a key={p.name} className="project" href={p.url} target="_blank" rel="noreferrer">
-                  <h4>{p.name}</h4>
-                  <p>{p.summary}</p>
-                  <span className="project-tags">{p.tags.join(' · ')}</span>
+                <a key={p.name} className="project-chip" href={p.url} target="_blank" rel="noreferrer" title={p.summary}>
+                  {p.name}
+                  <span aria-hidden>↗</span>
                 </a>
               ))}
             </div>

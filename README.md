@@ -95,7 +95,7 @@ CoWrite is a real-time collaborative workspace in the spirit of Google Docs. It 
   - public blog pages that keep the document's design, with reading time, a progress bar and comments.
 
 **Personal and accessible**
-- **Themes.** Dark, sepia and light themes, plus the OpenDyslexic font with extra spacing. Your choice is saved to your account.
+- **Themes.** Seven colour themes (white, dark, sepia, ocean, forest, rose, midnight), plus the OpenDyslexic font with extra spacing. Your choice is saved to your account.
 - **Reading.** Read aloud with word-by-word highlighting, and a distraction-free reading mode.
 - **Goals.** Writing streaks, a daily word goal ring, and a six-month writing calendar.
 - **Writing tools.** Focus and typewriter modes, voice typing, and a Ctrl/⌘+K command palette.

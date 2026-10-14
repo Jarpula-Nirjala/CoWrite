@@ -1135,3 +1135,312 @@
 .crop-layer {
   overflow: hidden;
 }
+.menu button.menu-strong { font-weight: 700; color: var(--accent); }
+
+/* Home: animated feature showcase */
+.showcase {
+  --fc: #1f3a68;
+}
+.showcase-main {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 28px;
+  align-items: stretch;
+}
+.showcase-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.showcase-tab {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: none;
+  color: var(--text-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.25s, border-color 0.25s, transform 0.25s;
+}
+.showcase-tab:hover {
+  background: var(--bg-alt);
+}
+.showcase-tab.active {
+  border-color: color-mix(in srgb, var(--tc) 35%, transparent);
+  background: color-mix(in srgb, var(--tc) 9%, var(--surface));
+  color: var(--text);
+  transform: translateX(6px);
+}
+.showcase-tab-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tc) 14%, transparent);
+  font-size: 1.2rem;
+}
+.showcase-tab-text {
+  display: flex;
+  flex-direction: column;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.showcase-tab-text small {
+  color: var(--muted);
+  font-weight: 400;
+}
+.showcase-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--tc);
+  transition: width 0.4s;
+}
+.showcase-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 330px;
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 15% 20%, color-mix(in srgb, var(--fc) 18%, transparent), transparent 55%),
+    radial-gradient(circle at 85% 80%, color-mix(in srgb, var(--fc) 14%, transparent), transparent 50%),
+    var(--bg-alt);
+  overflow: hidden;
+  transition: background 0.6s;
+}
+.showcase-card {
+  position: absolute;
+  width: min(440px, 78%);
+  padding: 26px 30px 30px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgb(17 20 24 / 0.12);
+}
+.showcase-card.front {
+  z-index: 2;
+  border-top: 4px solid var(--fc);
+  animation: card-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+.showcase-card.ghost {
+  z-index: 1;
+  width: min(300px, 55%);
+  padding: 18px;
+  opacity: 0.45;
+  filter: blur(0.5px);
+  animation: ghost-in 0.6s ease both;
+}
+.showcase-card.ghost.left {
+  transform: translateX(-62%) scale(0.82) rotate(-4deg);
+}
+.showcase-card.ghost.right {
+  transform: translateX(62%) scale(0.82) rotate(4deg);
+}
+.showcase-card.ghost h4 {
+  margin: 6px 0 0;
+  font-size: 1rem;
+}
+.showcase-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--fc) 12%, transparent);
+  font-size: 1.4rem;
+}
+.showcase-icon.big {
+  width: 58px;
+  height: 58px;
+  font-size: 1.9rem;
+  animation: pop 0.6s 0.15s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+.showcase-kicker {
+  display: block;
+  margin-top: 14px;
+  color: var(--fc);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.showcase-card.front h4 {
+  margin: 4px 0 8px;
+  font-size: 1.55rem;
+}
+.showcase-card.front p {
+  margin: 0;
+  color: var(--text-2);
+}
+.showcase-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 0 0 0 18px;
+  background: var(--fc);
+  animation: timer 3.2s linear both;
+}
+.showcase-dots {
+  position: absolute;
+  bottom: 14px;
+  display: flex;
+  gap: 6px;
+}
+.showcase-dots button {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--fc) 30%, transparent);
+  cursor: pointer;
+  transition: width 0.3s, background 0.3s;
+}
+.showcase-dots button.on {
+  width: 22px;
+  background: var(--fc);
+}
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) scale(0.94) rotateX(12deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes ghost-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop {
+  from {
+    transform: scale(0.4) rotate(-15deg);
+  }
+}
+@keyframes timer {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+/* Two rows of feature names drifting in opposite directions */
+.ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 26px;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.ribbon-track {
+  display: flex;
+  width: max-content;
+  animation: drift 70s linear infinite;
+}
+.ribbon-track.reverse {
+  animation-direction: reverse;
+}
+.ribbon:hover .ribbon-track {
+  animation-play-state: paused;
+}
+.ribbon-set {
+  display: flex;
+  gap: 10px;
+  padding-right: 10px;
+}
+.ribbon-chip {
+  padding: 6px 14px;
+  border: 1px solid color-mix(in srgb, var(--tc) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--tc) 7%, var(--surface));
+  font-size: 0.92rem;
+  white-space: nowrap;
+}
+@keyframes drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ribbon-track,
+  .showcase-card,
+  .showcase-icon.big,
+  .showcase-timer {
+    animation: none !important;
+  }
+}
+@media (max-width: 820px) {
+  .showcase-main {
+    grid-template-columns: 1fr;
+  }
+  .showcase-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .showcase-tab {
+    flex: none;
+  }
+  .showcase-tab.active {
+    transform: none;
+  }
+  .showcase-tab-text small {
+    display: none;
+  }
+  .showcase-card.ghost {
+    display: none;
+  }
+  .showcase-card {
+    width: 88%;
+  }
+}
+
+/* Compact projects strip */
+.project-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 28px;
+}
+.projects-label {
+  margin-right: 6px;
+  color: var(--muted);
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.project-chip {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.project-chip span {
+  color: var(--muted);
+}
+.project-chip:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
