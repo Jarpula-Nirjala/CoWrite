@@ -4,7 +4,7 @@ import { SESSION_TTL_MS, toPublic, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
 import { HttpError, SESSION_COOKIE, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
-import { checkGeminiKey } from './llm.ts';
+import { checkKey, keyProvider } from './llm.ts';
 import { authorizeUrl, enabledProviders, fetchProfile, type Provider } from './oauth.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
@@ -73,15 +73,18 @@ export function authRoutes(ctx: AppCtx) {
   r.put('/me/ai-key', limiter, async (req, res) => {
     const user = requireUser(res);
     const key = typeof req.body?.key === 'string' ? req.body.key.trim() : '';
-    if (!/^[\w-]{20,200}$/.test(key)) throw new HttpError(400, 'That does not look like a Gemini API key. It usually starts with “AIza”.');
-    if (!(await checkGeminiKey(key))) throw new HttpError(400, 'Google did not accept this key. Copy it again from Google AI Studio.');
-    await ctx.db.query('update users set ai_key = $2 where id = $1', [user.id, await vault.seal(key)]);
-    res.json({ aiConnected: true });
+    if (!/^[\w.-]{20,300}$/.test(key)) throw new HttpError(400, 'That does not look like an API key. Gemini keys start with “AIza” or “AQ.”, Groq keys with “gsk_”, OpenRouter keys with “sk-or-”.');
+    if (!(await checkKey(key))) {
+      const p = keyProvider(key);
+      throw new HttpError(400, p === 'gemini' ? 'Google did not accept this key. In Google AI Studio (aistudio.google.com/app/apikey) open the key and use its Copy key button, then paste it here.' : `${p === 'groq' ? 'Groq' : 'OpenRouter'} did not accept this key. Copy it again from your account.`);
+    }
+    await ctx.db.query('update users set ai_key = $2, ai_provider = $3 where id = $1', [user.id, await vault.seal(key), keyProvider(key)]);
+    res.json({ aiConnected: true, aiProvider: keyProvider(key) });
   });
 
   r.delete('/me/ai-key', async (_req, res) => {
     const user = requireUser(res);
-    await ctx.db.query('update users set ai_key = null where id = $1', [user.id]);
+    await ctx.db.query('update users set ai_key = null, ai_provider = null where id = $1', [user.id]);
     res.json({ aiConnected: false });
   });
 

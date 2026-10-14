@@ -6,6 +6,7 @@ import { Ask } from './pages/Ask.tsx';
 import { CalendarPage } from './pages/Calendar.tsx';
 import { Dashboard } from './pages/Dashboard.tsx';
 import { SitePage } from './pages/SitePage.tsx';
+import { NewDoc } from './pages/NewDoc.tsx';
 import { Workspaces } from './pages/Workspaces.tsx';
 import { AuthPage, ForgotPage, ResetPage } from './pages/AuthPage.tsx';
 import { DocPage } from './pages/DocPage.tsx';
@@ -27,6 +28,8 @@ function Routes() {
   if (doc) return <DocPage key={doc[1]} roomId={doc[1]} />;
   const user = /^\/u\/([a-z0-9-]{1,40})$/.exec(path);
   if (user) return <Profile key={user[1]} username={user[1]} />;
+  const nw = /^\/new\/([a-z]{2,10})$/.exec(path);
+  if (nw) return <NewDoc key={nw[1]} kind={nw[1]} />;
   const site = /^\/site\/([A-Za-z0-9_-]{1,64})$/.exec(path);
   if (site) return <SitePage key={site[1]} id={site[1]} />;
   const pub = /^\/p\/([A-Za-z0-9_-]{1,64})$/.exec(path);

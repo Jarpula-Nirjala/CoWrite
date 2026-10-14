@@ -142,7 +142,7 @@ export function Account() {
           </button>
         </form>
 
-        <AiKeySection user={user} onChange={(aiConnected) => setUser({ ...user, aiConnected })} />
+        <AiKeySection user={user} onChange={(aiConnected, aiProvider) => setUser({ ...user, aiConnected, aiProvider })} />
         <AppearanceSection signedIn />
         <BrandKitSection user={user} onSaved={(brand) => setUser({ ...user, brand })} />
 

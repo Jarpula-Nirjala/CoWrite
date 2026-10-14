@@ -331,6 +331,38 @@ const MIGRATIONS: string[] = [
    );
    alter table documents add column slack_webhook text;
    alter table documents add column slack_sent double precision not null default 0;`,
+  // 4: which service a personal AI key is for; calendar events; Keep notes.
+  `alter table users add column ai_provider text;
+   create table events (
+     id text primary key,
+     user_id text not null references users(id) on delete cascade,
+     title text not null,
+     notes text not null default '',
+     day text not null,
+     start_time text,
+     end_time text,
+     color text not null default 'blue',
+     kind text not null default 'event',
+     doc_id text,
+     remind boolean not null default true,
+     remind_at double precision,
+     reminded boolean not null default false,
+     created_at double precision not null
+   );
+   create index events_user_day on events (user_id, day);
+   create table notes (
+     id text primary key,
+     user_id text not null references users(id) on delete cascade,
+     title text not null default '',
+     body text not null default '',
+     items jsonb,
+     color text not null default 'white',
+     pinned boolean not null default false,
+     archived boolean not null default false,
+     labels jsonb not null default '[]',
+     updated_at double precision not null
+   );
+   create index notes_user on notes (user_id);`,
 ];
 
 async function migrate(db: Db): Promise<void> {

@@ -13,6 +13,8 @@ import './features.css';
 import './tools.css';
 import './home.css';
 import './showcase.css';
+import './apps.css';
+import './calendar.css';
 import './themes.css';
 
 applyPrefs(localPrefs());

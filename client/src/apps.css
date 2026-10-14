@@ -1,0 +1,78 @@
+/* Header: icons on links, Home first, app launcher */
+.site-nav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.site-nav a svg {
+  opacity: 0.75;
+}
+.site-nav a.nav-home {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+}
+.app-launcher {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-2);
+  cursor: pointer;
+}
+.app-launcher:hover {
+  background: var(--bg-alt);
+}
+.launcher {
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  gap: 4px;
+  max-height: 70vh;
+  padding: 10px;
+  overflow-y: auto;
+}
+.menu a.launcher-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+.menu a.launcher-app:hover {
+  background: var(--bg-alt);
+}
+.launcher-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  font-size: 1.5rem;
+}
+
+/* Footer with application columns */
+.footer-inner {
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
+  max-width: 1280px;
+}
+.footer-apps-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 1rem;
+}
+.footer-col h4.footer-sub {
+  margin-top: 1.2rem;
+}
+@media (max-width: 1000px) {
+  .footer-inner {
+    grid-template-columns: 1fr 1fr;
+  }
+}

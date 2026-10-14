@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       setUser,
       aiReady: providers.ai || !!user?.aiConnected,
-      aiName: user?.aiConnected ? 'Gemini' : (providers.aiName ?? 'AI'),
+      aiName: user?.aiConnected ? ({ groq: 'Groq', openrouter: 'OpenRouter' } as Record<string, string>)[user.aiProvider ?? ''] ?? 'Gemini' : (providers.aiName ?? 'AI'),
     }),
     [user, ready, offline, providers, signIn, signUp, signOut, setUser],
   );

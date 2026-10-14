@@ -144,21 +144,92 @@ export function BrandKitSection({ user, onSaved }: { user: User; onSaved(b: Bran
   );
 }
 
-/** Connect a personal (free) Gemini key, so AI runs on the person's own Google quota. */
-export function AiKeySection({ user, onChange }: { user: User; onChange(connected: boolean): void }) {
+const KEY_GUIDES = [
+  {
+    id: 'gemini',
+    name: 'Google Gemini',
+    tag: 'Recommended · free',
+    url: 'https://aistudio.google.com/app/apikey',
+    prefix: 'AIza… or AQ.…',
+    steps: (email: string) => [
+      <>
+        Open{' '}
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
+          aistudio.google.com/app/apikey
+        </a>{' '}
+        and sign in with your Google account (for example <strong>{email}</strong> if it is a Gmail address).
+      </>,
+      <>
+        Press <strong>Create API key</strong> (or <strong>Get API key</strong>). If asked, pick or create a project; the free tier needs no card.
+      </>,
+      <>
+        Open the key and press <strong>Copy key</strong>. New keys start with <code>AQ.</code>, older ones with <code>AIza</code>. Both work.
+      </>,
+    ],
+    note: 'Also powers the MP3 narration (Gemini voices).',
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    tag: 'Free · very fast',
+    url: 'https://console.groq.com/keys',
+    prefix: 'gsk_…',
+    steps: () => [
+      <>
+        Open{' '}
+        <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer">
+          console.groq.com/keys
+        </a>{' '}
+        and sign in with Google, GitHub or email.
+      </>,
+      <>
+        Press <strong>Create API Key</strong>, give it a name and copy it right away (it starts with <code>gsk_</code>).
+      </>,
+      <>Paste it below. Groq runs open models (Llama) on its free tier with generous daily limits.</>,
+    ],
+    note: 'No voice narration with Groq.',
+  },
+  {
+    id: 'openrouter',
+    name: 'OpenRouter',
+    tag: 'Free models',
+    url: 'https://openrouter.ai/keys',
+    prefix: 'sk-or-…',
+    steps: () => [
+      <>
+        Open{' '}
+        <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
+          openrouter.ai/keys
+        </a>{' '}
+        and sign in.
+      </>,
+      <>
+        Press <strong>Create Key</strong> and copy it (it starts with <code>sk-or-</code>).
+      </>,
+      <>Paste it below. CoWrite uses OpenRouter’s free models, so no credits are needed.</>,
+    ],
+    note: 'Free models have lower daily limits.',
+  },
+];
+
+/** Connect a personal (free) AI key: Gemini, Groq or OpenRouter. */
+export function AiKeySection({ user, onChange }: { user: User; onChange(connected: boolean, provider?: string | null): void }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
+  const [guide, setGuide] = useState('gemini');
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const connected = !!user.aiConnected;
+  const g = KEY_GUIDES.find((x) => x.id === guide)!;
+  const providerName = KEY_GUIDES.find((x) => x.id === (user.aiProvider ?? 'gemini'))?.name ?? 'Gemini';
 
   const save = async () => {
     setBusy(true);
     setMsg(null);
     try {
-      await api('/auth/me/ai-key', { method: 'PUT', body: { key } });
+      const r = await api<{ aiProvider: string }>('/auth/me/ai-key', { method: 'PUT', body: { key: key.trim() } });
       setKey('');
-      onChange(true);
-      setMsg({ ok: true, text: 'Connected. Every AI feature now runs on your own free Gemini quota.' });
+      onChange(true, r.aiProvider);
+      setMsg({ ok: true, text: 'Connected. Every AI feature now runs on your own free key.' });
     } catch (e) {
       setMsg({ ok: false, text: errorText(e) });
     } finally {
@@ -168,19 +239,19 @@ export function AiKeySection({ user, onChange }: { user: User; onChange(connecte
 
   return (
     <section className="panel ai-key" id="ai">
-      <h2>AI assistant (free with Gemini)</h2>
+      <h2>AI assistant (free)</h2>
       {msg && <div className={msg.ok ? 'alert success' : 'alert'}>{msg.text}</div>}
       {connected ? (
         <>
           <p className="ai-status-line">
-            <span className="ai-badge on">● Connected</span> AI features use <strong>your own Gemini key</strong>, linked to the Google account you used in AI Studio.
+            <span className="ai-badge on">● Connected</span> AI features use <strong>your own {providerName} key</strong>.
           </p>
           <button
             className="btn btn-outline btn-sm"
             disabled={busy}
             onClick={async () => {
               await api('/auth/me/ai-key', { method: 'DELETE' });
-              onChange(false);
+              onChange(false, null);
               setMsg({ ok: true, text: 'Disconnected. Your key was deleted from CoWrite.' });
             }}
             type="button"
@@ -190,27 +261,43 @@ export function AiKeySection({ user, onChange }: { user: User; onChange(connecte
         </>
       ) : (
         <>
-          <p className="muted">Google gives every Google account a free Gemini API key. Connect yours once and every AI feature (writing, slides, translation, meeting notes, ask your documents, read-aloud MP3) runs on your own free quota.</p>
+          <p className="muted">Pick any one of these free services, get a key in about a minute, and paste it below. Every AI feature (writing, Smart Create, slides, translation, meeting notes, ask your documents) then runs on your own free quota.</p>
+          <div className="key-tabs" role="tablist">
+            {KEY_GUIDES.map((x) => (
+              <button key={x.id} role="tab" aria-selected={guide === x.id} className={`key-tab ${guide === x.id ? 'on' : ''}`} onClick={() => setGuide(x.id)} type="button">
+                <strong>{x.name}</strong>
+                <span>{x.tag}</span>
+              </button>
+            ))}
+          </div>
           <ol className="ai-steps">
-            <li>
-              Open{' '}
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">
-                Google AI Studio → API keys
-              </a>{' '}
-              and sign in with <strong>{user.email}</strong> (the same email you use for CoWrite) or any Google account.
-            </li>
-            <li>
-              Click <strong>Create API key</strong> and copy it. It starts with <code>AIza</code>.
-            </li>
-            <li>Paste it below and press Connect. CoWrite checks it with Google, then stores it encrypted.</li>
+            {g.steps(user.email).map((s, i) => (
+              <li key={i}>{s}</li>
+            ))}
+            <li>Paste it below and press Connect. CoWrite checks it, then stores it encrypted.</li>
           </ol>
+          <p className="muted small">
+            Key looks like <code>{g.prefix}</code>. {g.note}{' '}
+            <a href={g.url} target="_blank" rel="noreferrer">
+              Open {g.name} →
+            </a>
+          </p>
           <div className="inline-form">
-            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza…" autoComplete="off" aria-label="Gemini API key" />
+            <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="Paste your key here" autoComplete="off" aria-label="AI API key" />
             <button className="btn btn-primary btn-sm" disabled={busy || key.trim().length < 20} onClick={() => void save()} type="button">
               {busy ? 'Checking…' : 'Connect'}
             </button>
           </div>
-          <p className="muted small">The free tier has daily limits, and Google may use free-tier prompts to improve its products, so avoid pasting secrets into AI requests. You can disconnect at any time.</p>
+          <details className="small key-help">
+            <summary>Key still not accepted?</summary>
+            <ul>
+              <li>Copy it with the provider’s own copy button: the key is long and easy to cut short.</li>
+              <li>Make sure there are no spaces before or after it.</li>
+              <li>For Gemini, a brand-new key can take a minute to start working.</li>
+              <li>Free tiers have daily limits. If one service is busy, try another.</li>
+            </ul>
+          </details>
+          <p className="muted small">Free tiers may use your prompts to improve their products, so avoid pasting secrets into AI requests. You can disconnect at any time.</p>
         </>
       )}
     </section>

@@ -4,7 +4,7 @@ import { inlineTokens, markdownToTokens, type NewToken } from '../shared/rich.ts
 import { randomSite } from '../shared/sync-client.ts';
 import type { Db } from './db.ts';
 import { HttpError } from './http.ts';
-import { ClaudeLlm, GeminiLlm, type Llm } from './llm.ts';
+import { ClaudeLlm, GeminiLlm, llmForKey, type Llm } from './llm.ts';
 import type { Room } from './rooms.ts';
 import type { Vault } from './secrets.ts';
 
@@ -84,7 +84,7 @@ export class AiHub {
     if (userId) {
       const [row] = await this.db.query<{ ai_key: string | null }>('select ai_key from users where id = $1', [userId]);
       const key = row?.ai_key ? await this.vault.open(row.ai_key) : null;
-      if (key) return new AiWriter(new GeminiLlm(key, 'user'));
+      if (key) return new AiWriter(llmForKey(key, 'user'));
     }
     if (!this.server) throw new HttpError(503, 'AI is not set up yet. Connect your free Gemini key in Account settings → AI assistant.');
     return new AiWriter(this.server);

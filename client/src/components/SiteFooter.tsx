@@ -1,5 +1,6 @@
 import { AUTHOR, REPO_URL } from '../content.ts';
 import { Link } from '../router.ts';
+import { APPS, MANAGEMENT, SOLUTIONS } from '../lib/apps.ts';
 import { Brand } from './Brand.tsx';
 
 export function SiteFooter() {
@@ -9,6 +10,30 @@ export function SiteFooter() {
         <div className="footer-brand">
           <Brand />
           <p>A real-time collaborative editor built on a conflict-free replicated data type, written from scratch.</p>
+        </div>
+        <div className="footer-col footer-apps">
+          <h4>Included applications</h4>
+          <div className="footer-apps-grid">
+            {APPS.map((a) => (
+              <Link key={a.id} to={a.to}>
+                {a.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="footer-col">
+          <h4>Security and management</h4>
+          {MANAGEMENT.map((m) => (
+            <Link key={m.name} to={m.to}>
+              {m.name}
+            </Link>
+          ))}
+          <h4 className="footer-sub">Solutions</h4>
+          {SOLUTIONS.map((x) => (
+            <Link key={x.name} to={`/templates?cat=${encodeURIComponent(x.cat)}`}>
+              {x.name}
+            </Link>
+          ))}
         </div>
         <div className="footer-col">
           <h4>Product</h4>

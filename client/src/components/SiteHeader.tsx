@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, timeAgo, type Notification, type Prefs } from '../api.ts';
+import { APPS } from '../lib/apps.ts';
 import { APP_THEMES, localPrefs, savePrefs } from '../lib/prefs.ts';
 import { useAuth } from '../auth.tsx';
 import { Link, navigate } from '../router.ts';
@@ -7,12 +8,32 @@ import { Brand } from './Brand.tsx';
 import { Avatar, Dropdown, Icon } from './ui.tsx';
 
 const SECTIONS = [
-  { to: '/#features', label: 'Features' },
-  { to: '/#playground', label: 'Live Demo' },
-  { to: '/#how', label: 'How It Works' },
-  { to: '/#about', label: 'About' },
-  { to: '/#contact', label: 'Contact' },
+  { to: '/#features', label: 'Features', icon: 'sparkle' },
+  { to: '/#playground', label: 'Live Demo', icon: 'play' },
+  { to: '/#how', label: 'How It Works', icon: 'book' },
+  { to: '/#about', label: 'About', icon: 'info' },
+  { to: '/#contact', label: 'Contact', icon: 'phone' },
 ];
+
+/** The nine-dot app launcher. */
+export function AppLauncher() {
+  return (
+    <Dropdown className="icon-button app-launcher" ariaLabel="CoWrite apps" label={<Icon name="grid" size={20} />}>
+      {(close) => (
+        <div className="launcher" role="menu">
+          {APPS.map((a) => (
+            <Link key={a.id} role="menuitem" className="launcher-app" to={a.to} onClick={close} title={a.blurb}>
+              <span className="launcher-icon" style={{ background: `color-mix(in srgb, ${a.color} 14%, transparent)` }}>
+                {a.icon}
+              </span>
+              <span>{a.name}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </Dropdown>
+  );
+}
 
 export function UserMenu() {
   const { user, signOut } = useAuth();
@@ -207,19 +228,17 @@ export function SiteHeader() {
           <span />
         </button>
         <nav className={`site-nav ${menuOpen ? 'open' : ''}`} aria-label="Main">
+          <Link to={user ? '/home' : '/'} onClick={() => setMenuOpen(false)} className="nav-home">
+            <Icon name="home" size={16} /> Home
+          </Link>
           {SECTIONS.map((s) => (
             <Link key={s.to} to={s.to} onClick={() => setMenuOpen(false)}>
-              {s.label}
+              <Icon name={s.icon} size={15} /> {s.label}
             </Link>
           ))}
           {user && (
-            <Link to="/home" onClick={() => setMenuOpen(false)}>
-              Home
-            </Link>
-          )}
-          {user && (
             <Link to="/documents" onClick={() => setMenuOpen(false)}>
-              My Documents
+              <Icon name="folder" size={15} /> My Documents
             </Link>
           )}
         </nav>
@@ -234,6 +253,7 @@ export function SiteHeader() {
               </Link>
             </>
           )}
+          <AppLauncher />
           <ThemeToggle />
           <NotificationBell />
           <UserMenu />

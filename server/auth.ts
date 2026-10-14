@@ -18,6 +18,7 @@ export interface User {
   brand?: Brand | null;
   prefs?: Prefs | null;
   ai_key?: string | null;
+  ai_provider?: string | null;
 }
 
 /** Brand kit: applied to documents and decks in one click. */
@@ -51,6 +52,8 @@ export interface PublicUser {
   prefs: Prefs | null;
   /** Whether they connected their own (free) Gemini key. */
   aiConnected: boolean;
+  /** 'gemini', 'groq' or 'openrouter'. */
+  aiProvider: string | null;
 }
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -81,6 +84,7 @@ export const toPublic = (u: User): PublicUser => ({
   brand: u.brand ?? null,
   prefs: u.prefs ?? null,
   aiConnected: !!u.ai_key,
+  aiProvider: u.ai_key ? (u.ai_provider ?? 'gemini') : null,
 });
 
 async function hashPassword(password: string): Promise<string> {

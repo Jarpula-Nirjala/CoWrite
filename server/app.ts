@@ -24,6 +24,7 @@ import { mediaRoutes } from './routes-media.ts';
 import { aiRoutes, syncTranslation } from './routes-ai.ts';
 import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.ts';
 import { extraRoutes, runDigests } from './routes-extra.ts';
+import { lifeRoutes, runEventReminders } from './routes-life.ts';
 
 export interface ServerOptions {
   port: number;
@@ -173,6 +174,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   const timers = [
     setInterval(() => void flushActivity(), 10_000),
     setInterval(() => void runReminders(ctx).catch((err) => console.error('reminders failed:', err)), 60_000),
+    setInterval(() => void runEventReminders(ctx).catch((err) => console.error('event reminders failed:', err)), 60_000),
     setInterval(() => void runDigests(ctx, process.env.PUBLIC_URL?.replace(/\/+$/, '') || `http://localhost:${process.env.PORT ?? 3000}`).catch((err) => console.error('digests failed:', err)), 5 * 60_000),
     // Trash older than 30 days is deleted for good.
     setInterval(() => void docs.expiredTrash().then((ids) => docs.purge(ids)).catch(() => {}), 6 * 3600_000),
@@ -215,6 +217,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(aiRoutes(ctx));
   api.use(teamRoutes(ctx));
   api.use(extraRoutes(ctx));
+  api.use(lifeRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

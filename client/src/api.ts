@@ -16,6 +16,7 @@ export interface User {
   prefs?: Prefs | null;
   /** They connected their own free Gemini key. */
   aiConnected?: boolean;
+  aiProvider?: string | null;
 }
 
 export interface Brand {

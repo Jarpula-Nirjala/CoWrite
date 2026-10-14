@@ -253,10 +253,146 @@ export class GeminiLlm implements Llm {
   }
 }
 
-/** Checks a Gemini key by listing models (no tokens spent). */
-export async function checkGeminiKey(key: string): Promise<boolean> {
+// ---------------------------------------------- Groq and OpenRouter (free tiers)
+
+/** Chat-completions providers with free tiers: Groq (keys start "gsk_") and OpenRouter ("sk-or-"). */
+const COMPAT = {
+  groq: {
+    name: 'Groq',
+    base: 'https://api.groq.com/openai/v1',
+    model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
+    vision: process.env.GROQ_VISION_MODEL || 'meta-llama/llama-4-scout-17b-16e-instruct',
+    check: '/models',
+  },
+  openrouter: {
+    name: 'OpenRouter',
+    base: 'https://openrouter.ai/api/v1',
+    model: process.env.OPENROUTER_MODEL || 'meta-llama/llama-3.3-70b-instruct:free',
+    vision: process.env.OPENROUTER_VISION_MODEL || 'google/gemma-3-27b-it:free',
+    check: '/key',
+  },
+} as const;
+export type CompatProvider = keyof typeof COMPAT;
+
+type ChatReply = { choices?: { message?: { content?: string } }[] };
+
+export class CompatLlm implements Llm {
+  readonly name: string;
+  readonly color = '#7c3aed';
+  readonly source: 'user' | 'server';
+  private readonly key: string;
+  private readonly cfg: (typeof COMPAT)[CompatProvider];
+
+  constructor(provider: CompatProvider, key: string, source: 'user' | 'server') {
+    this.cfg = COMPAT[provider];
+    this.name = this.cfg.name;
+    this.key = key;
+    this.source = source;
+  }
+
+  private async call(body: Record<string, unknown>): Promise<Response> {
+    let res: Response;
+    try {
+      res = await fetch(`${this.cfg.base}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${this.key}`, 'x-title': 'CoWrite' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120_000),
+      });
+    } catch {
+      throw new HttpError(502, `Could not reach ${this.name}. Please try again.`);
+    }
+    if (!res.ok) {
+      if (res.status === 429) throw new HttpError(429, `The free ${this.name} limit is used up for now. Please wait a minute and try again.`);
+      if (res.status === 401 || res.status === 403) throw new HttpError(400, `${this.name} did not accept your key. Check it in Account settings.`);
+      throw new HttpError(502, `${this.name} returned an error (${res.status}).`);
+    }
+    return res;
+  }
+
+  private messages(system: string, user: unknown) {
+    return [...(system ? [{ role: 'system', content: system }] : []), { role: 'user', content: user }];
+  }
+
+  async text(system: string, prompt: string, maxTokens = 8000): Promise<string> {
+    const res = await this.call({ model: this.cfg.model, max_tokens: Math.min(maxTokens, 8000), messages: this.messages(system, prompt) });
+    return (((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '').trim();
+  }
+
+  async *stream(system: string, prompt: string, maxTokens = 8000): AsyncIterable<string> {
+    const res = await this.call({ model: this.cfg.model, max_tokens: Math.min(maxTokens, 8000), stream: true, messages: this.messages(system, prompt) });
+    const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += value;
+      let nl = buf.indexOf('\n');
+      while (nl >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        nl = buf.indexOf('\n');
+        if (!line.startsWith('data:') || line === 'data: [DONE]') continue;
+        try {
+          const text = (JSON.parse(line.slice(5)) as { choices?: { delta?: { content?: string } }[] }).choices?.[0]?.delta?.content;
+          if (text) yield text;
+        } catch {
+          // keep-alive comments and partial lines
+        }
+      }
+    }
+  }
+
+  async json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens = 8000): Promise<T> {
+    const res = await this.call({
+      model: this.cfg.model,
+      max_tokens: Math.min(maxTokens, 8000),
+      response_format: { type: 'json_object' },
+      messages: this.messages(`${system}\n\nReply with a single JSON object that matches this JSON Schema, and nothing else:\n${JSON.stringify(schema)}`, prompt),
+    });
+    const text = ((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '';
+    try {
+      return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)) as T;
+    } catch {
+      throw new HttpError(502, 'The AI returned an unexpected answer. Please try again.');
+    }
+  }
+
+  async image(data: Buffer, mime: string, ask: string): Promise<string> {
+    const res = await this.call({
+      model: this.cfg.vision,
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: [{ type: 'text', text: ask }, { type: 'image_url', image_url: { url: `data:${mime || 'image/png'};base64,${data.toString('base64')}` } }] }],
+    });
+    return (((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '').trim();
+  }
+}
+
+/** Which service a personal key belongs to, from its shape. */
+export function keyProvider(key: string): 'gemini' | CompatProvider {
+  if (key.startsWith('gsk_')) return 'groq';
+  if (key.startsWith('sk-or-')) return 'openrouter';
+  return 'gemini';
+}
+
+/** The model for a personal key. */
+export function llmForKey(key: string, source: 'user' | 'server'): Llm {
+  const p = keyProvider(key);
+  return p === 'gemini' ? new GeminiLlm(key, source) : new CompatLlm(p, key, source);
+}
+
+/** Checks a key with its provider without spending tokens. */
+export async function checkKey(key: string): Promise<boolean> {
+  const p = keyProvider(key);
   try {
-    const res = await fetch(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(10_000) });
+    if (p === 'gemini') {
+      // Older keys start "AIza"; newer AI Studio keys start "AQ.". Try the header, then the query parameter.
+      const res = await fetch(`${GEMINI_BASE}/models?pageSize=1`, { headers: { 'x-goog-api-key': key }, signal: AbortSignal.timeout(10_000) });
+      if (res.ok) return true;
+      const alt = await fetch(`${GEMINI_BASE}/models?pageSize=1&key=${encodeURIComponent(key)}`, { signal: AbortSignal.timeout(10_000) });
+      return alt.ok;
+    }
+    const res = await fetch(`${COMPAT[p].base}${COMPAT[p].check}`, { headers: { authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(10_000) });
     return res.ok;
   } catch {
     return false;
