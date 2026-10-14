@@ -1,0 +1,260 @@
+{
+ "rich-text": {
+  "title": "Business Man",
+  "creator": "Direct Media",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "diary": {
+  "title": "Journal Notepad",
+  "creator": "Cathryn Lavery",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "templates": {
+  "title": "Magazine Layout",
+  "creator": "Ross Sokolovski",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "images": {
+  "title": "Camera Photography",
+  "creator": "Skitter Photo",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "embeds": {
+  "title": "Youtube Iphone",
+  "creator": "Freestocks.org",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "maths": {
+  "title": "Calculator Numbers",
+  "creator": "Martin Vorel",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "voice": {
+  "title": "Microphone Audio",
+  "creator": "Maciej Korsan",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "slash": {
+  "title": "Free close hand typing keyboard",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "brand": {
+  "title": "Hand Lettering Logo Design Macbook",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "presentation": {
+  "title": "Business Team",
+  "creator": "Direct Media",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "slide-themes": {
+  "title": "Colorful Gradient",
+  "creator": "Vidsplay",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "whiteboard": {
+  "title": "Sticky Notes",
+  "creator": "Matt Moloney",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "kanban": {
+  "title": "Whiteboard Post-Itnotes",
+  "creator": "Startup Stock Photos",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "spreadsheets": {
+  "title": "Business Working",
+  "creator": "Marc Chouinard",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "compare": {
+  "title": "Clock Time",
+  "creator": "Ales Krivec",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "para-history": {
+  "title": "Old books library, our own",
+  "creator": "Tong",
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "undo": {
+  "title": "Pencil Pen",
+  "creator": "Lukasz Dec",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "timelapse": {
+  "title": "Time lapse photography road night",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "branch": {
+  "title": "Trees Branches",
+  "creator": "Teddy Kelley",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "drafts": {
+  "title": "Writing Drawing",
+  "creator": "Green Chameleon",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "locks": {
+  "title": "Padlock Lock",
+  "creator": "Michal Jarmoluk",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "p2p": {
+  "title": "Free networking cables image",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "heatmap": {
+  "title": "Fire Flame",
+  "creator": "Anton Nicu Adrian",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "encryption": {
+  "title": "Free cyber security concept background",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "ai-cowriter": {
+  "title": "Robot Technology",
+  "creator": "Alex Knight",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "doc-slides": {
+  "title": "WordCamp US 2023 conference presentation set up with a projector screen on the left titled \u201cThe Enterprise Approach to WordPress Security\u201d and an empty podium and table and chairs to the right",
+  "creator": "Jeffrey Paul",
+  "source": "wordpress",
+  "license": "cc0"
+ },
+ "photos-text": {
+  "title": "Whiteboard Planning",
+  "creator": "Startup Stock Photos",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "translation": {
+  "title": "Global Map",
+  "creator": "World Maps",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "meeting": {
+  "title": "Team Meeting",
+  "creator": "Startup Stock Photos",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "reviewer": {
+  "title": "Red pen background",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "ask": {
+  "title": "Close question mark drawn chalk",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "cursors": {
+  "title": "Business Team",
+  "creator": "Startup Stock Photos",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "calls": {
+  "title": "The African Union's DSRCC, Lydia Wanyoto Mutende, speaks to the United Nation's SRSG, Nicholas Kay, via a video conference call in Mogadishu, Somalia, on June 27. AMISOM Photo (14332884507)",
+  "creator": "AMISOM Public Information",
+  "source": "wikimedia",
+  "license": "cc0"
+ },
+ "comments": {
+  "title": "Business Women",
+  "creator": "Direct Media",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "approvals": {
+  "title": "Free hand holding pen signing",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "tasks": {
+  "title": null,
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "workspaces": {
+  "title": "Women Meeting",
+  "creator": "Kristin Hardwick",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "public": {
+  "title": "Blogging Typing",
+  "creator": "Negative Space",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "themes": {
+  "title": "Watercolours palette",
+  "creator": null,
+  "source": "rawpixel",
+  "license": "cc0"
+ },
+ "dyslexia": {
+  "title": "People Man",
+  "creator": "Aaron Burden",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "read-aloud": {
+  "title": "Man Music",
+  "creator": "Bruce Mars",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "streaks": {
+  "title": "Man Running",
+  "creator": "The Lazy Artist Gallery",
+  "source": "stocksnap",
+  "license": "cc0"
+ },
+ "focus": {
+  "title": "Workspace Office",
+  "creator": "Top Down Tech",
+  "source": "stocksnap",
+  "license": "cc0"
+ }
+}

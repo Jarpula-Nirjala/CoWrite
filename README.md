@@ -205,6 +205,10 @@ The suite covers:
   - workspaces, drafts, public pages, brand kit;
   - the SSRF guard.
 
+## Credits
+
+The photos on the home page are public-domain (CC0) images from StockSnap and Wikimedia Commons, found through [Openverse](https://openverse.org). Details are in `client/public/features/credits.json`.
+
 ## Deploy on Render
 
 The repo includes a [`render.yaml`](render.yaml) blueprint that runs on Render's free plan. Set `DATABASE_URL` to a free Neon Postgres database so accounts and documents persist across restarts. The other variables are optional.

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
-import { Demo } from './HomeExtras.tsx';
 
 type Item = [icon: string, title: string, body: string];
 interface Group {
@@ -99,93 +98,104 @@ export const FEATURE_GROUPS: Group[] = [
 
 export const FEATURE_COUNT = FEATURE_GROUPS.reduce((n, g) => n + g.items.length, 0);
 
-const DWELL = 3200;
+/** One photo per feature, in the same order as the cards (free-to-use CC0 photos, see /features/credits.json). */
+const IMAGES = [
+  'rich-text', 'diary', 'templates', 'images', 'embeds', 'maths', 'voice', 'slash', 'brand',
+  'presentation', 'slide-themes', 'whiteboard', 'kanban', 'spreadsheets',
+  'compare', 'para-history', 'undo', 'timelapse', 'branch', 'drafts', 'locks', 'p2p', 'heatmap', 'encryption',
+  'ai-cowriter', 'doc-slides', 'photos-text', 'translation', 'meeting', 'reviewer', 'ask',
+  'cursors', 'calls', 'comments', 'approvals', 'tasks', 'workspaces', 'public',
+  'themes', 'dyslexia', 'read-aloud', 'streaks', 'focus',
+];
+
+/** Every card in order, with its category. */
+const CARDS = FEATURE_GROUPS.flatMap((g, gi) => g.items.map(([icon, title, body]) => ({ icon, title, body, gi })));
+
+const DWELL = 3000;
 
 /**
- * Compact animated showcase: pick a category on the left; its features play
- * one after another as cards on the right. A ribbon of every feature scrolls below.
+ * A carousel that plays by itself: the cards slide past one after another,
+ * each with a photo and a colourful background in its category's colour.
  */
 export function FeatureShowcase() {
-  const [g, setG] = useState(0);
   const [i, setI] = useState(0);
-  const [paused, setPaused] = useState(false);
   const [inView, setInView] = useState(false);
   const root = useRef<HTMLDivElement>(null);
-  const group = FEATURE_GROUPS[g];
+  const stage = useRef<HTMLDivElement>(null);
+  const [stageW, setStageW] = useState(1100);
+  const card = CARDS[i];
+  const group = FEATURE_GROUPS[card.gi];
 
   useEffect(() => {
-    const n = root.current;
-    if (!n) return;
-    const io = new IntersectionObserver(([e]) => setInView(e.isIntersecting), { threshold: 0.25 });
-    io.observe(n);
-    return () => io.disconnect();
+    const ro = new ResizeObserver(([e]) => setStageW(e.contentRect.width));
+    if (stage.current) ro.observe(stage.current);
+    const vis = () => setInView(!document.hidden);
+    vis();
+    document.addEventListener('visibilitychange', vis);
+    return () => {
+      ro.disconnect();
+      document.removeEventListener('visibilitychange', vis);
+    };
   }, []);
 
+  // Advances on its own, one card after another (resting only while the browser tab is hidden).
   useEffect(() => {
-    if (paused || !inView || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const t = setTimeout(() => {
-      if (i + 1 < group.items.length) setI(i + 1);
-      else {
-        setG((g + 1) % FEATURE_GROUPS.length);
-        setI(0);
-      }
-    }, DWELL);
+    if (!inView || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const t = setTimeout(() => setI((n) => (n + 1) % CARDS.length), DWELL);
     return () => clearTimeout(t);
-  }, [g, i, paused, inView, group.items.length]);
+  }, [i, inView]);
 
-  const item = group.items[i];
-  const prev = group.items[(i - 1 + group.items.length) % group.items.length];
-  const next = group.items[(i + 1) % group.items.length];
+  const CW = Math.min(380, stageW * 0.78);
+  const GAP = 22;
+  const offset = stageW / 2 - CW / 2 - i * (CW + GAP);
+  const first = (gi: number) => CARDS.findIndex((c) => c.gi === gi);
 
   return (
-    <div className="showcase" ref={root} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} style={{ '--fc': group.color } as CSSProperties}>
-      <div className="showcase-main">
-        <nav className="showcase-tabs" aria-label="Feature categories">
-          {FEATURE_GROUPS.map((x, k) => (
-            <button
-              key={x.title}
-              className={`showcase-tab ${k === g ? 'active' : ''}`}
-              style={{ '--tc': x.color } as CSSProperties}
-              onClick={() => {
-                setG(k);
-                setI(0);
-              }}
-              type="button"
-            >
-              <span className="showcase-tab-icon">{x.icon}</span>
-              <span className="showcase-tab-text">
-                {x.title}
-                <small>{x.items.length} features</small>
-              </span>
-              {k === g && <span className="showcase-progress" key={`${g}-${i}-${paused}`} style={{ width: `${((i + 1) / x.items.length) * 100}%` }} />}
+    <div className="showcase" ref={root} style={{ '--fc': group.color } as CSSProperties}>
+      <nav className="showcase-chips" aria-label="Feature categories">
+        {FEATURE_GROUPS.map((x, k) => {
+          const start = first(k);
+          const inGroup = card.gi === k;
+          return (
+            <button key={x.title} className={`showcase-chip ${inGroup ? 'active' : ''}`} style={{ '--tc': x.color } as CSSProperties} onClick={() => setI(start)} type="button">
+              <span>{x.icon}</span> {x.title}
+              {inGroup && <span className="chip-progress" style={{ width: `${((i - start + 1) / x.items.length) * 100}%` }} />}
             </button>
-          ))}
-        </nav>
+          );
+        })}
+      </nav>
 
-        <div className="showcase-stage" aria-live="polite">
-          <article className="showcase-card ghost left" key={`p-${g}-${i}`} aria-hidden>
-            <span className="showcase-icon">{prev[0]}</span>
-            <h4>{prev[1]}</h4>
-          </article>
-          <article className="showcase-card ghost right" key={`n-${g}-${i}`} aria-hidden>
-            <span className="showcase-icon">{next[0]}</span>
-            <h4>{next[1]}</h4>
-          </article>
-          <article className="showcase-card front" key={`f-${g}-${i}`}>
-            <span className="showcase-icon big">{item[0]}</span>
-            <span className="showcase-kicker">
-              {group.title} · {i + 1}/{group.items.length}
-            </span>
-            <h4>{item[1]}</h4>
-            <p>{item[2]}</p>
-            <Demo group={g} />
-            {!paused && inView && <span className="showcase-timer" key={`t-${g}-${i}`} />}
-          </article>
-          <div className="showcase-dots">
-            {group.items.map((x, k) => (
-              <button key={x[1]} className={k === i ? 'on' : ''} onClick={() => setI(k)} aria-label={x[1]} title={x[1]} type="button" />
-            ))}
-          </div>
+      <div className="carousel" ref={stage} aria-live="polite">
+        <div className="carousel-track" style={{ transform: `translateX(${offset}px)` }}>
+          {CARDS.map((c, k) => {
+            const g = FEATURE_GROUPS[c.gi];
+            const near = Math.abs(k - i) <= 3;
+            return (
+              <article
+                key={c.title}
+                className={`fcard ${k === i ? 'active' : ''}`}
+                style={{ '--gc': g.color, width: CW } as CSSProperties}
+                aria-hidden={k !== i}
+                onClick={() => setI(k)}
+              >
+                <div className="fcard-photo">
+                  {near && <img src={`/features/${IMAGES[k]}.jpg`} alt="" loading="lazy" draggable={false} />}
+                  <span className="fcard-badge">
+                    {g.icon} {g.title}
+                  </span>
+                </div>
+                <div className="fcard-body">
+                  <span className="fcard-icon">{c.icon}</span>
+                  <span className="fcard-count">
+                    {k - first(c.gi) + 1} / {g.items.length}
+                  </span>
+                  <h4>{c.title}</h4>
+                  <p>{c.body}</p>
+                </div>
+                {k === i && inView && <span className="fcard-timer" key={`t${i}`} />}
+              </article>
+            );
+          })}
         </div>
       </div>
 

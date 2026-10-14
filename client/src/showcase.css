@@ -1,0 +1,240 @@
+/* Auto-playing feature carousel on the home page. */
+.showcase {
+  --fc: #1f3a68;
+}
+.showcase-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.showcase-chip {
+  --tc: #1f3a68;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background 0.4s, color 0.4s, border-color 0.4s, transform 0.4s;
+}
+.showcase-chip.active {
+  border-color: var(--tc);
+  background: color-mix(in srgb, var(--tc) 12%, var(--surface));
+  color: var(--text);
+  font-weight: 700;
+  transform: translateY(-2px);
+}
+.chip-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--tc);
+  transition: width 0.5s ease;
+}
+
+.carousel {
+  position: relative;
+  padding: 26px 0 34px;
+  overflow: hidden;
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 12% 18%, color-mix(in srgb, var(--fc) 26%, transparent), transparent 45%),
+    radial-gradient(circle at 88% 82%, color-mix(in srgb, var(--fc) 22%, transparent), transparent 45%),
+    radial-gradient(circle at 70% 10%, rgb(255 200 120 / 0.18), transparent 35%),
+    linear-gradient(135deg, color-mix(in srgb, var(--fc) 8%, var(--bg-alt)), var(--bg-alt));
+  transition: background 0.8s ease;
+  mask-image: linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%);
+}
+.carousel::before {
+  /* soft dot texture */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--fc) 25%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+.carousel-track {
+  position: relative;
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  transition: transform 0.9s cubic-bezier(0.65, 0, 0.25, 1);
+  will-change: transform;
+}
+
+.fcard {
+  --gc: #1f3a68;
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-radius: 22px;
+  overflow: hidden;
+  cursor: pointer;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--gc) 30%, transparent), transparent 55%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--gc) 20%, transparent), transparent 50%),
+    linear-gradient(160deg, color-mix(in srgb, var(--gc) 10%, #ffffff), color-mix(in srgb, var(--gc) 4%, #ffffff));
+  box-shadow: 0 10px 30px rgb(17 20 24 / 0.12);
+  opacity: 0.55;
+  transform: scale(0.86);
+  filter: saturate(0.7);
+  transition: transform 0.9s cubic-bezier(0.65, 0, 0.25, 1), opacity 0.9s, filter 0.9s, box-shadow 0.9s;
+}
+.fcard.active {
+  opacity: 1;
+  transform: scale(1);
+  filter: none;
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--gc) 35%, rgb(0 0 0 / 0.2));
+}
+.fcard-photo {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--gc) 25%, #dfe3ea);
+}
+.fcard-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: scale(1.08);
+  transition: transform 3.2s ease-out;
+}
+.fcard.active .fcard-photo img {
+  transform: scale(1);
+}
+.fcard-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.35) 0%, transparent 35%, transparent 60%, color-mix(in srgb, var(--gc) 55%, transparent) 100%);
+}
+.fcard-badge {
+  position: absolute;
+  left: 14px;
+  top: 12px;
+  z-index: 1;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.9);
+  color: #1b1f24;
+  font-size: 0.8rem;
+  font-weight: 700;
+  backdrop-filter: blur(4px);
+}
+.fcard-icon {
+  position: absolute;
+  right: 16px;
+  top: -30px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 4px solid #fff;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--gc), color-mix(in srgb, var(--gc) 60%, #ffffff));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--gc) 40%, transparent);
+  font-size: 1.6rem;
+}
+.fcard.active .fcard-icon {
+  animation: fcard-pop 0.7s 0.35s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.fcard-body {
+  position: relative;
+  padding: 22px 22px 26px;
+}
+.fcard-body::before {
+  /* subtle diagonal lines */
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(135deg, transparent 0 14px, color-mix(in srgb, var(--gc) 6%, transparent) 14px 15px);
+  pointer-events: none;
+}
+.fcard-count {
+  position: relative;
+  color: var(--gc);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.fcard-body h4 {
+  position: relative;
+  margin: 4px 0 8px;
+  color: #111418;
+  font-size: 1.4rem;
+  line-height: 1.2;
+}
+.fcard-body p {
+  position: relative;
+  margin: 0;
+  color: #3a3f47;
+  min-height: 3.2em;
+}
+.fcard.active .fcard-body h4,
+.fcard.active .fcard-body p {
+  animation: fcard-rise 0.6s 0.25s ease both;
+}
+.fcard-timer {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--gc), color-mix(in srgb, var(--gc) 50%, #ffffff));
+  animation: fcard-timer 3s linear both;
+}
+@keyframes fcard-timer {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}
+@keyframes fcard-pop {
+  from {
+    transform: scale(0.3) rotate(-20deg);
+  }
+}
+@keyframes fcard-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+:root[data-tone='dark'] .fcard-body h4 {
+  color: #111418;
+}
+@media (max-width: 700px) {
+  .showcase-chip {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .carousel-track,
+  .fcard,
+  .fcard-photo img {
+    transition: none;
+  }
+  .fcard-timer,
+  .fcard.active .fcard-icon,
+  .fcard.active .fcard-body h4,
+  .fcard.active .fcard-body p {
+    animation: none;
+  }
+}

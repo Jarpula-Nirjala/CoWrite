@@ -12,6 +12,7 @@ import './kinds/kinds.css';
 import './features.css';
 import './tools.css';
 import './home.css';
+import './showcase.css';
 import './themes.css';
 
 applyPrefs(localPrefs());
