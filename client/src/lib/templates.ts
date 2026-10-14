@@ -54,20 +54,26 @@ export const TEMPLATES: (() => Template)[] = [
   }),
 ];
 
+export interface InitialContent {
+  tokens: { ch: string; a?: Record<string, unknown> }[];
+  settings?: Partial<import('../rich/settings.ts').DocSettings>;
+  objects?: { key: string; fields: Record<string, unknown> }[];
+}
+
 /** Content to insert when a freshly created document first opens. */
 export const pendingContent = {
-  set(docId: string, text: string) {
+  set(docId: string, content: InitialContent) {
     try {
-      sessionStorage.setItem(`cowrite:init:${docId}`, text);
+      sessionStorage.setItem(`cowrite:init:${docId}`, JSON.stringify(content));
     } catch {
       // ignore
     }
   },
-  take(docId: string): string | null {
+  take(docId: string): InitialContent | null {
     try {
       const v = sessionStorage.getItem(`cowrite:init:${docId}`);
       sessionStorage.removeItem(`cowrite:init:${docId}`);
-      return v;
+      return v ? (JSON.parse(v) as InitialContent) : null;
     } catch {
       return null;
     }

@@ -12,6 +12,8 @@ export interface User {
   google: boolean;
   github: boolean;
   createdAt: number;
+  brand?: { logo?: string; accent?: string; name?: string; font?: string } | null;
+  prefs?: Record<string, unknown> | null;
 }
 
 export interface DocMeta {
@@ -31,7 +33,15 @@ export interface DocMeta {
   snippet?: string;
   role?: Role;
   ownerName?: string;
+  kind: DocKind;
+  status: string;
+  workspaceId: string | null;
+  translatedFrom: string | null;
+  lang: string | null;
+  isTemplate: boolean;
 }
+
+export type DocKind = 'doc' | 'slides' | 'board' | 'kanban' | 'sheet';
 
 export interface DocDetails extends DocMeta {
   ownerName: string;

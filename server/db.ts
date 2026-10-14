@@ -191,6 +191,111 @@ const MIGRATIONS: string[] = [
      deletes integer not null default 0,
      primary key (doc_id, site, day)
    );`,
+  // 2: rich documents, files and the collaboration extras.
+  `alter table documents add column kind text not null default 'doc';
+   alter table documents add column status text not null default 'draft';
+   alter table documents add column workspace_id text;
+   alter table documents add column translated_from text;
+   alter table documents add column lang text;
+   alter table documents add column is_template boolean not null default false;
+   alter table users add column brand jsonb;
+   alter table users add column prefs jsonb;
+   create table files (
+     id text primary key,
+     owner_id text,
+     doc_id text,
+     name text not null,
+     mime text not null,
+     size integer not null,
+     data bytea not null,
+     created_at double precision not null
+   );
+   create index files_owner on files(owner_id);
+   create table checkpoints (
+     doc_id text not null,
+     at double precision not null,
+     vector jsonb not null,
+     primary key (doc_id, at)
+   );
+   create table locks (
+     id text primary key,
+     doc_id text not null,
+     anchor_start jsonb not null,
+     anchor_end jsonb not null,
+     quote text not null default '',
+     created_by text,
+     created_name text not null,
+     created_at double precision not null
+   );
+   create index locks_doc on locks(doc_id);
+   create table reactions (
+     doc_id text not null,
+     target text not null,
+     emoji text not null,
+     who text not null,
+     name text not null,
+     created_at double precision not null,
+     primary key (doc_id, target, emoji, who)
+   );
+   create table approvals (
+     doc_id text not null,
+     user_id text not null,
+     decision text not null,
+     note text not null default '',
+     at double precision not null,
+     primary key (doc_id, user_id)
+   );
+   create table tasks (
+     doc_id text not null,
+     block_key text not null,
+     text text not null,
+     done boolean not null,
+     assignee_id text,
+     due text,
+     reminded boolean not null default false,
+     primary key (doc_id, block_key)
+   );
+   create index tasks_assignee on tasks(assignee_id);
+   create table reminders (
+     id text primary key,
+     user_id text not null references users(id) on delete cascade,
+     doc_id text,
+     note text not null,
+     at double precision not null,
+     sent boolean not null default false
+   );
+   create table drafts (
+     doc_id text not null,
+     user_id text not null references users(id) on delete cascade,
+     content jsonb not null,
+     updated_at double precision not null,
+     primary key (doc_id, user_id)
+   );
+   create table workspaces (
+     id text primary key,
+     name text not null,
+     owner_id text not null references users(id) on delete cascade,
+     created_at double precision not null
+   );
+   create table workspace_members (
+     workspace_id text not null references workspaces(id) on delete cascade,
+     user_id text not null references users(id) on delete cascade,
+     role text not null,
+     primary key (workspace_id, user_id)
+   );
+   create table public_comments (
+     id text primary key,
+     doc_id text not null,
+     user_id text not null references users(id) on delete cascade,
+     body text not null,
+     created_at double precision not null
+   );
+   create table translations (
+     target_id text not null,
+     src_hash text not null,
+     text text not null,
+     primary key (target_id, src_hash)
+   );`,
 ];
 
 async function migrate(db: Db): Promise<void> {

@@ -5,6 +5,7 @@ import {
   type ClientMsg,
   type NotifyTopic,
   type PeerInfo,
+  type PresenceExt,
   type PresenceState,
   type Role,
   type Selection,
@@ -17,7 +18,7 @@ export const DELETED_CODE = 4404;
 export const FORBIDDEN_CODE = 4403;
 
 export type SyncStatus = 'connecting' | 'online' | 'offline';
-export type SyncEvent = 'doc' | 'peers' | 'status' | 'error' | 'chat' | 'notify' | 'role' | 'stats';
+export type SyncEvent = 'doc' | 'peers' | 'status' | 'error' | 'chat' | 'notify' | 'role' | 'stats' | 'signal';
 
 export function randomSite(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(9));
@@ -89,6 +90,7 @@ export class SyncClient {
   private sel: Selection = null;
   private presenceState: PresenceState = 'active';
   private typing = false;
+  private ext: PresenceExt = {};
   private wantOnline = false;
   private attempts = 0;
   private retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -160,6 +162,25 @@ export class SyncClient {
     this.presenceState = state;
     this.typing = typing;
     this.sendPresence();
+  }
+
+  /** Canvas presence: pointer, focused object, call state (merged). */
+  setExt(ext: PresenceExt): void {
+    this.ext = { ...this.ext, ...ext };
+    this.sendPresence();
+  }
+
+  sendSignal(to: string, data: unknown): void {
+    this.send({ t: 'signal', to, data });
+  }
+
+  /** Forward ops from other sites (received peer-to-peer) to the server. */
+  relay(ops: Op[]): void {
+    if (this.status !== 'online' || !ops.length) return;
+    this.sendChain = this.sendChain.then(async () => {
+      const wire = this.cipher ? await this.cipher.encryptOps(ops) : ops;
+      for (const batch of batches(wire)) this.send({ t: 'relay', ops: batch });
+    });
   }
 
   setName(name: string): void {
@@ -262,6 +283,9 @@ export class SyncClient {
       case 'notify':
         this.emit('notify', msg.topic satisfies NotifyTopic);
         break;
+      case 'signal':
+        this.emit('signal', { from: msg.from, data: msg.data });
+        break;
       case 'error':
         this.error = msg.message;
         this.emit('error');
@@ -284,13 +308,13 @@ export class SyncClient {
     this.emit('stats');
     this.sendChain = this.sendChain.then(async () => {
       const wire = this.cipher ? await this.cipher.encryptOps(batch) : batch;
-      for (let i = 0; i < wire.length; i += MAX_BATCH) this.send({ t: 'ops', ops: wire.slice(i, i + MAX_BATCH) });
+      for (const part of batches(wire)) this.send({ t: 'ops', ops: part });
     });
   }
 
   private sendPresence(): void {
     if (this.status === 'online') {
-      this.send({ t: 'presence', name: this.name, color: this.color, sel: this.sel, state: this.presenceState, typing: this.typing });
+      this.send({ t: 'presence', name: this.name, color: this.color, sel: this.sel, state: this.presenceState, typing: this.typing, ext: this.ext });
     }
   }
 
@@ -332,4 +356,23 @@ export class SyncClient {
   private emit(e: SyncEvent, payload?: unknown): void {
     for (const cb of this.listeners) cb(e, payload);
   }
+}
+
+/** Splits ops into messages under the server's size limits. */
+export function batches(ops: Op[], maxBytes = 300_000): Op[][] {
+  const out: Op[][] = [];
+  let cur: Op[] = [];
+  let size = 0;
+  for (const op of ops) {
+    const n = JSON.stringify(op).length;
+    if (cur.length && (cur.length >= MAX_BATCH || size + n > maxBytes)) {
+      out.push(cur);
+      cur = [];
+      size = 0;
+    }
+    cur.push(op);
+    size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
 }

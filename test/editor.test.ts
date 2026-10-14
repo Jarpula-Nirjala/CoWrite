@@ -55,11 +55,11 @@ describe('selective undo', () => {
     const theirs = new Doc('them');
     const undo = new UndoStack();
     const ops = mine.insert(0, 'Hello');
-    undo.record(ops, '');
+    undo.record({ ops, removed: [], formats: [] });
     theirs.apply(ops);
     mine.apply(theirs.insert(5, ' world'));
-    const removed = mine.text().slice(0, 1);
-    undo.record(mine.delete(0, 1), removed); // delete "H"
+    const removedIds = mine.idsInRange(0, 1);
+    undo.record({ ops: mine.delete(0, 1), removed: [{ ids: removedIds, tokens: [{ ch: 'H' }] }], formats: [] });
     assert.equal(mine.text(), 'ello world');
     undo.undo(mine);
     assert.equal(mine.text(), 'Hello world');
@@ -67,6 +67,19 @@ describe('selective undo', () => {
     assert.equal(mine.text(), ' world');
     undo.redo(mine);
     assert.equal(mine.text(), 'Hello world');
+  });
+
+  it('undoes formatting', () => {
+    const d = new Doc('me');
+    d.insert(0, 'bold');
+    const undo = new UndoStack();
+    const ids = d.idsInRange(0, 4);
+    const ops = d.format(ids, 'b', true);
+    undo.record({ ops, removed: [], formats: ids.map((id) => ({ id, attr: 'b', prev: null, next: true })) });
+    undo.undo(d);
+    assert.deepEqual(d.attrsOf(ids[0]), {});
+    undo.redo(d);
+    assert.deepEqual(d.attrsOf(ids[0]), { b: true });
   });
 });
 

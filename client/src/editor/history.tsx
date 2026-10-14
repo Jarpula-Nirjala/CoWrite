@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Doc, type Op, type Snapshot } from '../../../shared/crdt.ts';
+import { Doc, type Op, type Snapshot, type Token } from '../../../shared/crdt.ts';
 import type { OpCipher } from '../../../shared/sync-client.ts';
 import { api, errorText, formatDate, timeAgo, type DocDetails, type Version } from '../api.ts';
 import { Icon } from '../components/ui.tsx';
@@ -28,7 +28,7 @@ export function HistoryPanel(props: {
   onSaveVersion(name: string): Promise<void>;
   onDeleteVersion(id: string): Promise<void>;
   onView(v: Viewing | null): void;
-  onRestoreText(text: string): void;
+  onRestore(tokens: Token[]): void;
   onFork(): Promise<void>;
 }) {
   const [tab, setTab] = useState<Tab>('versions');
@@ -66,7 +66,7 @@ function Versions(props: Parameters<typeof HistoryPanel>[0]) {
         doc,
         restore: props.canEdit
           ? () => {
-              props.onRestoreText(doc.text());
+              props.onRestore(doc.tokens());
               props.onView(null);
             }
           : undefined,
@@ -161,7 +161,7 @@ function Replay(props: Parameters<typeof HistoryPanel>[0]) {
       restore:
         props.canEdit && step < history.length
           ? () => {
-              props.onRestoreText(doc.text());
+              props.onRestore(doc.tokens());
               props.onView(null);
             }
           : undefined,

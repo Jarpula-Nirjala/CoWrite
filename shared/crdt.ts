@@ -1,24 +1,33 @@
 /**
- * RGA (Replicated Growable Array) — a sequence CRDT for plain text.
+ * RGA (Replicated Growable Array) — a sequence CRDT — extended with
+ * per-character attributes and a key/value object map.
  *
- * Every character ever inserted becomes an item with a globally unique id
- * `[site, clock]`, where `clock` is a Lamport timestamp. An insert names the
- * item it was typed after (its `origin`). To integrate an insert, a replica
- * finds the origin and then skips over every item whose id is greater than the
- * new id. Because ids are totally ordered and a causal successor always has a
- * larger clock than its cause, all replicas end up with the same order no
- * matter in which order they receive concurrent inserts.
+ * Text. Every character ever inserted becomes an item with a globally unique
+ * id `[site, clock]`, where `clock` is a Lamport timestamp. An insert names
+ * the item it was typed after (its `origin`). To integrate an insert, a
+ * replica finds the origin and then skips over every item whose id is greater
+ * than the new id. Because ids are totally ordered and a causal successor
+ * always has a larger clock than its cause, all replicas end up with the same
+ * order no matter in which order they receive concurrent inserts. Deletes
+ * never remove items; they mark them as tombstones so later inserts that
+ * reference a deleted character still find their origin.
  *
- * Deletes never remove items; they mark them as tombstones so later inserts
- * that reference a deleted character still find their origin.
+ * Rich text. Each item carries attributes (bold, link, block type…). Every
+ * attribute is a last-writer-wins register: a format op sets one attribute of
+ * one item and wins if its id is greater than the register's current id.
+ * Blocks follow a flat model: a "\n" item ends a paragraph and carries the
+ * block's type, and "￼" is an embedded object (image, table, drawing…).
  *
- * Each replica tracks a state vector (highest clock seen per site). Because a
- * site's operations are always delivered in order, the vector describes
- * exactly which operations a replica has, which makes catch-up after being
- * offline a single `missingFor(vector)` call.
+ * Objects. A map of objects with last-writer-wins fields powers slides,
+ * whiteboards, boards and sheets, using the same ids, clocks and sync.
+ *
+ * Sync. Each replica tracks a state vector (highest clock seen per site).
+ * Because a site's operations are delivered in order, the vector describes
+ * which operations a replica has, so catch-up is a single `missingFor(vector)`.
  */
 
 export type Id = [site: string, clock: number];
+export type Attrs = Record<string, unknown>;
 
 export interface InsertOp {
   k: 'i';
@@ -26,6 +35,8 @@ export interface InsertOp {
   /** Id of the item this character was inserted after; null = start of doc. */
   o: Id | null;
   ch: string;
+  /** Initial attributes. */
+  a?: Attrs;
 }
 
 export interface DeleteOp {
@@ -35,7 +46,25 @@ export interface DeleteOp {
   t: Id;
 }
 
-export type Op = InsertOp | DeleteOp;
+/** Sets attribute `a` of item `t` to `v` (null removes it). */
+export interface FormatOp {
+  k: 'f';
+  id: Id;
+  t: Id;
+  a: string;
+  v: unknown;
+}
+
+/** Sets field `f` of object `key` to `v` (null removes it). */
+export interface MapOp {
+  k: 'm';
+  id: Id;
+  key: string;
+  f: string;
+  v: unknown;
+}
+
+export type Op = InsertOp | DeleteOp | FormatOp | MapOp;
 
 /** Highest clock seen from each site. */
 export type Vector = Record<string, number>;
@@ -53,15 +82,35 @@ export interface InspectItem {
   deleted: boolean;
 }
 
+export interface Token {
+  id: Id;
+  ch: string;
+  attrs: Attrs;
+}
+
+interface Register {
+  v: unknown;
+  id: Id;
+}
+
 interface Item {
   id: Id;
   origin: Id | null;
   ch: string;
   /** Id of the delete op that tombstoned this item, or null if visible. */
   del: Id | null;
+  attrs: Map<string, Register> | null;
 }
 
+export const BLOCK = '\n';
+export const EMBED = '￼';
+
 export const keyOf = (id: Id): string => `${id[0]}:${id[1]}`;
+
+export function parseKey(key: string): Id {
+  const i = key.lastIndexOf(':');
+  return [key.slice(0, i), Number(key.slice(i + 1))];
+}
 
 /** Total order on ids: Lamport clock first, site id breaks ties. */
 export function compareIds(a: Id, b: Id): number {
@@ -74,6 +123,14 @@ export function sameId(a: Id | null, b: Id | null): boolean {
   return a[0] === b[0] && a[1] === b[1];
 }
 
+/** Stable comparison of attribute values. */
+export function sameValue(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || a === undefined || b === undefined) return (a ?? null) === (b ?? null);
+  if (typeof a !== 'object' || typeof b !== 'object') return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 // Spreading a huge array into splice() overflows the call stack, so large
 // pastes are inserted in chunks.
 function spliceIn<T>(arr: T[], index: number, values: T[]): void {
@@ -81,6 +138,12 @@ function spliceIn<T>(arr: T[], index: number, values: T[]): void {
   for (let i = 0; i < values.length; i += CHUNK) {
     arr.splice(index + i, 0, ...values.slice(i, i + CHUNK));
   }
+}
+
+function effective(map: Map<string, Register> | null): Attrs {
+  const out: Attrs = {};
+  if (map) for (const [k, r] of map) if (r.v !== null && r.v !== undefined) out[k] = r.v;
+  return out;
 }
 
 export class Doc {
@@ -91,6 +154,7 @@ export class Doc {
   private clock = 0;
   private items: Item[] = [];
   private byKey = new Map<string, Item>();
+  private objects = new Map<string, Map<string, Register>>();
   private vec: Vector = {};
   private pending: Op[] = [];
   private visible = 0;
@@ -102,7 +166,7 @@ export class Doc {
     this.site = site;
   }
 
-  /** Number of visible characters. */
+  /** Number of visible characters (tokens). */
   get length(): number {
     return this.visible;
   }
@@ -120,21 +184,44 @@ export class Doc {
     return { ...this.vec };
   }
 
+  get lamport(): number {
+    return this.clock;
+  }
+
   text(): string {
     const out: string[] = [];
     for (const it of this.items) if (!it.del) out.push(it.ch);
     return out.join('');
   }
 
-  // ---------------------------------------------------------------- local edits
+  /** Visible tokens with their effective attributes. */
+  tokens(): Token[] {
+    const out: Token[] = [];
+    for (const it of this.items) if (!it.del) out.push({ id: it.id, ch: it.ch, attrs: effective(it.attrs) });
+    return out;
+  }
+
+  attrsOf(id: Id): Attrs | null {
+    const it = this.byKey.get(keyOf(id));
+    return it ? effective(it.attrs) : null;
+  }
+
+  // ------------------------------------------------------------ local edits
 
   /**
    * Inserts `text` at visible position `pos` and returns the ops to broadcast.
    * `site` lets a server-side author (the AI co-writer) write under its own id.
    */
-  insert(pos: number, text: string, site = this.site): InsertOp[] {
+  insert(pos: number, text: string, site = this.site, attrs?: Attrs): InsertOp[] {
+    const tokens: { ch: string; a?: Attrs }[] = [];
+    for (let i = 0; i < text.length; i++) tokens.push({ ch: text[i], a: attrs });
+    return this.insertTokens(pos, tokens, site);
+  }
+
+  /** Inserts characters that may each carry different attributes. */
+  insertTokens(pos: number, tokens: { ch: string; a?: Attrs }[], site = this.site): InsertOp[] {
     if (pos < 0 || pos > this.visible) throw new RangeError(`insert position ${pos} out of range`);
-    if (!text) return [];
+    if (!tokens.length) return [];
 
     let index = 0;
     let origin: Id | null = null;
@@ -148,22 +235,25 @@ export class Doc {
     // skip loop would stop immediately: the run goes right after its origin.
     const ops: InsertOp[] = [];
     const created: Item[] = [];
-    for (let i = 0; i < text.length; i++) {
+    for (const t of tokens) {
       const id: Id = [site, ++this.clock];
-      const item: Item = { id, origin, ch: text[i], del: null };
+      const a = t.a && Object.keys(t.a).length ? clean(t.a) : undefined;
+      const item: Item = { id, origin, ch: t.ch, del: null, attrs: a ? registers(a, id) : null };
       created.push(item);
       this.byKey.set(keyOf(id), item);
-      ops.push({ k: 'i', id, o: origin, ch: text[i] });
+      const op: InsertOp = { k: 'i', id, o: origin, ch: t.ch };
+      if (a) op.a = a;
+      ops.push(op);
       origin = id;
     }
     spliceIn(this.items, index, created);
-    this.visible += text.length;
+    this.visible += tokens.length;
     this.vec[site] = this.clock;
     return ops;
   }
 
   /** Deletes `len` visible characters starting at `pos`. */
-  delete(pos: number, len: number): DeleteOp[] {
+  delete(pos: number, len: number, site = this.site): DeleteOp[] {
     if (len <= 0) return [];
     if (pos < 0 || pos + len > this.visible) throw new RangeError(`delete range ${pos}+${len} out of range`);
 
@@ -172,12 +262,12 @@ export class Doc {
     while (ops.length < len) {
       const it = this.items[i++];
       if (it.del) continue;
-      const id: Id = [this.site, ++this.clock];
+      const id: Id = [site, ++this.clock];
       it.del = id;
       ops.push({ k: 'd', id, t: it.id });
     }
     this.visible -= len;
-    this.vec[this.site] = this.clock;
+    this.vec[site] = this.clock;
     return ops;
   }
 
@@ -194,6 +284,58 @@ export class Doc {
     }
     if (ops.length) this.vec[site] = this.clock;
     return ops;
+  }
+
+  /** Sets one attribute on the given items (skipping items that already have that value). */
+  format(ids: Id[], attr: string, value: unknown, site = this.site): FormatOp[] {
+    const ops: FormatOp[] = [];
+    const v = value === undefined ? null : value;
+    for (const target of ids) {
+      const it = this.byKey.get(keyOf(target));
+      if (!it) continue;
+      const cur = it.attrs?.get(attr);
+      if (sameValue(cur?.v ?? null, v)) continue;
+      const id: Id = [site, ++this.clock];
+      (it.attrs ??= new Map()).set(attr, { v, id });
+      ops.push({ k: 'f', id, t: it.id, a: attr, v });
+    }
+    if (ops.length) this.vec[site] = this.clock;
+    return ops;
+  }
+
+  /** Sets fields of an object in the map. */
+  setFields(key: string, fields: Attrs, site = this.site): MapOp[] {
+    const ops: MapOp[] = [];
+    let obj = this.objects.get(key);
+    for (const [f, value] of Object.entries(fields)) {
+      const v = value === undefined ? null : value;
+      if (sameValue(obj?.get(f)?.v ?? null, v)) continue;
+      const id: Id = [site, ++this.clock];
+      if (!obj) this.objects.set(key, (obj = new Map()));
+      obj.set(f, { v, id });
+      ops.push({ k: 'm', id, key, f, v });
+    }
+    if (ops.length) this.vec[site] = this.clock;
+    return ops;
+  }
+
+  /** An object's fields, or null if it doesn't exist or was removed (`_del`). */
+  getObject(key: string): Attrs | null {
+    const obj = this.objects.get(key);
+    if (!obj) return null;
+    const a = effective(obj);
+    return a._del ? null : a;
+  }
+
+  /** Live objects whose key starts with `prefix`. */
+  objectsWith(prefix: string): { key: string; fields: Attrs }[] {
+    const out: { key: string; fields: Attrs }[] = [];
+    for (const [key, obj] of this.objects) {
+      if (!key.startsWith(prefix)) continue;
+      const fields = effective(obj);
+      if (!fields._del) out.push({ key, fields });
+    }
+    return out;
   }
 
   // --------------------------------------------------------------- remote ops
@@ -222,11 +364,13 @@ export class Doc {
   /** true = applied, false = already known / no effect, null = missing dependency. */
   private integrate(op: Op): boolean | null {
     let changed: boolean;
-    if (op.k === 'i') {
-      const key = keyOf(op.id);
-      if (this.byKey.has(key)) {
-        changed = false;
-      } else {
+    switch (op.k) {
+      case 'i': {
+        const key = keyOf(op.id);
+        if (this.byKey.has(key)) {
+          changed = false;
+          break;
+        }
         let i = 0;
         if (op.o) {
           const origin = this.byKey.get(keyOf(op.o));
@@ -237,22 +381,43 @@ export class Doc {
         // descending id. Skipping greater ids also skips their descendants,
         // since every descendant has a larger clock still.
         while (i < this.items.length && compareIds(this.items[i].id, op.id) > 0) i++;
-        const item: Item = { id: op.id, origin: op.o, ch: op.ch, del: null };
+        const item: Item = { id: op.id, origin: op.o, ch: op.ch, del: null, attrs: op.a ? registers(op.a, op.id) : null };
         this.items.splice(i, 0, item);
         this.byKey.set(key, item);
         this.visible++;
         this.hint = i;
         changed = true;
+        break;
       }
-    } else {
-      const target = this.byKey.get(keyOf(op.t));
-      if (!target) return null;
-      if (target.del) {
-        changed = false; // duplicate, or a concurrent delete of the same char
-      } else {
-        target.del = op.id;
-        this.visible--;
-        changed = true;
+      case 'd': {
+        const target = this.byKey.get(keyOf(op.t));
+        if (!target) return null;
+        if (target.del) {
+          changed = false; // duplicate, or a concurrent delete of the same char
+        } else {
+          target.del = op.id;
+          this.visible--;
+          changed = true;
+        }
+        break;
+      }
+      case 'f': {
+        const target = this.byKey.get(keyOf(op.t));
+        if (!target) return null;
+        const cur = target.attrs?.get(op.a);
+        changed = !cur || compareIds(op.id, cur.id) > 0;
+        if (changed) (target.attrs ??= new Map()).set(op.a, { v: op.v, id: op.id });
+        break;
+      }
+      case 'm': {
+        let obj = this.objects.get(op.key);
+        const cur = obj?.get(op.f);
+        changed = !cur || compareIds(op.id, cur.id) > 0;
+        if (changed) {
+          if (!obj) this.objects.set(op.key, (obj = new Map()));
+          obj.set(op.f, { v: op.v, id: op.id });
+        }
+        break;
       }
     }
     this.observe(op.id);
@@ -287,18 +452,39 @@ export class Doc {
 
   /**
    * Every op this replica knows that a replica with state `vector` lacks, in
-   * an order that is safe to apply (an item's origin always sits to its left,
-   * so document order delivers origins first; deletes come last).
+   * an order that is safe to apply: inserts in document order (an item's
+   * origin always sits to its left), then deletes, formats and object fields.
+   * Attribute registers only keep their latest write, which is all a
+   * last-writer-wins register needs.
    */
   missingFor(vector: Vector): Op[] {
     const has = (id: Id) => (vector[id[0]] ?? 0) >= id[1];
     const inserts: Op[] = [];
-    const deletes: Op[] = [];
+    const later: Op[] = [];
     for (const it of this.items) {
-      if (!has(it.id)) inserts.push({ k: 'i', id: it.id, o: it.origin, ch: it.ch });
-      if (it.del && !has(it.del)) deletes.push({ k: 'd', id: it.del, t: it.id });
+      if (!has(it.id)) {
+        const op: InsertOp = { k: 'i', id: it.id, o: it.origin, ch: it.ch };
+        // Attributes still holding their initial value travel with the insert.
+        if (it.attrs) {
+          const a: Attrs = {};
+          let any = false;
+          for (const [k, r] of it.attrs) {
+            if (sameId(r.id, it.id)) {
+              a[k] = r.v;
+              any = true;
+            }
+          }
+          if (any) op.a = a;
+        }
+        inserts.push(op);
+      }
+      if (it.del && !has(it.del)) later.push({ k: 'd', id: it.del, t: it.id });
+      if (it.attrs) {
+        for (const [a, r] of it.attrs) if (!sameId(r.id, it.id) && !has(r.id)) later.push({ k: 'f', id: r.id, t: it.id, a, v: r.v });
+      }
     }
-    return inserts.concat(deletes);
+    for (const [key, obj] of this.objects) for (const [f, r] of obj) if (!has(r.id)) later.push({ k: 'm', id: r.id, key, f, v: r.v });
+    return inserts.concat(later);
   }
 
   snapshot(): Snapshot {
@@ -320,7 +506,7 @@ export class Doc {
    * concurrent edits, unlike numeric offsets.
    */
   idBefore(pos: number): Id | null {
-    if (pos <= 0) return null;
+    if (pos <= 0 || this.visible === 0) return null;
     return this.items[this.visibleIndex(Math.min(pos, this.visible) - 1)].id;
   }
 
@@ -355,6 +541,12 @@ export class Doc {
       if (!it.del) pos++;
     }
     return null;
+  }
+
+  /** Index in the full item list (tombstones included), or -1. */
+  indexOf(id: Id): number {
+    const it = this.byKey.get(keyOf(id));
+    return it ? this.indexOfItem(it) : -1;
   }
 
   /** Ids of the visible characters in [from, to). */
@@ -418,15 +610,44 @@ export class Doc {
   }
 
   /**
+   * The document as it was when a replica had state `vector`: characters
+   * inserted (and not yet deleted) within that vector. Attributes are the
+   * current ones.
+   */
+  viewAt(vector: Vector): Token[] {
+    const has = (id: Id) => (vector[id[0]] ?? 0) >= id[1];
+    const out: Token[] = [];
+    for (const it of this.items) {
+      if (!has(it.id) || (it.del && has(it.del))) continue;
+      out.push({ id: it.id, ch: it.ch, attrs: effective(it.attrs) });
+    }
+    return out;
+  }
+
+  /** Inserts and deletes made by `site` after `vector` (for "undo their edits since…"). */
+  editsBy(site: string, after: Vector): { inserted: Id[]; deleted: { id: Id; ch: string; attrs: Attrs }[] } {
+    const since = after[site] ?? 0;
+    const inserted: Id[] = [];
+    const deleted: { id: Id; ch: string; attrs: Attrs }[] = [];
+    for (const it of this.items) {
+      if (it.id[0] === site && it.id[1] > since && !it.del) inserted.push(it.id);
+      if (it.del && it.del[0] === site && it.del[1] > since) deleted.push({ id: it.id, ch: it.ch, attrs: effective(it.attrs) });
+    }
+    return { inserted, deleted };
+  }
+
+  /**
    * Every operation this replica knows, in Lamport order. Lamport order is
    * causal (an insert's origin and a delete's target always carry smaller
    * clocks), so replaying this list op by op rebuilds the document's history.
    */
   history(): Op[] {
-    const ops: Op[] = [];
+    const ops = this.missingFor({});
+    // Inserts carry no attributes here; the registers' writes are separate ops.
+    for (const op of ops) if (op.k === 'i') delete op.a;
     for (const it of this.items) {
-      ops.push({ k: 'i', id: it.id, o: it.origin, ch: it.ch });
-      if (it.del) ops.push({ k: 'd', id: it.del, t: it.id });
+      if (!it.attrs) continue;
+      for (const [a, r] of it.attrs) if (sameId(r.id, it.id)) ops.push({ k: 'f', id: r.id, t: it.id, a, v: r.v });
     }
     return ops.sort((a, b) => compareIds(a.id, b.id));
   }
@@ -457,4 +678,16 @@ export class Doc {
     }
     throw new RangeError(`no visible character at ${pos}`);
   }
+}
+
+function clean(a: Attrs): Attrs {
+  const out: Attrs = {};
+  for (const [k, v] of Object.entries(a)) if (v !== undefined && v !== null) out[k] = v;
+  return out;
+}
+
+function registers(a: Attrs, id: Id): Map<string, Register> {
+  const m = new Map<string, Register>();
+  for (const [k, v] of Object.entries(a)) m.set(k, { v, id });
+  return m;
 }

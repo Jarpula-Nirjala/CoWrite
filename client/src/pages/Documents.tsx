@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, cache, errorText, formatDate, timeAgo, type DocMeta, type Folder } from '../api.ts';
+import { api, cache, errorText, formatDate, timeAgo, type DocKind, type DocMeta, type Folder } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
@@ -7,7 +7,9 @@ import { Dropdown, Icon, Modal, Spinner } from '../components/ui.tsx';
 import { generateKey } from '../lib/e2e.ts';
 import { readImport } from '../lib/exporters.ts';
 import { listOffline, type OfflineDoc } from '../lib/offline.ts';
-import { TEMPLATES, pendingContent } from '../lib/templates.ts';
+import { TEMPLATES, pendingContent, type InitialContent } from '../lib/templates.ts';
+import { markdownToTokens } from '../../../shared/rich.ts';
+import { htmlToTokens } from '../rich/importHtml.ts';
 import { Link, navigate } from '../router.ts';
 
 type View = 'all' | 'recent' | 'starred' | 'shared' | 'trash';
@@ -87,9 +89,21 @@ export function Documents() {
         method: 'POST',
         body: { title: opts.title ?? 'Untitled document', encrypted: !!opts.encrypted, folderId: folder },
       });
-      if (opts.content) pendingContent.set(document.id, opts.content);
+      if (opts.content) pendingContent.set(document.id, { tokens: markdownToTokens(opts.content) });
       const hash = opts.encrypted ? `#key=${await generateKey()}` : '';
       navigate(`/d/${document.id}${hash}`);
+    } catch (e) {
+      setError(errorText(e, 'Could not create the document.'));
+      setBusy(false);
+    }
+  };
+
+  const createWith = async (title: string, content: InitialContent, kind: DocKind = 'doc') => {
+    setBusy(true);
+    try {
+      const { document } = await api<{ document: DocMeta }>('/docs', { method: 'POST', body: { title, folderId: folder, kind } });
+      pendingContent.set(document.id, content);
+      navigate(`/d/${document.id}`);
     } catch (e) {
       setError(errorText(e, 'Could not create the document.'));
       setBusy(false);
@@ -118,8 +132,9 @@ export function Documents() {
   const importFile = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const { title, text } = await readImport(file);
-      await create({ title, content: text });
+      const r = await readImport(file);
+      const tokens = r.html ? htmlToTokens(r.html) : r.tokens;
+      await createWith(r.title, { tokens });
     } catch (e) {
       setError((e as Error).message);
     }
@@ -270,12 +285,12 @@ export function Documents() {
                             fileInput.current?.click();
                           }}
                         >
-                          Import a .md or .txt file…
+                          Import a Word, Markdown, HTML or text file…
                         </button>
                       </>
                     )}
                   </Dropdown>
-                  <input ref={fileInput} type="file" accept=".md,.markdown,.txt,text/plain,text/markdown" hidden onChange={(e) => void importFile(e.target.files?.[0])} />
+                  <input ref={fileInput} type="file" accept=".md,.markdown,.txt,.html,.htm,.docx,text/plain,text/markdown,text/html" hidden onChange={(e) => void importFile(e.target.files?.[0])} />
                 </div>
               )}
               {isTrash && docs && docs.length > 0 && (

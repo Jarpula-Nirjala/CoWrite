@@ -18,7 +18,16 @@ export interface DocRow {
   deleted_at: number | null;
   created_at: number;
   updated_at: number;
+  kind: DocKind;
+  status: string;
+  workspace_id: string | null;
+  translated_from: string | null;
+  lang: string | null;
+  is_template: boolean;
 }
+
+export type DocKind = 'doc' | 'slides' | 'board' | 'kanban' | 'sheet';
+export const DOC_KINDS: DocKind[] = ['doc', 'slides', 'board', 'kanban', 'sheet'];
 
 export interface DocMeta {
   id: string;
@@ -37,6 +46,12 @@ export interface DocMeta {
   snippet?: string;
   role?: Role;
   ownerName?: string;
+  kind: DocKind;
+  status: string;
+  workspaceId: string | null;
+  translatedFrom: string | null;
+  lang: string | null;
+  isTemplate: boolean;
 }
 
 export const toMeta = (d: DocRow): DocMeta => ({
@@ -53,6 +68,12 @@ export const toMeta = (d: DocRow): DocMeta => ({
   deletedAt: d.deleted_at,
   createdAt: d.created_at,
   updatedAt: d.updated_at,
+  kind: d.kind ?? 'doc',
+  status: d.status ?? 'draft',
+  workspaceId: d.workspace_id ?? null,
+  translatedFrom: d.translated_from ?? null,
+  lang: d.lang ?? null,
+  isTemplate: !!d.is_template,
 });
 
 const ROLE_RANK: Record<Role, number> = { viewer: 1, commenter: 2, editor: 3, owner: 4 };
@@ -103,13 +124,36 @@ export class Docs {
 
   async create(
     ownerId: string,
-    opts: { title?: unknown; encrypted?: boolean; folderId?: string | null; tags?: string[]; parentId?: string | null },
+    opts: {
+      title?: unknown;
+      encrypted?: boolean;
+      folderId?: string | null;
+      tags?: string[];
+      parentId?: string | null;
+      kind?: DocKind;
+      workspaceId?: string | null;
+      translatedFrom?: string | null;
+      lang?: string | null;
+    },
   ): Promise<DocRow> {
     const now = Date.now();
     const [d] = await this.db.query<DocRow>(
-      `insert into documents (id, title, owner_id, folder_id, tags, encrypted, parent_id, created_at, updated_at)
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $8) returning *`,
-      [newId(), cleanTitle(opts.title), ownerId, opts.folderId ?? null, opts.tags ?? [], !!opts.encrypted, opts.parentId ?? null, now],
+      `insert into documents (id, title, owner_id, folder_id, tags, encrypted, parent_id, created_at, updated_at, kind, workspace_id, translated_from, lang)
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, $11, $12) returning *`,
+      [
+        newId(),
+        cleanTitle(opts.title),
+        ownerId,
+        opts.folderId ?? null,
+        opts.tags ?? [],
+        !!opts.encrypted,
+        opts.parentId ?? null,
+        now,
+        opts.kind ?? 'doc',
+        opts.workspaceId ?? null,
+        opts.translatedFrom ?? null,
+        opts.lang ?? null,
+      ],
     );
     return d;
   }
@@ -150,7 +194,17 @@ export class Docs {
 
   async update(
     id: string,
-    patch: Partial<{ title: string; folder_id: string | null; tags: string[]; starred: boolean; word_goal: number | null; published: boolean }>,
+    patch: Partial<{
+      title: string;
+      folder_id: string | null;
+      tags: string[];
+      starred: boolean;
+      word_goal: number | null;
+      published: boolean;
+      status: string;
+      workspace_id: string | null;
+      is_template: boolean;
+    }>,
   ): Promise<DocRow> {
     const keys = Object.keys(patch) as (keyof typeof patch)[];
     if (!keys.length) return (await this.get(id))!;

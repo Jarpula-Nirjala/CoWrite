@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { keyOf, type Doc, type Id, type Op } from '../../../shared/crdt.ts';
+import { keyOf, parseKey, type Doc, type Id, type Op } from '../../../shared/crdt.ts';
 import type { ChatMessage } from '../../../shared/protocol.ts';
 import type { OpCipher } from '../../../shared/sync-client.ts';
 import { api, type Author, type Comment, type Person, type Suggestion, type Version } from '../api.ts';
@@ -149,31 +149,26 @@ export function useSuggestions(docId: string, share: string | null, version: num
     return s;
   };
 
-  /** Applies a text change in suggestion mode; returns ops and the caret. */
-  const suggestChange = (doc: Doc, pos: number, del: number, ins: string) => {
-    const ids = doc.idsInRange(pos, pos + del);
+  /** Suggestion mode: only your own suggested text is really deleted. */
+  const filterDelete = (ids: Id[]) => {
     const own = ownInsertKeys();
-    const ownIds = ids.filter((id) => own.has(keyOf(id)));
-    const marked = ids.filter((id) => !own.has(keyOf(id)));
-    const ops: Op[] = doc.deleteIds(ownIds);
-    track('delete', marked.map(keyOf), true);
-    const at = pos + marked.length;
-    if (ins) {
-      const insOps = doc.insert(at, ins);
-      ops.push(...insOps);
-      const first = insOps[0];
-      const continues = first.k === 'i' && first.o !== null && pending.current.insert?.lastKey === keyOf(first.o);
-      track('insert', insOps.map((o) => keyOf(o.id)), continues);
+    return ids.filter((id) => own.has(keyOf(id)));
+  };
+
+  /** Records what a suggestion-mode change inserted and marked for deletion. */
+  const trackChange = (inserted: Op[], marked: Id[]) => {
+    if (marked.length) track('delete', marked.map(keyOf), true);
+    const ins = inserted.filter((o): o is Extract<Op, { k: 'i' }> => o.k === 'i');
+    if (ins.length) {
+      const first = ins[0];
+      const continues = first.o !== null && pending.current.insert?.lastKey === keyOf(first.o);
+      track('insert', ins.map((o) => keyOf(o.id)), continues);
     }
-    return { ops, caret: ins ? at + ins.length : pos };
   };
 
   /** Accept or reject; returns the ops to send (may be empty). */
   const resolve = async (doc: Doc, s: Suggestion, accept: boolean): Promise<Op[]> => {
-    const ids: Id[] = s.keys.map((k) => {
-      const i = k.lastIndexOf(':');
-      return [k.slice(0, i), Number(k.slice(i + 1))] as Id;
-    });
+    const ids: Id[] = s.keys.map(parseKey);
     const removeText = (s.kind === 'insert' && !accept) || (s.kind === 'delete' && accept);
     const ops = removeText ? doc.deleteIds(ids) : [];
     await api(`/docs/${docId}/suggestions/${s.id}`, { method: 'PATCH', share, body: { status: accept ? 'accepted' : 'rejected' } });
@@ -195,7 +190,7 @@ export function useSuggestions(docId: string, share: string | null, version: num
   });
 
   useEffect(() => () => clearTimeout(timer.current), []);
-  return { suggestions: [...merged, ...local], suggestChange, resolve, localTick };
+  return { suggestions: [...merged, ...local], filterDelete, trackChange, resolve, localTick };
 }
 
 // ------------------------------------------------------------------ the rest

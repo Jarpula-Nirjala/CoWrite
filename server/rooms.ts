@@ -1,7 +1,6 @@
 import { WebSocket } from 'ws';
 import { Doc, type Op, type Snapshot } from '../shared/crdt.ts';
 import {
-  MAX_BATCH,
   canEdit,
   type ChatMessage,
   type ClientMsg,
@@ -10,7 +9,7 @@ import {
   type Role,
   type ServerMsg,
 } from '../shared/protocol.ts';
-import { DELETED_CODE, FORBIDDEN_CODE } from '../shared/sync-client.ts';
+import { DELETED_CODE, FORBIDDEN_CODE, batches } from '../shared/sync-client.ts';
 
 export interface RoomLimits {
   /** Max items (characters incl. tombstones) per document. */
@@ -118,7 +117,7 @@ export class Room {
         if (!canEdit(conn.role)) return send(ws, { t: 'error', message: 'You have view-only access; edits are not saved.' });
         // A client may only author ops under its own site id.
         if (!msg.ops.every((op) => op.id[0] === me.site)) return send(ws, { t: 'error', message: 'foreign op id' });
-        if (!this.encrypted && !msg.ops.every((op) => op.k === 'd' || op.ch.length === 1)) {
+        if (!this.encrypted && !msg.ops.every((op) => op.k !== 'i' || op.ch.length === 1)) {
           return send(ws, { t: 'error', message: 'malformed op' });
         }
         const { inserts } = countOps(msg.ops);
@@ -135,12 +134,31 @@ export class Room {
         send(ws, { t: 'ack', clock: this.doc.vector[me.site] ?? 0 });
         return;
       }
+      case 'relay': {
+        // Ops other peers made while this client synced with them directly.
+        if (!canEdit(conn.role)) return;
+        if (!this.encrypted && !msg.ops.every((op) => op.k !== 'i' || op.ch.length === 1)) return;
+        const applied = this.doc.apply(msg.ops);
+        if (applied.length) {
+          this.dirty = true;
+          const c = countOps(applied);
+          this.hooks.edited(this.id, null, c.inserts, c.deletes);
+          this.broadcastOps(ws, applied);
+        }
+        return;
+      }
+      case 'signal':
+        for (const [peerWs, p] of this.peers) {
+          if (p.site === msg.to) send(peerWs, { t: 'signal', from: me.site, data: msg.data });
+        }
+        return;
       case 'presence':
         me.name = msg.name;
         me.color = msg.color;
         me.sel = msg.sel;
         me.state = msg.state;
         me.typing = msg.typing;
+        me.ext = msg.ext;
         this.broadcast(ws, { t: 'presence', peer: me });
         return;
       case 'chat':
@@ -201,7 +219,7 @@ export class Room {
   }
 
   private broadcastOps(from: WebSocket | null, ops: Op[]): void {
-    for (let i = 0; i < ops.length; i += MAX_BATCH) this.broadcast(from, { t: 'ops', ops: ops.slice(i, i + MAX_BATCH) });
+    for (const part of batches(ops)) this.broadcast(from, { t: 'ops', ops: part });
   }
 
   private broadcast(from: WebSocket | null, msg: ServerMsg): void {

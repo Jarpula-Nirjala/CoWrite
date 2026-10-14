@@ -1,7 +1,7 @@
 import express from 'express';
 import type { Role } from '../shared/protocol.ts';
 import { docAccess, type AppCtx } from './context.ts';
-import { ROLES, cleanTags, cleanTitle, toMeta, type ListView } from './docs.ts';
+import { DOC_KINDS, ROLES, cleanTags, cleanTitle, toMeta, type DocKind, type ListView } from './docs.ts';
 import { HttpError, requireUser, str } from './http.ts';
 
 const VIEWS: ListView[] = ['all', 'starred', 'shared', 'trash', 'recent'];
@@ -50,11 +50,18 @@ export function docRoutes(ctx: AppCtx) {
     if (n >= MAX_DOCS_PER_USER) throw new HttpError(400, `You can keep up to ${MAX_DOCS_PER_USER} documents.`);
     const folderId = str(req.body?.folderId, 40) || null;
     if (folderId && (await docs.folderOwner(folderId)) !== user.id) throw new HttpError(400, 'Unknown folder.');
+    const kind = DOC_KINDS.includes(req.body?.kind) ? (req.body.kind as DocKind) : 'doc';
+    const workspaceId = str(req.body?.workspaceId, 40) || null;
+    if (workspaceId && !(await ctx.db.query('select 1 from workspace_members where workspace_id = $1 and user_id = $2', [workspaceId, user.id])).length) {
+      throw new HttpError(403, 'You are not a member of that workspace.');
+    }
     const doc = await docs.create(user.id, {
       title: req.body?.title,
       encrypted: req.body?.encrypted === true,
       folderId,
       tags: cleanTags(req.body?.tags),
+      kind,
+      workspaceId,
     });
     res.status(201).json({ document: toMeta(doc) });
   });
@@ -188,7 +195,7 @@ export function docRoutes(ctx: AppCtx) {
     const room = await rooms.open(a.docId);
     if (!room) throw new HttpError(503, 'Server busy, try again.');
     const title = a.doc ? `${a.doc.title} (fork)` : 'Forked document';
-    const fork = await docs.create(user.id, { title, encrypted: room.encrypted, parentId: a.docId, tags: a.doc?.owner_id === user.id ? a.doc.tags : [] });
+    const fork = await docs.create(user.id, { title, encrypted: room.encrypted, parentId: a.docId, tags: a.doc?.owner_id === user.id ? a.doc.tags : [], kind: a.doc?.kind ?? 'doc' });
     // The fork starts as an exact replica: same characters, same ids. That is
     // what lets the CRDT merge it back later without any conflict handling.
     await ctx.db.query('insert into rooms (id, snapshot, updated_at) values ($1, $2::jsonb, $3)', [fork.id, JSON.stringify(room.doc.snapshot()), Date.now()]);

@@ -125,6 +125,8 @@ const ICONS: Record<string, string> = {
   close: 'M6 6l12 12M18 6L6 18',
 };
 
+export const ICON_PATHS = ICONS;
+
 export function Icon({ name, size = 18 }: { name: keyof typeof ICONS | string; size?: number }) {
   return (
     <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

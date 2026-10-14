@@ -13,6 +13,8 @@ export interface DocSession {
   meta: DocDetails | null;
   role: Role | null;
   cipher: OpCipher | null;
+  /** The end-to-end key from the link, for encrypting uploads. */
+  keyText: string | null;
   share: string | null;
   /** Fatal problem: no access, missing key, deleted… */
   fatal: string | null;
@@ -37,11 +39,21 @@ export function useDocSession(roomId: string): DocSession {
   const [meta, setMeta] = useState<DocDetails | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [cipher, setCipher] = useState<OpCipher | null>(null);
+  const [keyText, setKeyText] = useState<string | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
   const [secondaryTab, setSecondaryTab] = useState(false);
   const [docVersion, bumpDoc] = useReducer((n: number) => n + 1, 0);
   const [tick, bump] = useReducer((n: number) => n + 1, 0);
-  const [notifyVersion, setNotify] = useState<Record<NotifyTopic, number>>({ comments: 0, suggestions: 0, versions: 0, meta: 0, members: 0 });
+  const [notifyVersion, setNotify] = useState<Record<NotifyTopic, number>>({
+    comments: 0,
+    suggestions: 0,
+    versions: 0,
+    meta: 0,
+    members: 0,
+    locks: 0,
+    reactions: 0,
+    workflow: 0,
+  });
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const titleRef = useRef('Untitled document');
 
@@ -102,6 +114,7 @@ export function useDocSession(roomId: string): DocSession {
         return;
       }
       setCipher(c);
+      setKeyText(keyText);
 
       // 3. Resume from the local copy if this tab owns the document's lock.
       release = await lockDoc(roomId);
@@ -180,6 +193,7 @@ export function useDocSession(roomId: string): DocSession {
     meta,
     role,
     cipher,
+    keyText,
     share,
     fatal,
     secondaryTab,

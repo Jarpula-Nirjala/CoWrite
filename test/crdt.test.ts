@@ -213,3 +213,103 @@ describe('fuzz: random concurrent editing converges', () => {
     });
   }
 });
+
+describe('rich text and objects', () => {
+  const fingerprint = (d: Doc) =>
+    JSON.stringify({
+      t: d.tokens().map((t) => [t.ch, Object.keys(t.attrs).sort().map((k) => [k, t.attrs[k]])]),
+      o: d.objectsWith('').sort((a, b) => (a.key < b.key ? -1 : 1)).map((o) => [o.key, Object.keys(o.fields).sort().map((k) => [k, o.fields[k]])]),
+    });
+
+  it('formats are last-writer-wins and converge', () => {
+    const a = seeded('a', 'hello');
+    const b = seeded('b', 'hello');
+    const ids = a.idsInRange(0, 5);
+    const fa = a.format(ids, 'b', true);
+    const fb = b.format(ids.slice(2), 'b', null);
+    a.apply(fb);
+    b.apply(fa);
+    assert.equal(fingerprint(a), fingerprint(b));
+  });
+
+  it('insert attributes travel with catch-up sync', () => {
+    const a = new Doc('a');
+    a.insertTokens(0, [{ ch: 'H', a: { b: true } }, { ch: 'i' }, { ch: '\n', a: { block: 'heading', level: 1 } }]);
+    a.format([a.idAt(1)], 'i', true);
+    a.format([a.idAt(0)], 'b', null);
+    const b = Doc.fromSnapshot('b', JSON.parse(JSON.stringify(a.snapshot())));
+    assert.equal(fingerprint(a), fingerprint(b));
+    assert.deepEqual(b.attrsOf(b.idAt(2)), { block: 'heading', level: 1 });
+    assert.deepEqual(b.attrsOf(b.idAt(0)), {});
+  });
+
+  it('objects: fields merge, deletion hides the object', () => {
+    const a = new Doc('a');
+    const b = new Doc('b');
+    const o1 = a.setFields('card:1', { title: 'Plan', col: 'todo' });
+    b.apply(o1);
+    const o2 = b.setFields('card:1', { col: 'done' });
+    const o3 = a.setFields('card:1', { title: 'Plan v2' });
+    a.apply(o2);
+    b.apply(o3);
+    assert.deepEqual(a.getObject('card:1'), { title: 'Plan v2', col: 'done' });
+    assert.equal(fingerprint(a), fingerprint(b));
+    a.apply(b.setFields('card:1', { _del: true }));
+    assert.equal(a.getObject('card:1'), null);
+    assert.equal(a.objectsWith('card:').length, 0);
+  });
+
+  it('views the document as of an earlier state vector', () => {
+    const d = new Doc('a');
+    d.insert(0, 'one');
+    const then = d.vector;
+    d.insert(3, ' two');
+    d.delete(0, 1);
+    assert.equal(d.viewAt(then).map((t) => t.ch).join(''), 'one');
+    assert.equal(d.text(), 'ne two');
+    const edits = d.editsBy('a', then);
+    assert.equal(edits.inserted.length, 4);
+    assert.equal(edits.deleted[0].ch, 'o');
+  });
+
+  for (let seed = 1; seed <= 40; seed++) {
+    it(`fuzz with formats and objects, seed ${seed}`, () => {
+      const rand = mulberry32(1000 + seed);
+      const n = 2 + Math.floor(rand() * 3);
+      const docs = Array.from({ length: n }, (_, i) => new Doc(`s${i}`));
+      const inbox: Op[][] = docs.map(() => []);
+      const ATTRS = ['b', 'i', 'color'];
+      for (let round = 0; round < 120; round++) {
+        const i = Math.floor(rand() * n);
+        const d = docs[i];
+        let ops: Op[];
+        const r = rand();
+        if (d.length > 0 && r < 0.25) {
+          const pos = Math.floor(rand() * d.length);
+          ops = d.delete(pos, 1 + Math.floor(rand() * Math.min(3, d.length - pos)));
+        } else if (d.length > 0 && r < 0.5) {
+          const from = Math.floor(rand() * d.length);
+          const to = Math.min(d.length, from + 1 + Math.floor(rand() * 5));
+          const attr = ATTRS[Math.floor(rand() * ATTRS.length)];
+          ops = d.format(d.idsInRange(from, to), attr, rand() < 0.3 ? null : attr === 'color' ? ['red', 'blue'][Math.floor(rand() * 2)] : true);
+        } else if (r < 0.65) {
+          ops = d.setFields(`obj:${Math.floor(rand() * 4)}`, { x: Math.floor(rand() * 100), ...(rand() < 0.1 ? { _del: true } : {}) });
+        } else {
+          ops = d.insertTokens(Math.floor(rand() * (d.length + 1)), [{ ch: 'ab\n'[Math.floor(rand() * 3)], a: rand() < 0.3 ? { b: true } : undefined }]);
+        }
+        for (let j = 0; j < n; j++) if (j !== i) inbox[j].push(...ops);
+        if (rand() < 0.5) {
+          const j = Math.floor(rand() * n);
+          const batch = shuffle(inbox[j].splice(0, Math.floor(rand() * (inbox[j].length + 1))), rand);
+          docs[j].apply(batch);
+        }
+      }
+      for (let j = 0; j < n; j++) docs[j].apply(shuffle(inbox[j], rand));
+      const expected = fingerprint(docs[0]);
+      for (const d of docs) assert.equal(fingerprint(d), expected);
+      // A late joiner catching up from any replica ends up identical.
+      const late = Doc.fromSnapshot('late', JSON.parse(JSON.stringify(docs[1].snapshot())));
+      assert.equal(fingerprint(late), expected);
+    });
+  }
+});

@@ -19,6 +19,7 @@ import { authRoutes } from './routes-auth.ts';
 import { collabRoutes } from './routes-collab.ts';
 import { docRoutes } from './routes-docs.ts';
 import { meRoutes } from './routes-me.ts';
+import { mediaRoutes } from './routes-media.ts';
 
 export interface ServerOptions {
   port: number;
@@ -63,7 +64,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
          on conflict (id) do update set snapshot = excluded.snapshot, updated_at = excluded.updated_at`,
         [roomId, JSON.stringify(snapshot), Date.now()],
       );
-      if (text !== null) await db.query('update documents set content_text = $2 where id = $1', [roomId, text]);
+      if (text !== null) await db.query('update documents set content_text = $2 where id = $1', [roomId, text.replace(/￼/g, '')]);
     },
     joined(roomId, peer) {
       void db
@@ -161,7 +162,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   });
 
   const api = express.Router();
-  api.use(express.json({ limit: '300kb' }));
+  api.use((req, res, next) => (req.path === '/files' && req.method === 'POST' ? next() : express.json({ limit: '600kb' })(req, res, next)));
   api.use(async (req, res, next) => {
     try {
       res.locals.user = await auth.userForToken(readCookie(req.headers.cookie, SESSION_COOKIE));
@@ -174,6 +175,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(docRoutes(ctx));
   api.use(collabRoutes(ctx));
   api.use(meRoutes(ctx));
+  api.use(mediaRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

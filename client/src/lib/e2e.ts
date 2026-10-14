@@ -46,11 +46,44 @@ export async function createCipher(keyText: string): Promise<OpCipher> {
     return dec.decode(plain);
   };
 
+  // Characters, their attributes and object fields are all encrypted; the
+  // server sees only ids, attribute names and ciphertext.
+  const encryptOp = async (op: Op): Promise<Op> => {
+    switch (op.k) {
+      case 'i': {
+        const { a, ...rest } = op;
+        return { ...rest, ch: await seal(a ? JSON.stringify({ c: op.ch, a }) : op.ch) };
+      }
+      case 'f':
+      case 'm':
+        return { ...op, v: await seal(JSON.stringify(op.v)) };
+      default:
+        return op;
+    }
+  };
+  const decryptOp = async (op: Op): Promise<Op> => {
+    switch (op.k) {
+      case 'i': {
+        const plain = await open(op.ch);
+        if (plain.length > 1 && plain.startsWith('{"c":')) {
+          const { c, a } = JSON.parse(plain) as { c: string; a: Record<string, unknown> };
+          return { ...op, ch: c, a };
+        }
+        return { ...op, ch: plain };
+      }
+      case 'f':
+      case 'm':
+        return { ...op, v: typeof op.v === 'string' ? JSON.parse(await open(op.v)) : op.v };
+      default:
+        return op;
+    }
+  };
+
   return {
-    encryptOps: (ops: Op[]) => Promise.all(ops.map(async (op) => (op.k === 'i' ? { ...op, ch: await seal(op.ch) } : op))),
+    encryptOps: (ops: Op[]) => Promise.all(ops.map(encryptOp)),
     async decryptOps(ops: Op[]) {
       try {
-        return await Promise.all(ops.map(async (op) => (op.k === 'i' ? { ...op, ch: await open(op.ch) } : op)));
+        return await Promise.all(ops.map(decryptOp));
       } catch {
         throw new Error('This link has the wrong encryption key, so the document cannot be decrypted.');
       }
@@ -59,3 +92,20 @@ export async function createCipher(keyText: string): Promise<OpCipher> {
     decryptText: async (text: string) => (text.startsWith('enc:') ? open(text.slice(4)) : text),
   };
 }
+
+/** Encrypts and decrypts uploaded files with the document's key. */
+export async function createFileCipher(keyText: string) {
+  const key = await crypto.subtle.importKey('raw', fromB64url(keyText), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  return {
+    async encrypt(data: ArrayBuffer): Promise<Blob> {
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, data);
+      return new Blob([iv, new Uint8Array(ct)]);
+    },
+    async decrypt(data: ArrayBuffer): Promise<ArrayBuffer> {
+      const bytes = new Uint8Array(data);
+      return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.subarray(0, 12) }, key, bytes.subarray(12));
+    },
+  };
+}
+export type FileCipher = Awaited<ReturnType<typeof createFileCipher>>;

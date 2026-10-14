@@ -9,6 +9,15 @@ export type PresenceState = 'active' | 'idle' | 'away';
 export const canEdit = (r: Role | null | undefined) => r === 'editor' || r === 'owner';
 export const canComment = (r: Role | null | undefined) => r === 'commenter' || canEdit(r);
 
+/** Extra presence for canvases: pointer position, selected object, call state. */
+export interface PresenceExt {
+  x?: number;
+  y?: number;
+  /** Slide id, sheet cell, board item… whatever the editor is focused on. */
+  focus?: string | null;
+  inCall?: boolean;
+}
+
 export interface PeerInfo {
   site: string;
   name: string;
@@ -17,6 +26,7 @@ export interface PeerInfo {
   userId: string | null;
   state: PresenceState;
   typing: boolean;
+  ext?: PresenceExt;
 }
 
 export interface ChatMessage {
@@ -29,13 +39,17 @@ export interface ChatMessage {
 }
 
 /** Things that changed elsewhere; clients refetch the matching data. */
-export type NotifyTopic = 'comments' | 'suggestions' | 'versions' | 'meta' | 'members';
+export type NotifyTopic = 'comments' | 'suggestions' | 'versions' | 'meta' | 'members' | 'locks' | 'reactions' | 'workflow';
 
 export type ClientMsg =
   | { t: 'hello'; site: string; vector: Vector; name: string; color: string }
   | { t: 'ops'; ops: Op[] }
-  | { t: 'presence'; name: string; color: string; sel: Selection; state: PresenceState; typing: boolean }
-  | { t: 'chat'; body: string };
+  | { t: 'presence'; name: string; color: string; sel: Selection; state: PresenceState; typing: boolean; ext?: PresenceExt }
+  | { t: 'chat'; body: string }
+  /** Ops authored by other sites (received peer-to-peer) forwarded to the server. */
+  | { t: 'relay'; ops: Op[] }
+  /** WebRTC signalling for calls and direct links, forwarded to one peer. */
+  | { t: 'signal'; to: string; data: unknown };
 
 export type ServerMsg =
   | { t: 'welcome'; ops: Op[]; vector: Vector; peers: PeerInfo[]; role: Role; encrypted: boolean }
@@ -45,6 +59,7 @@ export type ServerMsg =
   | { t: 'leave'; site: string }
   | { t: 'chat'; message: ChatMessage }
   | { t: 'notify'; topic: NotifyTopic }
+  | { t: 'signal'; from: string; data: unknown }
   | { t: 'error'; message: string };
 
 export const SITE_RE = /^[A-Za-z0-9_-]{1,32}$/;
@@ -55,6 +70,27 @@ export const MAX_BATCH = 2000;
 /** Plain documents hold one UTF-16 unit per item; encrypted ones hold ciphertext. */
 export const MAX_CIPHER_CHARS = 64;
 export const MAX_CHAT = 4000;
+/** Largest attribute / field value accepted (drawings, tables…), as JSON. */
+export const MAX_VALUE = 120_000;
+const ATTR_RE = /^[A-Za-z0-9_-]{1,32}$/;
+const OBJ_KEY_RE = /^[A-Za-z0-9_:.-]{1,96}$/;
+
+function valueOk(v: unknown): boolean {
+  if (v === null) return true;
+  try {
+    const json = JSON.stringify(v);
+    return json !== undefined && json.length <= MAX_VALUE;
+  } catch {
+    return false;
+  }
+}
+
+function attrsOk(a: unknown): boolean {
+  if (a === undefined) return true;
+  if (!isObj(a)) return false;
+  const entries = Object.entries(a);
+  return entries.length <= 24 && entries.every(([k]) => ATTR_RE.test(k)) && valueOk(a);
+}
 
 // ---------------------------------------------------------------- validation
 // The server is public, so every incoming message is checked before use.
@@ -74,11 +110,34 @@ export function isId(x: unknown): x is Id {
 
 export function isOp(x: unknown): x is Op {
   if (!isObj(x) || !isId(x.id)) return false;
-  if (x.k === 'i') {
-    return (x.o === null || isId(x.o)) && typeof x.ch === 'string' && x.ch.length >= 1 && x.ch.length <= MAX_CIPHER_CHARS;
+  switch (x.k) {
+    case 'i':
+      return (
+        (x.o === null || isId(x.o)) &&
+        typeof x.ch === 'string' &&
+        x.ch.length >= 1 &&
+        (x.ch.length <= MAX_CIPHER_CHARS || (x.a === undefined && x.ch.length <= MAX_VALUE)) &&
+        attrsOk(x.a)
+      );
+    case 'd':
+      return isId(x.t);
+    case 'f':
+      return isId(x.t) && typeof x.a === 'string' && ATTR_RE.test(x.a) && valueOk(x.v ?? null);
+    case 'm':
+      return typeof x.key === 'string' && OBJ_KEY_RE.test(x.key) && typeof x.f === 'string' && ATTR_RE.test(x.f) && valueOk(x.v ?? null);
+    default:
+      return false;
   }
-  if (x.k === 'd') return isId(x.t);
-  return false;
+}
+
+function isExt(x: unknown): boolean {
+  if (x === undefined) return true;
+  if (!isObj(x)) return false;
+  try {
+    return JSON.stringify(x).length <= 400;
+  } catch {
+    return false;
+  }
 }
 
 export function isSelection(x: unknown): x is Selection {
@@ -116,11 +175,18 @@ export function parseClientMsg(raw: string): ClientMsg | null {
         isSelection(m.sel) &&
         typeof m.state === 'string' &&
         STATES.has(m.state) &&
-        typeof m.typing === 'boolean'
+        typeof m.typing === 'boolean' &&
+        isExt(m.ext)
         ? (m as ClientMsg)
         : null;
     case 'chat':
       return typeof m.body === 'string' && m.body.trim().length > 0 && m.body.length <= MAX_CHAT ? (m as ClientMsg) : null;
+    case 'relay':
+      return Array.isArray(m.ops) && m.ops.length <= MAX_BATCH && m.ops.every(isOp) ? (m as ClientMsg) : null;
+    case 'signal':
+      return typeof m.to === 'string' && SITE_RE.test(m.to) && valueOk(m.data ?? null) && JSON.stringify(m.data ?? null).length <= 20_000
+        ? (m as ClientMsg)
+        : null;
     default:
       return null;
   }

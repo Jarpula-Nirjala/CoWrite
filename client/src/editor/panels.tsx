@@ -4,7 +4,7 @@ import type { ChatMessage } from '../../../shared/protocol.ts';
 import type { SyncClient } from '../../../shared/sync-client.ts';
 import { timeAgo, type Author, type Comment, type Person, type Suggestion } from '../api.ts';
 import { Avatar, Icon } from '../components/ui.tsx';
-import { easeLabel, outline, textStats } from '../lib/text.ts';
+import { easeLabel, textStats } from '../lib/text.ts';
 
 // ------------------------------------------------------------- mentions
 
@@ -98,14 +98,13 @@ const Empty = ({ children }: { children: ReactNode }) => <p className="panel-emp
 
 // --------------------------------------------------------------- outline
 
-export function OutlinePanel({ text, onJump }: { text: string; onJump(pos: number): void }) {
-  const heads = useMemo(() => outline(text), [text]);
-  if (!heads.length) return <Empty>Headings you add (lines starting with #) appear here as a clickable table of contents.</Empty>;
+export function OutlinePanel({ headings, onJump }: { headings: { level: number; text: string; at: number }[]; onJump(at: number): void }) {
+  if (!headings.length) return <Empty>Headings you add appear here as a clickable table of contents. Use the style menu, Ctrl+Alt+1–3, or type “# ”.</Empty>;
   return (
     <nav className="outline" aria-label="Document outline">
-      {heads.map((h) => (
-        <button key={h.pos} className={`outline-item level-${h.level}`} onClick={() => onJump(h.pos)} type="button">
-          {h.text}
+      {headings.map((h) => (
+        <button key={h.at} className={`outline-item level-${h.level}`} onClick={() => onJump(h.at)} type="button">
+          {h.text || 'Untitled heading'}
         </button>
       ))}
     </nav>
