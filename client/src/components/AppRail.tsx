@@ -73,10 +73,10 @@ export function AppRail() {
         </Link>
       ))}
       <hr />
-      {(['gmail', 'youtube'] as const).map((k) => (
+      {(['gmail', 'drive', 'calendar', 'tasks', 'youtube', 'github'] as const).map((k) => (
         <button key={k} className="rail-item" onClick={() => windows.open(k)} title={`Open ${WINDOW_APPS[k].title} in a window`} type="button">
           <AppLogo name={WINDOW_APPS[k].logo} size={20} />
-          <span>{WINDOW_APPS[k].title}</span>
+          <span>{WINDOW_APPS[k].title.replace('Google ', '')}</span>
         </button>
       ))}
       <hr />

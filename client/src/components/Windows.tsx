@@ -1,4 +1,4 @@
-import { createContext, lazy, Suspense, useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { navigate } from '../router.ts';
 import { AppLogo, type AppLogoName } from './AppLogo.tsx';
 import { Spinner } from './ui.tsx';
@@ -40,13 +40,29 @@ interface Win {
   max: boolean;
 }
 
+const STORE = 'cowrite:windows';
 const Ctx = createContext<{ open(app: WindowApp): void }>({ open: () => {} });
 export const useWindows = () => useContext(Ctx);
 
 /** Holds the open app windows; they stay open while you move around CoWrite. */
 export function WindowsProvider({ children }: { children: ReactNode }) {
-  const [wins, setWins] = useState<Win[]>([]);
-  const top = useRef(100);
+  // Open windows come back after a reload (this tab only).
+  const [wins, setWins] = useState<Win[]>(() => {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(STORE) ?? '[]') as Win[];
+      return saved.filter((w) => w.app in WINDOW_APPS).map((w) => ({ ...w, x: Math.min(w.x, innerWidth - 160), y: Math.min(Math.max(0, w.y), innerHeight - 60) }));
+    } catch {
+      return [];
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STORE, JSON.stringify(wins));
+    } catch {
+      // Storage blocked: windows simply are not restored.
+    }
+  }, [wins]);
+  const top = useRef(Math.max(100, ...wins.map((w) => w.z)));
 
   const focus = useCallback((app: WindowApp, patch: Partial<Win> = {}) => setWins((ws) => ws.map((w) => (w.app === app ? { ...w, ...patch, z: ++top.current } : w))), []);
   const open = useCallback(
