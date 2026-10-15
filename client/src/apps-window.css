@@ -2002,3 +2002,7 @@
   font-size: 0.88rem;
   font-weight: 600;
 }
+
+.gm h4 {
+  font-family: inherit;
+}
