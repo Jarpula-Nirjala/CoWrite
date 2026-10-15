@@ -37,6 +37,10 @@ export async function saveIntegration(ctx: AppCtx, userId: string, p: Slot, t: O
   );
 }
 
+/** Recent Gmail data per person, to stay well inside Gmail's per-minute quota. */
+const threadCache = new Map<string, Map<string, { historyId: string; th: { id: string; messages: unknown[] } }>>();
+const labelCache = new Map<string, { at: number; body: unknown }>();
+
 /** Google, GitHub: linked accounts, their files, and sending documents to them. */
 export function integrationRoutes(ctx: AppCtx) {
   const r = express.Router();
@@ -70,11 +74,21 @@ export function integrationRoutes(ctx: AppCtx) {
       p === 'github'
         ? { authorization: `Bearer ${access}`, accept: 'application/vnd.github+json', 'user-agent': 'CoWrite', 'x-github-api-version': '2022-11-28' }
         : { authorization: `Bearer ${access}` };
-    let res: Response;
-    try {
-      res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) }, signal: AbortSignal.timeout(30_000) });
-    } catch {
-      throw new HttpError(502, `Could not reach ${p === 'google' ? 'Google' : 'GitHub'}. Please try again.`);
+    let res!: Response;
+    // Rate limits: wait and try again (1 s, then 3 s) before giving up.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        res = await fetch(url, { ...init, headers: { ...headers, ...(init.headers as Record<string, string>) }, signal: AbortSignal.timeout(30_000) });
+      } catch {
+        throw new HttpError(502, `Could not reach ${p === 'google' ? 'Google' : 'GitHub'}. Please try again.`);
+      }
+      const limited = res.status === 429 || (res.status === 403 && /rate|quota/i.test(res.headers.get('content-type')?.includes('json') ? await res.clone().text() : ''));
+      if (!limited) break;
+      if (attempt >= 2) {
+        const wait = Number(res.headers.get('retry-after')) || 45;
+        throw new HttpError(429, `${p === 'google' ? 'Google' : 'GitHub'} is limiting how fast CoWrite can read your account (about ${Math.min(90, wait)} seconds).`);
+      }
+      await new Promise((ok) => setTimeout(ok, attempt ? 3000 : 1000));
     }
     if (res.status === 401) throw new HttpError(400, `${p === 'google' ? 'Google' : 'GitHub'} no longer accepts the connection. Connect it again.`);
     if (res.status === 403) {
@@ -708,17 +722,24 @@ export function integrationRoutes(ctx: AppCtx) {
     return out;
   }
 
-  r.get('/gmail/labels', limiter, async (_req, res) => {
+  r.get('/gmail/labels', limiter, async (req, res) => {
     const user = requireUser(res);
+    const cached = labelCache.get(user.id);
+    if (cached && Date.now() - cached.at < 20_000 && req.query.fresh !== '1') {
+      res.json(cached.body);
+      return;
+    }
     const t = await token(user.id, 'google');
     const list = await call<{ labels: { id: string; name: string; type: string }[] }>('google', t, `${G}/labels`);
     const wanted = list.labels.filter((l) => l.type === 'user' || ['INBOX', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'SPAM', 'TRASH'].includes(l.id));
     const full = await pool(wanted, 6, (l) => call<{ id: string; name: string; type: string; messagesUnread?: number; threadsUnread?: number; messagesTotal?: number; color?: { backgroundColor?: string } }>('google', t, `${G}/labels/${encodeURIComponent(l.id)}`));
     const prof = await call<{ emailAddress: string; messagesTotal: number }>('google', t, `${G}/profile`);
-    res.json({
+    const body = {
       email: prof.emailAddress,
       labels: full.map((l) => ({ id: l.id, name: l.name, system: l.type === 'system', unread: l.id === 'DRAFT' ? (l.messagesTotal ?? 0) : (l.threadsUnread ?? 0), color: l.color?.backgroundColor ?? null })),
-    });
+    };
+    labelCache.set(user.id, { at: Date.now(), body });
+    res.json(body);
   });
 
   r.get('/gmail/threads', limiter, async (req, res) => {
@@ -731,10 +752,21 @@ export function integrationRoutes(ctx: AppCtx) {
     if (q) params.set('q', q);
     if (req.query.page) params.set('pageToken', str(req.query.page, 200));
     if (label === 'SPAM' || label === 'TRASH') params.set('includeSpamTrash', 'true');
-    const list = await call<{ threads?: { id: string }[]; nextPageToken?: string; resultSizeEstimate?: number }>('google', t, `${G}/threads?${params}`);
-    const threads = await pool(list.threads ?? [], 10, (th) =>
-      call<{ id: string; messages: GMessage[] }>('google', t, `${G}/threads/${th.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`),
-    );
+    const list = await call<{ threads?: { id: string; historyId: string }[]; nextPageToken?: string; resultSizeEstimate?: number }>('google', t, `${G}/threads?${params}`);
+    // Each conversation costs Gmail quota to read, so unchanged ones (same historyId) come from memory.
+    type Cached = Map<string, { historyId: string; th: { id: string; messages: GMessage[] } }>;
+    const mine = (threadCache.get(user.id) as Cached | undefined) ?? (new Map() as Cached);
+    threadCache.delete(user.id);
+    threadCache.set(user.id, mine);
+    if (threadCache.size > 300) threadCache.delete(threadCache.keys().next().value!);
+    const threads = await pool(list.threads ?? [], 4, async (th) => {
+      const hit = mine.get(th.id);
+      if (hit && hit.historyId === th.historyId) return hit.th;
+      const full = await call<{ id: string; messages: GMessage[] }>('google', t, `${G}/threads/${th.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`);
+      mine.set(th.id, { historyId: th.historyId, th: full });
+      if (mine.size > 3000) mine.delete(mine.keys().next().value!);
+      return full;
+    });
     res.json({
       next: list.nextPageToken ?? null,
       estimate: list.resultSizeEstimate ?? 0,
@@ -829,6 +861,7 @@ export function integrationRoutes(ctx: AppCtx) {
     const ids = (v: unknown) => (Array.isArray(v) ? v.map((x) => str(x, 100)).filter(Boolean).slice(0, 10) : []);
     const id = encodeURIComponent(String(req.params.id));
     const action = str(req.body?.action, 20);
+    labelCache.delete(user.id);
     if (action === 'trash' || action === 'untrash') await call('google', t, `${G}/threads/${id}/${action}`, { method: 'POST' });
     else
       await call('google', t, `${G}/threads/${id}/modify`, {

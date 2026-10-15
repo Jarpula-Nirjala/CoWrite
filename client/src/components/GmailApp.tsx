@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, errorText } from '../api.ts';
+import { api, ApiError, errorText } from '../api.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { AppLogo } from './AppLogo.tsx';
@@ -101,8 +101,10 @@ function Mailbox() {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [retry, setRetry] = useState(0);
 
-  const loadLabels = useCallback(() => api<{ email: string; labels: Label[] }>('/gmail/labels').then((r) => (setLabels(r.labels), setMe(r.email)), (e) => setError(errorText(e))), []);
+  const loadLabels = useCallback((fresh = false) => api<{ email: string; labels: Label[] }>(`/gmail/labels${fresh ? '?fresh=1' : ''}`).then((r) => (setLabels(r.labels), setMe(r.email)), (e) => setError(errorText(e))), []);
   const page = pages[pages.length - 1];
   const load = useCallback(() => {
     setThreads(null);
@@ -110,10 +112,21 @@ function Mailbox() {
     setSelected(new Set());
     const qs = new URLSearchParams({ label, ...(search ? { q: search } : {}), ...(page ? { page } : {}) });
     api<{ threads: Thread[]; next: string | null; estimate: number }>(`/gmail/threads?${qs}`).then(
-      (r) => (setThreads(r.threads), setNext(r.next), setEstimate(r.estimate)),
-      (e) => (setThreads([]), setError(errorText(e))),
+      (r) => (setThreads(r.threads), setNext(r.next), setEstimate(r.estimate), setCooldown(0)),
+      (e) => {
+        // Gmail's per-minute quota: wait it out and load again by ourselves.
+        if (e instanceof ApiError && e.status === 429) {
+          setCooldown(45);
+          setThreads((t) => t ?? []);
+        } else (setThreads([]), setError(errorText(e)));
+      },
     );
-  }, [label, search, page]);
+  }, [label, search, page, retry]);
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const t = setTimeout(() => (cooldown === 1 ? (setCooldown(0), setRetry((n) => n + 1)) : setCooldown(cooldown - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [cooldown]);
   useEffect(() => void loadLabels(), [loadLabels]);
   useEffect(() => load(), [load]);
 
@@ -197,6 +210,14 @@ function Mailbox() {
       </aside>
       <main className="gm-main">
         {error && <p className="error-text gm-error">{error}</p>}
+        {cooldown > 0 && (
+          <div className="gm-cooldown" role="status">
+            ⏳ Gmail is limiting how fast your mailbox can be read. Loading again in {cooldown} s…
+            <button onClick={() => (setCooldown(0), setRetry((n) => n + 1))} type="button">
+              Try now
+            </button>
+          </div>
+        )}
         {open ? (
           <ThreadView
             id={open}
@@ -217,7 +238,7 @@ function Mailbox() {
                 checked={!!threads?.length && selected.size === threads.length}
                 onChange={(e) => setSelected(new Set(e.target.checked ? (threads ?? []).map((t) => t.id) : []))}
               />
-              <button className="gm-icon" onClick={() => (load(), void loadLabels())} title="Refresh" aria-label="Refresh" type="button">
+              <button className="gm-icon" onClick={() => (load(), void loadLabels(true))} title="Refresh" aria-label="Refresh" type="button">
                 ⟳
               </button>
               {selected.size > 0 && (
@@ -260,7 +281,7 @@ function Mailbox() {
             {!threads ? (
               <Spinner />
             ) : !threads.length ? (
-              <p className="gm-empty">{search ? `No messages matched “${search}”.` : 'Nothing here. 🎉'}</p>
+              cooldown > 0 ? null : <p className="gm-empty">{search ? `No messages matched “${search}”.` : 'Nothing here. 🎉'}</p>
             ) : (
               <ul className="gm-list">
                 {threads.map((t) => (

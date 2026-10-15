@@ -887,3 +887,23 @@
 .yt h3 {
   font-family: inherit;
 }
+
+.gm-cooldown {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 16px 0;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #fbbc04 18%, var(--surface));
+  font-size: 0.9rem;
+}
+.gm-cooldown button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
