@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { GeminiLlm } from '../server/llm.ts';
+import { GeminiLlm, resetGeminiState } from '../server/llm.ts';
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
   globalThis.fetch = realFetch;
+  resetGeminiState();
 });
 
 /** Records requests and answers with canned Gemini responses. */
@@ -80,10 +81,34 @@ test('falls back to the next model when one is retired for new keys', async () =
   assert.match(calls[2].url, /gemini-3\.5-flash:/);
 });
 
-test('retries without thinkingConfig when a model rejects it', async () => {
+test('retries without thinkingConfig when a model rejects every low-thinking setting', async () => {
   const calls = stub((_url, body) => (body.generationConfig.thinkingConfig ? json({ error: { code: 400, message: 'Request contains an invalid argument.' } }, 400) : json(answer('fine'))));
   const g = new GeminiLlm('AIzaTEST', 'user');
   assert.equal(await g.text('', 'hi', 50), 'fine');
-  assert.ok(calls[0].body.generationConfig.thinkingConfig);
-  assert.equal(calls[1].body.generationConfig.thinkingConfig, undefined);
+  assert.deepEqual(calls[0].body.generationConfig.thinkingConfig, { thinkingBudget: 0 });
+  assert.equal(calls.at(-1)!.body.generationConfig.thinkingConfig, undefined);
+});
+
+test('newer models that refuse a zero budget get the minimal thinking level, remembered for later requests', async () => {
+  // Like Gemini 3 models: a budget of 0 is invalid, a thinking level is fine.
+  const calls = stub((_url, body) => (body.generationConfig.thinkingConfig?.thinkingBudget === 0 ? json({ error: { code: 400, message: 'Budget 0 is invalid. This model only works in thinking mode.' } }, 400) : json(answer('quick'))));
+  const g = new GeminiLlm('AIzaTEST', 'user');
+  assert.equal(await g.text('', 'hi', 50), 'quick');
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[1].body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
+  // The second request goes straight to the setting that worked: one call, still minimal thinking.
+  assert.equal(await g.text('', 'again', 50), 'quick');
+  assert.equal(calls.length, 3);
+  assert.deepEqual(calls[2].body.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' });
+});
+
+test('stream: asks for minimal thinking and yields text as it arrives', async () => {
+  stub((_url, body) => {
+    if (body.generationConfig.thinkingConfig?.thinkingBudget === 0) return json({ error: { code: 400, message: 'invalid' } }, 400);
+    const sse = ['Hel', 'lo'].map((t) => `data: ${JSON.stringify(answer(t))}\n\n`).join('');
+    return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  });
+  const parts: string[] = [];
+  for await (const p of new GeminiLlm('AIzaTEST', 'user').stream('', 'hi', 50)) parts.push(p);
+  assert.deepEqual(parts, ['Hel', 'lo']);
 });

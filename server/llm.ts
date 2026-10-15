@@ -148,6 +148,20 @@ const MODEL_CHAINS: Record<string, string[]> = {
 };
 /** The model that last worked, per chain, so later requests skip retired ones. */
 const workingModel = new Map<string, string>();
+/**
+ * Ways to ask for as little thinking as possible, tried in order. Older models take a budget of 0; newer ones
+ * reject that and take a level instead. Without any of these a newer model thinks at length before its first
+ * word, which makes chat feel stuck.
+ */
+const LOW_THINKING: Record<string, unknown>[] = [{ thinkingBudget: 0 }, { thinkingLevel: 'minimal' }, { thinkingLevel: 'low' }];
+/** Per model, which of LOW_THINKING it accepted (LOW_THINKING.length = none of them). */
+const thinkingFor = new Map<string, number>();
+
+/** Forgets learned models and thinking settings (for tests). */
+export function resetGeminiState() {
+  workingModel.clear();
+  thinkingFor.clear();
+}
 
 type GeminiPart = { text?: string; inlineData?: { mimeType: string; data: string } };
 interface GeminiResponse {
@@ -193,13 +207,14 @@ export class GeminiLlm implements Llm {
     const all = MODEL_CHAINS[chain] ?? [chain];
     const first = workingModel.get(chain);
     const models = first ? [first, ...all.filter((m) => m !== first)] : all;
-    // Some models reject `thinkingBudget: 0`; those get the same request without it.
-    const plain = (b: unknown) => {
-      const g = (b as { generationConfig?: Record<string, unknown> }).generationConfig;
-      if (!g?.thinkingConfig) return null;
+    // A request that asks for little thinking is tried with each form of that setting the models understand,
+    // then without it; the form a model accepts is remembered so later requests need only one call.
+    const g = (body as { generationConfig?: Record<string, unknown> }).generationConfig;
+    const variants: unknown[] = [body];
+    if (g?.thinkingConfig) {
       const { thinkingConfig: _t, ...rest } = g;
-      return { ...(b as object), generationConfig: rest };
-    };
+      variants.splice(0, 1, ...LOW_THINKING.map((t) => ({ ...(body as object), generationConfig: { ...rest, thinkingConfig: t } })), { ...(body as object), generationConfig: rest });
+    }
     const send = (model: string, b: unknown) =>
       fetch(`${GEMINI_BASE}/models/${model}:${method}`, {
         method: 'POST',
@@ -214,11 +229,10 @@ export class GeminiLlm implements Llm {
       for (const model of models) {
         let res: Response;
         try {
-          res = await send(model, body);
-          if (res.status === 400 && plain(body)) {
-            const retry = await send(model, plain(body));
-            if (retry.ok || retry.status !== 400) res = retry;
-          }
+          let v = variants.length > 1 ? Math.min(thinkingFor.get(model) ?? 0, variants.length - 1) : 0;
+          res = await send(model, variants[v]);
+          while (res.status === 400 && v < variants.length - 1) res = await send(model, variants[++v]);
+          if (variants.length > 1 && res.status !== 400) thinkingFor.set(model, v);
         } catch {
           throw new HttpError(502, 'Could not reach Gemini. Please try again.');
         }
@@ -263,19 +277,24 @@ export class GeminiLlm implements Llm {
     const res = await this.call(GEMINI_MODEL, 'streamGenerateContent?alt=sse', this.request(system, [{ text: prompt }], maxTokens));
     const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buf += value;
-      let nl = buf.indexOf('\n');
-      while (nl >= 0) {
-        const line = buf.slice(0, nl).trim();
-        buf = buf.slice(nl + 1);
-        nl = buf.indexOf('\n');
-        if (!line.startsWith('data:')) continue;
-        const text = GeminiLlm.textOf(JSON.parse(line.slice(5)) as GeminiResponse);
-        if (text) yield text;
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += value;
+        let nl = buf.indexOf('\n');
+        while (nl >= 0) {
+          const line = buf.slice(0, nl).trim();
+          buf = buf.slice(nl + 1);
+          nl = buf.indexOf('\n');
+          if (!line.startsWith('data:')) continue;
+          const text = GeminiLlm.textOf(JSON.parse(line.slice(5)) as GeminiResponse);
+          if (text) yield text;
+        }
       }
+    } finally {
+      // The reader stopped early (the person left the chat): stop downloading the rest of the answer.
+      void reader.cancel().catch(() => {});
     }
   }
 

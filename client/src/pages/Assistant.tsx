@@ -9,6 +9,8 @@ import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
 import { Glyph } from '../components/Glyph.tsx';
 import { ProductIcon } from '../components/ProductIcon.tsx';
+import { MIcon } from '../components/MIcon.tsx';
+import { mdiStop } from '@mdi/js';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -55,6 +57,7 @@ export function Assistant() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const end = useRef<HTMLDivElement>(null);
+  const abort = useRef<AbortController | null>(null);
   const chat = chats.find((c) => c.id === cur) ?? null;
 
   useEffect(() => {
@@ -63,7 +66,10 @@ export function Assistant() {
   useEffect(() => {
     if (ready && !user) navigate('/signin?next=/assistant', { replace: true });
   }, [ready, user]);
-  useEffect(() => end.current?.scrollIntoView({ block: 'end' }), [chat?.messages.length, chat?.messages.at(-1)?.text.length]);
+  // Braces matter: newer browsers return a Promise from scrollIntoView, and an effect must not return one.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [chat?.messages.length, chat?.messages.at(-1)?.text.length]);
 
   const update = (id: string, f: (c: Chat) => Chat) =>
     setChats((all) => {
@@ -71,6 +77,8 @@ export function Assistant() {
       saveChats(next);
       return next;
     });
+
+  const stop = () => abort.current?.abort();
 
   const send = async (text: string) => {
     const q = text.trim();
@@ -89,15 +97,17 @@ export function Assistant() {
     const messages: Msg[] = [...history, { role: 'user', text: q }];
     update(id, (c) => ({ ...c, at: Date.now(), messages: [...messages, { role: 'assistant', text: '' }] }));
     setBusy(true);
+    const ctrl = new AbortController();
+    abort.current = ctrl;
+    let answer = '';
     try {
-      const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages }), credentials: 'same-origin' });
+      const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages }), credentials: 'same-origin', signal: ctrl.signal });
       if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `Request failed (${res.status}).`);
       }
       const reader = res.body.getReader();
       const dec = new TextDecoder();
-      let answer = '';
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -106,9 +116,16 @@ export function Assistant() {
         update(id, (c) => ({ ...c, messages: [...messages, { role: 'assistant', text: a }] }));
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong.');
-      update(id, (c) => ({ ...c, messages }));
+      if (ctrl.signal.aborted) {
+        // Stopped by the person: keep whatever had arrived.
+        const a = answer;
+        update(id, (c) => ({ ...c, messages: a ? [...messages, { role: 'assistant', text: a }] : messages }));
+      } else {
+        setError(e instanceof Error ? e.message : 'Something went wrong.');
+        update(id, (c) => ({ ...c, messages }));
+      }
     } finally {
+      abort.current = null;
       setBusy(false);
     }
   };
@@ -211,9 +228,15 @@ export function Assistant() {
               disabled={!aiReady}
               aria-label="Message"
             />
-            <button className="as-send" disabled={busy || !input.trim() || !aiReady} aria-label="Send" type="submit">
-              <Glyph e="➤" size={20} />
-            </button>
+            {busy ? (
+              <button className="as-send as-stop" onClick={stop} aria-label="Stop answering" title="Stop" type="button">
+                <MIcon path={mdiStop} size={20} />
+              </button>
+            ) : (
+              <button className="as-send" disabled={!input.trim() || !aiReady} aria-label="Send" type="submit">
+                <Glyph e="➤" size={20} />
+              </button>
+            )}
           </form>
           <p className="muted small as-foot">
             {aiReady ? (

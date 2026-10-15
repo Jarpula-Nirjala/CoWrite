@@ -319,8 +319,13 @@ Design rules:
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.setHeader('X-AI-Name', ai.name);
+    let gone = false;
+    res.on('close', () => (gone = true));
     try {
-      for await (const part of ai.llm.stream(system, prompt, 8000)) res.write(part);
+      for await (const part of ai.llm.stream(system, prompt, 8000)) {
+        if (gone) break;
+        res.write(part);
+      }
     } catch (err) {
       if (!res.headersSent) throw err;
       res.write(`\n\n_${err instanceof HttpError ? err.message : 'The answer was interrupted. Please try again.'}_`);

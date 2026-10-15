@@ -1936,3 +1936,7 @@ button.repo-card:hover {
   border: 1px dashed var(--border-strong, var(--border));
   border-radius: 12px;
 }
+.as-send.as-stop {
+  background: var(--text);
+  color: var(--bg);
+}
