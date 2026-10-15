@@ -205,7 +205,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const api = express.Router();
   // Uploads and emails with attachments parse their own (larger) bodies.
-  api.use((req, res, next) => ((req.path === '/files' || req.path === '/gmail/send') && req.method === 'POST' ? next() : express.json({ limit: '600kb' })(req, res, next)));
+  api.use((req, res, next) => ((req.path === '/files' || req.path === '/gmail/send' || req.path === '/apps-upload/drive') && req.method === 'POST' ? next() : express.json({ limit: '600kb' })(req, res, next)));
   api.use(async (req, res, next) => {
     try {
       res.locals.user = await auth.userForToken(readCookie(req.headers.cookie, SESSION_COOKIE));

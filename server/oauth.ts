@@ -47,6 +47,8 @@ export const GOOGLE_EXTRAS: Record<string, string[]> = {
   tasks: ['https://www.googleapis.com/auth/tasks'],
   calendar: ['https://www.googleapis.com/auth/calendar.events'],
   contacts: ['https://www.googleapis.com/auth/contacts.readonly', 'https://www.googleapis.com/auth/contacts.other.readonly'],
+  // Renaming, starring, moving and deleting any Drive file (Drive's own files only need the basic connection).
+  drive: ['https://www.googleapis.com/auth/drive'],
 };
 
 const saved: Partial<Record<Provider, { id: string; secret: string; pickerKey?: string }>> = {};

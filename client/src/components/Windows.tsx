@@ -7,19 +7,19 @@ import { Spinner } from './ui.tsx';
 export const WINDOW_APPS = {
   gmail: { title: 'Gmail', logo: 'gmail', page: '/connections?tab=gmail', size: [980, 620] },
   youtube: { title: 'YouTube', logo: 'youtube', page: '/connections?tab=youtube', size: [900, 600] },
-  drive: { title: 'Google Drive', logo: 'drive', page: '/connections?tab=drive', size: [820, 540] },
-  calendar: { title: 'Google Calendar', logo: 'calendar', page: '/connections?tab=calendar', size: [640, 560] },
-  tasks: { title: 'Google Tasks', logo: 'tasks', page: '/connections?tab=tasks', size: [720, 520] },
-  github: { title: 'GitHub', logo: 'github', page: '/connections?tab=repos', size: [820, 560] },
+  drive: { title: 'Google Drive', logo: 'drive', page: '/connections?tab=drive', size: [1000, 620] },
+  calendar: { title: 'Google Calendar', logo: 'calendar', page: '/connections?tab=calendar', size: [1040, 660] },
+  tasks: { title: 'Google Tasks', logo: 'tasks', page: '/connections?tab=tasks', size: [760, 560] },
+  github: { title: 'GitHub', logo: 'github', page: '/connections?tab=repos', size: [1000, 640] },
 } as const satisfies Record<string, { title: string; logo: AppLogoName; page: string; size: readonly [number, number] }>;
 export type WindowApp = keyof typeof WINDOW_APPS;
 
 const Gmail = lazy(() => import('./GmailApp.tsx').then((m) => ({ default: m.GmailApp })));
 const YouTube = lazy(() => import('./YouTubeApp.tsx').then((m) => ({ default: m.YouTubeApp })));
-const Drive = lazy(() => import('../pages/ConnectionsPage.tsx').then((m) => ({ default: m.DriveWindow })));
-const Calendar = lazy(() => import('../pages/ConnectionsPage.tsx').then((m) => ({ default: m.CalendarTab })));
-const Tasks = lazy(() => import('../pages/ConnectionsPage.tsx').then((m) => ({ default: m.TasksTab })));
-const GitHub = lazy(() => import('../pages/ConnectionsPage.tsx').then((m) => ({ default: m.ReposTab })));
+const Drive = lazy(() => import('./DriveApp.tsx').then((m) => ({ default: m.DriveApp })));
+const Calendar = lazy(() => import('./GCalendarApp.tsx').then((m) => ({ default: m.GCalendarApp })));
+const Tasks = lazy(() => import('./TasksApp.tsx').then((m) => ({ default: m.TasksApp })));
+const GitHub = lazy(() => import('./GitHubApp.tsx').then((m) => ({ default: m.GitHubApp })));
 const BODY: Record<WindowApp, () => ReactNode> = {
   gmail: () => <Gmail />,
   youtube: () => <YouTube />,
@@ -67,9 +67,11 @@ export function WindowsProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={value}>
       {children}
-      {wins.map((w) => (
-        <AppWindow key={w.app} win={w} onFocus={() => focus(w.app)} onChange={(p) => focus(w.app, p)} onClose={() => close(w.app)} />
-      ))}
+      {/* One layer above the page but below the header, its menus and dialogs. */}
+      <div className="win-layer">
+        {wins.map((w) => (
+          <AppWindow key={w.app} win={w} onFocus={() => focus(w.app)} onChange={(p) => focus(w.app, p)} onClose={() => close(w.app)} />
+        ))}
       {wins.some((w) => w.min) && (
         <div className="win-taskbar" role="toolbar" aria-label="Minimised windows">
           {wins
@@ -81,6 +83,7 @@ export function WindowsProvider({ children }: { children: ReactNode }) {
             ))}
         </div>
       )}
+      </div>
     </Ctx.Provider>
   );
 }

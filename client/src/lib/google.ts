@@ -1,6 +1,11 @@
 import { api, ApiError } from '../api.ts';
 
-export type GoogleFeature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts';
+export type GoogleFeature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts' | 'drive';
+
+/** Calls Drive, Calendar, Tasks or GitHub through CoWrite with the person's own connection. */
+export function appApi<T>(svc: 'drive' | 'calendar' | 'tasks' | 'github', path: string, init: { method?: string; body?: unknown } = {}) {
+  return api<T>(`/apps/${svc}/${path}`, init);
+}
 
 /** Asks Google for one more permission (Google keeps the ones already given), then returns to a Connected tab. */
 export const allowUrl = (f: GoogleFeature, tab: string) => `/api/auth/oauth/google?link=1&add=${f}&next=${encodeURIComponent(`/connections?tab=${tab}`)}`;

@@ -11,6 +11,7 @@ const NAMES: Record<GoogleFeature, [string, AppLogoName, string]> = {
   tasks: ['Google Tasks', 'tasks', 'show and update your Google Tasks'],
   calendar: ['Google Calendar', 'calendar', 'add CoWrite events to Google Calendar'],
   contacts: ['Google Contacts', 'contacts', 'suggest your contacts'],
+  drive: ['Google Drive', 'drive', 'rename, star, move and delete files in your Drive'],
 };
 
 /** Shows its children only when Google is connected with this feature's permission; otherwise one button to fix it. */

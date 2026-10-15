@@ -8,6 +8,10 @@ import { useAuth } from '../auth.tsx';
 import { ConnectionsSection, GitHubLogo, GoogleLogo, useIntegrations } from '../components/Connections.tsx';
 import { AppLogo, type AppLogoName } from '../components/AppLogo.tsx';
 import { GmailApp } from '../components/GmailApp.tsx';
+import { DriveApp } from '../components/DriveApp.tsx';
+import { GCalendarApp } from '../components/GCalendarApp.tsx';
+import { TasksApp } from '../components/TasksApp.tsx';
+import { GitHubApp } from '../components/GitHubApp.tsx';
 import { YouTubeApp } from '../components/YouTubeApp.tsx';
 import { useWindows, type WindowApp } from '../components/Windows.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
@@ -89,9 +93,13 @@ export function ConnectionsPage() {
             ) : (tab === 'repos' || tab === 'gists') && !gh ? (
               <NotConnected name="GitHub" onDone={reload} />
             ) : tab === 'drive' ? (
-              <DriveTab sheets={!!data.google.features.sheets} picker={!!data.google.picker} />
+              <div className="app-embed">
+                <DriveApp />
+              </div>
             ) : tab === 'calendar' ? (
-              <CalendarTab />
+              <div className="app-embed">
+                <GCalendarApp />
+              </div>
             ) : tab === 'gmail' ? (
               <div className="app-embed">
                 <GmailApp />
@@ -101,9 +109,13 @@ export function ConnectionsPage() {
                 <YouTubeApp />
               </div>
             ) : tab === 'tasks' ? (
-              data.google.features.tasks ? <TasksTab /> : <Allow f="tasks" tab="tasks" what="see, tick off and add your Google Tasks" />
+              <div className="app-embed">
+                <TasksApp />
+              </div>
             ) : tab === 'repos' ? (
-              <ReposTab />
+              <div className="app-embed">
+                <GitHubApp />
+              </div>
             ) : tab === 'gists' ? (
               <GistsTab />
             ) : (
@@ -634,22 +646,6 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
   );
 }
 
-function Allow({ f, tab, what }: { f: Feature; tab: string; what: string }) {
-  const name = { gmail: 'Gmail', youtube: 'YouTube', sheets: 'Google Sheets', tasks: 'Google Tasks', calendar: 'Google Calendar', contacts: 'Google Contacts' }[f];
-  return (
-    <div className="keep-empty allow-card">
-      <span>
-        <GoogleLogo size={56} />
-      </span>
-      <h3>Allow CoWrite to use {name}</h3>
-      <p className="muted">CoWrite needs your permission to {what}. Google will ask you to confirm; you can remove access at any time in your Google account.</p>
-      <a className="btn btn-primary" href={allowUrl(f, tab)}>
-        Allow {name}
-      </a>
-      <p className="muted small">Make sure the {name} API is enabled in your Google Cloud project.</p>
-    </div>
-  );
-}
 
 interface TaskList {
   id: string;

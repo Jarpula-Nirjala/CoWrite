@@ -96,7 +96,11 @@ export function integrationRoutes(ctx: AppCtx) {
       throw new HttpError(403, msg.error?.message ?? msg.message ?? 'Permission denied. Reconnect and allow the requested access.');
     }
     if (res.status === 404) throw new HttpError(404, 'Not found, or this account cannot see it.');
-    if (!res.ok) throw new HttpError(502, `${p === 'google' ? 'Google' : 'GitHub'} returned an error (${res.status}).`);
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as { error?: { message?: string } | string; message?: string } | null;
+      const msg = typeof j?.error === 'string' ? j.error : (j?.error?.message ?? j?.message);
+      throw new HttpError(res.status >= 500 ? 502 : 400, msg ? `${p === 'google' ? 'Google' : 'GitHub'}: ${msg}` : `${p === 'google' ? 'Google' : 'GitHub'} returned an error (${res.status}).`);
+    }
     return (res.headers.get('content-type') ?? '').includes('json') ? ((await res.json()) as T) : ((await res.text()) as unknown as T);
   }
 
@@ -921,6 +925,85 @@ export function integrationRoutes(ctx: AppCtx) {
       body: JSON.stringify(draft ? { message: { raw, ...(threadId ? { threadId } : {}) } } : { raw, ...(threadId ? { threadId } : {}) }),
     });
     res.json({ id: out.id, draft });
+  });
+
+
+  // ----------------------- app windows: Drive, Calendar, Tasks and GitHub
+
+  /**
+   * Each app talks to its service through here with the person's own connection.
+   * Only the parts of each API the apps use are reachable, and only with that person's token.
+   */
+  const SERVICES: Record<string, { base: string; slot: Slot; allow: RegExp }> = {
+    drive: { base: 'https://www.googleapis.com/drive/v3', slot: 'google', allow: /^(files|about|drives)(\/|$)/ },
+    calendar: { base: 'https://www.googleapis.com/calendar/v3', slot: 'google', allow: /^(calendars|users\/me\/calendarList|colors)(\/|$)/ },
+    tasks: { base: 'https://tasks.googleapis.com/tasks/v1', slot: 'google', allow: /^(users\/@me\/lists|lists)(\/|$)/ },
+    github: { base: 'https://api.github.com', slot: 'github', allow: /^(user|users|repos|gists|search|notifications|orgs)(\/|$)/ },
+  };
+  const proxyLimit = rateLimit(600, 60_000);
+  r.all('/apps/:svc/*rest', proxyLimit, async (req, res) => {
+    const user = requireUser(res);
+    const svc = SERVICES[String(req.params.svc)];
+    if (!svc) throw new HttpError(404, 'Unknown app.');
+    const rest = req.params.rest as unknown as string[] | string;
+    const path = (Array.isArray(rest) ? rest : [rest]).map((x) => encodeURIComponent(decodeURIComponent(x))).join('/');
+    if (!svc.allow.test(decodeURIComponent(path)) || path.includes('..')) throw new HttpError(403, 'That part of the service is not available in CoWrite.');
+    const method = req.method.toUpperCase();
+    if (!['GET', 'POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) throw new HttpError(405, 'Method not allowed.');
+    const qs = new URLSearchParams(req.query as Record<string, string>).toString();
+    const t = await token(user.id, svc.slot);
+    const out = await call<unknown>(svc.slot === 'github' ? 'github' : 'google', t, `${svc.base}/${path}${qs ? `?${qs}` : ''}`, {
+      method,
+      ...(['POST', 'PATCH', 'PUT'].includes(method) ? { headers: { 'content-type': 'application/json' }, body: JSON.stringify(req.body ?? {}) } : {}),
+    });
+    if (typeof out === 'string') res.json({ text: out });
+    else res.json(out ?? {});
+  });
+
+  /** Downloads a Drive file; Google Docs, Sheets and Slides come as Word, Excel and PowerPoint (or PDF). */
+  r.get('/apps-download/drive/:id', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const id = encodeURIComponent(String(req.params.id));
+    const meta = await call<{ name: string; mimeType: string }>('google', t, `https://www.googleapis.com/drive/v3/files/${id}?fields=name,mimeType&supportsAllDrives=true`);
+    const EXPORT: Record<string, [string, string]> = {
+      'application/vnd.google-apps.document': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', '.docx'],
+      'application/vnd.google-apps.spreadsheet': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx'],
+      'application/vnd.google-apps.presentation': ['application/vnd.openxmlformats-officedocument.presentationml.presentation', '.pptx'],
+      'application/vnd.google-apps.drawing': ['application/pdf', '.pdf'],
+    };
+    const ex = req.query.pdf === '1' ? (['application/pdf', '.pdf'] as [string, string]) : EXPORT[meta.mimeType];
+    const url = ex ? `https://www.googleapis.com/drive/v3/files/${id}/export?mimeType=${encodeURIComponent(ex[0])}` : `https://www.googleapis.com/drive/v3/files/${id}?alt=media&supportsAllDrives=true`;
+    const r2 = await fetch(url, { headers: { authorization: `Bearer ${t}` }, signal: AbortSignal.timeout(120_000) });
+    if (!r2.ok) throw new HttpError(r2.status === 403 ? 403 : 502, r2.status === 403 ? 'Google does not allow downloading this file.' : `Google returned an error (${r2.status}).`);
+    const name = ex && !meta.name.endsWith(ex[1]) ? `${meta.name}${ex[1]}` : meta.name;
+    res.setHeader('Content-Type', ex?.[0] ?? r2.headers.get('content-type') ?? 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(Buffer.from(await r2.arrayBuffer()));
+  });
+
+  /** Uploads any file into a Drive folder, as it is. */
+  r.post('/apps-upload/drive', rateLimit(60, 10 * 60_000), express.raw({ type: () => true, limit: '25mb' }), async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (!data.length) throw new HttpError(400, 'The file is empty.');
+    const name = str(req.query.name, 250) || 'Upload';
+    const mime = /^[\w.+-]+\/[\w.+-]+$/.test(String(req.query.mime)) ? String(req.query.mime) : 'application/octet-stream';
+    const parent = /^[\w-]{5,100}$/.test(String(req.query.parent)) ? String(req.query.parent) : null;
+    const boundary = `cw${Date.now()}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, ...(parent ? { parents: [parent] } : {}) })}\r\n--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`),
+      data,
+      Buffer.from(`\r\n--${boundary}--`),
+    ]);
+    const out = await call<{ id: string; webViewLink: string }>('google', t, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true', {
+      method: 'POST',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    res.json(out);
   });
 
   return r;

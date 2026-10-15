@@ -176,6 +176,15 @@ describe('workspace apps', () => {
     assert.deepEqual(st.google.features, {});
   });
 
+  it('app windows reach only the allowed parts of each service', async () => {
+    assert.equal((await api('/apps/drive/files')).status, 400, 'Drive needs a Google connection');
+    assert.match((await api('/apps/github/user')).body.error, /Connect your GitHub account/);
+    assert.equal((await api('/apps/nope/x')).status, 404);
+    assert.equal((await api('/apps/drive/permissions/123')).status, 403);
+    assert.equal((await api('/apps/github/admin/users')).status, 403);
+    assert.equal((await api('/apps/calendar/calendars/primary/events', { method: 'POST', body: {} })).status, 400);
+  });
+
   it('saves the new appearance and accessibility settings', async () => {
     const r = await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'nord', dyslexic: false, dailyGoal: 300, textSize: 'xl', spacing: 'relaxed', appFont: 'readable', reduceMotion: true, bigCursor: true, bogus: 1 } });
     assert.equal(r.body.prefs.theme, 'nord');
