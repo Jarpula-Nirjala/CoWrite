@@ -5,6 +5,52 @@ import { appApi } from '../lib/google.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { renderMarkdown } from '../lib/text.ts';
 import { AppLogo } from './AppLogo.tsx';
+import {
+  AlertIcon,
+  ArrowLeftIcon,
+  BookIcon,
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CodeIcon,
+  CommentDiscussionIcon,
+  CommentIcon,
+  CopyIcon,
+  DownloadIcon,
+  FileDiffIcon,
+  FileDirectoryFillIcon,
+  FileIcon,
+  GitBranchIcon,
+  GitCommitIcon,
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestIcon,
+  GlobeIcon,
+  HistoryIcon,
+  HomeIcon,
+  InboxIcon,
+  IssueClosedIcon,
+  IssueOpenedIcon,
+  IssueReopenedIcon,
+  LinkExternalIcon,
+  LockIcon,
+  MarkGithubIcon,
+  PackageIcon,
+  PeopleIcon,
+  PencilIcon,
+  PlusIcon,
+  RepoForkedIcon,
+  RepoIcon,
+  SearchIcon,
+  ShieldLockIcon,
+  StarFillIcon,
+  StarIcon,
+  TagIcon,
+  TelescopeIcon,
+  ThreeBarsIcon,
+  TrashIcon,
+  TriangleDownIcon,
+} from '@primer/octicons-react';
 import { Spinner } from './ui.tsx';
 
 /* ------------------------------------------------------------- types */
@@ -98,6 +144,12 @@ const encode64 = (text: string) => {
 const enc = (p: string) => p.split('/').map(encodeURIComponent).join('/');
 const repoOf = (url?: string) => (url ?? '').replace('https://api.github.com/repos/', '');
 
+/** The coloured state icon GitHub shows next to an issue or pull request. */
+function StateIcon({ pull, state, merged }: { pull: boolean; state: string; merged?: boolean }) {
+  if (pull) return merged || state === 'merged' ? <GitMergeIcon className="ghx-ic merged" /> : state === 'closed' ? <GitPullRequestClosedIcon className="ghx-ic closed-pr" /> : <GitPullRequestIcon className="ghx-ic open" />;
+  return state === 'open' ? <IssueOpenedIcon className="ghx-ic open" /> : <IssueClosedIcon className="ghx-ic done" />;
+}
+
 function Md({ text }: { text: string }) {
   return <article className="ghx-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />;
 }
@@ -162,28 +214,29 @@ function Hub() {
       setNav(prev);
     }
   };
-  const SIDE: [Nav['v'], string, string][] = [
-    ['home', '🏠', 'Home'],
-    ['repos', '📚', 'Repositories'],
-    ['issues', '◎', 'Issues'],
-    ['pulls', '⇄', 'Pull requests'],
-    ['notifications', '🔔', 'Notifications'],
-    ['stars', '⭐', 'Stars'],
-    ['explore', '🧭', 'Explore'],
+  const [plusOpen, setPlusOpen] = useState(false);
+  const SIDE: [Nav['v'], ReactNode, string][] = [
+    ['home', <HomeIcon />, 'Home'],
+    ['repos', <RepoIcon />, 'Repositories'],
+    ['issues', <IssueOpenedIcon />, 'Issues'],
+    ['pulls', <GitPullRequestIcon />, 'Pull requests'],
+    ['notifications', <InboxIcon />, 'Notifications'],
+    ['stars', <StarIcon />, 'Stars'],
+    ['explore', <TelescopeIcon />, 'Explore'],
   ];
 
   return (
     <div className={`ghx ${collapsed ? 'ghx-collapsed' : ''}`}>
       <header className="ghx-top">
-        <button className="ghx-menu" onClick={() => setCollapsed(!collapsed)} aria-label="Menu" type="button">
-          ☰
+        <button className="ghx-menu" onClick={() => setCollapsed(!collapsed)} aria-label="Open navigation" title="Open navigation" type="button">
+          <ThreeBarsIcon />
         </button>
-        <button className="ghx-logo" onClick={() => go({ v: 'home' })} type="button" aria-label="GitHub home">
-          <AppLogo name="github" size={30} />
+        <button className="ghx-logo" onClick={() => go({ v: 'home' })} type="button" aria-label="Homepage" title="Homepage">
+          <MarkGithubIcon size={32} />
         </button>
         {history.length > 0 && (
           <button className="ghx-menu" onClick={back} aria-label="Back" title="Back" type="button">
-            ←
+            <ArrowLeftIcon />
           </button>
         )}
         <b className="ghx-crumb">
@@ -192,7 +245,7 @@ function Hub() {
               <span>{nav.name.split('/')[0]}</span> / <b>{nav.name.split('/')[1]}</b>
             </>
           ) : (
-            SIDE.find((s) => s[0] === nav.v)?.[2] ?? 'New repository'
+            nav.v === 'home' ? 'Dashboard' : SIDE.find((s) => s[0] === nav.v)?.[2] ?? 'New repository'
           )}
         </b>
         <form
@@ -202,24 +255,46 @@ function Hub() {
             if (q.trim()) go({ v: 'explore', q: q.trim() });
           }}
         >
-          <input className="ghx-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search GitHub…" aria-label="Search GitHub" />
+          <label className="ghx-search">
+            <SearchIcon />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type / to search" aria-label="Search GitHub" />
+          </label>
         </form>
-        <button className="ghx-bell" onClick={() => go({ v: 'notifications' })} title="Notifications" type="button">
-          🔔{unread > 0 && <i />}
+        <span className="ghx-plus">
+          <button className="ghx-menu ghx-wide" onClick={() => setPlusOpen(!plusOpen)} aria-label="Create something new" title="Create new…" type="button">
+            <PlusIcon /> <TriangleDownIcon />
+          </button>
+          {plusOpen && (
+            <div className="ghx-dropdown" onMouseLeave={() => setPlusOpen(false)}>
+              <button onClick={() => (setPlusOpen(false), go({ v: 'new' }))} type="button">
+                <RepoIcon /> New repository
+              </button>
+              <button onClick={() => (setPlusOpen(false), go({ v: 'repos' }))} type="button">
+                <IssueOpenedIcon /> New issue
+              </button>
+            </div>
+          )}
+        </span>
+        <button className="ghx-menu" onClick={() => go({ v: 'issues' })} aria-label="Your issues" title="Your issues" type="button">
+          <IssueOpenedIcon />
+        </button>
+        <button className="ghx-menu" onClick={() => go({ v: 'pulls' })} aria-label="Your pull requests" title="Your pull requests" type="button">
+          <GitPullRequestIcon />
+        </button>
+        <button className="ghx-menu ghx-bell" onClick={() => go({ v: 'notifications' })} aria-label="Notifications" title={unread ? 'You have unread notifications' : 'Notifications'} type="button">
+          <InboxIcon />
+          {unread > 0 && <i />}
         </button>
         {me && <img className="ghx-avatar" src={me.avatar_url} alt={me.login} title={me.login} />}
       </header>
       <div className="ghx-shell">
         <aside className="gm-side ghx-side">
-          <button className="gm-compose ghx-newbtn" onClick={() => go({ v: 'new' })} type="button">
-            ＋ <span>New repository</span>
-          </button>
           <nav>
             {SIDE.map(([v, icon, label]) => (
               <button key={v} className={nav.v === v ? 'on' : ''} onClick={() => go({ v } as Nav)} type="button" title={label}>
                 <span className="gm-ico">{icon}</span>
                 <span className="gm-lname">{label}</span>
-                {v === 'notifications' && unread > 0 && <b className="gm-count">{unread}</b>}
+                {v === 'notifications' && unread > 0 && <b className="gm-count ghx-counter">{unread}</b>}
               </button>
             ))}
           </nav>
@@ -358,7 +433,10 @@ function Home({ me, go }: { me: User | null; go(n: Nav): void }) {
             <div>
               <b>{me.name ?? me.login}</b>
               <small className="muted">
-                {me.login} · 👥 {me.followers} followers · {me.following} following
+                {me.login}
+              </small>
+              <small className="muted ghx-follow">
+                <PeopleIcon size={16} /> <b>{me.followers}</b> followers · <b>{me.following}</b> following
               </small>
               {me.bio && <small>{me.bio}</small>}
             </div>
@@ -367,8 +445,8 @@ function Home({ me, go }: { me: User | null; go(n: Nav): void }) {
         <div className="ghx-card">
           <div className="row-between">
             <b>Top repositories</b>
-            <button className="btn btn-primary btn-sm ghx-green" onClick={() => go({ v: 'new' })} type="button">
-              New
+            <button className="ghx-btn ghx-green" onClick={() => go({ v: 'new' })} type="button">
+              <RepoIcon /> New
             </button>
           </div>
           <ul className="ghx-mini-list">
@@ -411,7 +489,18 @@ function RepoRows({ repos, go, empty }: { repos: Repo[]; go(n: Nav): void; empty
               </p>
             )}
             <small className="muted ghx-meta">
-              <Lang name={r.language} /> <span>⭐ {r.stargazers_count}</span> <span>🍴 {r.forks_count}</span> <span>Updated {ago(r.pushed_at ?? r.updated_at)}</span>
+              <Lang name={r.language} />
+              {r.stargazers_count > 0 && (
+                <span>
+                  <StarIcon /> {r.stargazers_count}
+                </span>
+              )}
+              {r.forks_count > 0 && (
+                <span>
+                  <RepoForkedIcon /> {r.forks_count}
+                </span>
+              )}
+              <span>Updated {ago(r.pushed_at ?? r.updated_at)}</span>
             </small>
           </div>
         </li>
@@ -451,8 +540,8 @@ function RepoList({ me, go }: { me: User | null; go(n: Nav): void }) {
           <option value="full_name">Name</option>
           <option value="created">Newest</option>
         </select>
-        <button className="btn btn-primary btn-sm ghx-green" onClick={() => go({ v: 'new' })} type="button">
-          ＋ New
+        <button className="ghx-btn ghx-green" onClick={() => go({ v: 'new' })} type="button">
+          <RepoIcon /> New
         </button>
       </div>
       <Err text={error} onClose={() => setError(null)} />
@@ -492,10 +581,10 @@ function NewRepo({ go }: { go(n: Nav): void }) {
       </label>
       <div className="ghx-radio">
         <label>
-          <input type="radio" checked={!f.private} onChange={() => setF({ ...f, private: false })} /> 🌐 <b>Public</b> <small className="muted">Anyone on the internet can see this repository.</small>
+          <input type="radio" checked={!f.private} onChange={() => setF({ ...f, private: false })} /> <GlobeIcon /> <b>Public</b> <small className="muted">Anyone on the internet can see this repository.</small>
         </label>
         <label>
-          <input type="radio" checked={f.private} onChange={() => setF({ ...f, private: true })} /> 🔒 <b>Private</b> <small className="muted">You choose who can see and commit.</small>
+          <input type="radio" checked={f.private} onChange={() => setF({ ...f, private: true })} /> <LockIcon /> <b>Private</b> <small className="muted">You choose who can see and commit.</small>
         </label>
       </div>
       <label className="check-row">
@@ -522,7 +611,7 @@ function NewRepo({ go }: { go(n: Nav): void }) {
         </label>
       </div>
       <Err text={error} onClose={() => setError(null)} />
-      <button className="btn btn-primary ghx-green" disabled={busy || !f.name.trim()} onClick={() => void create()} type="button">
+      <button className="ghx-btn ghx-green" disabled={busy || !f.name.trim()} onClick={() => void create()} type="button">
         {busy ? 'Creating…' : 'Create repository'}
       </button>
     </div>
@@ -563,43 +652,48 @@ function RepoView({ name, tab: startTab, issue, pull, go }: { name: string; tab?
     }
   };
   if (!repo) return error ? <Err text={error} onClose={() => setError(null)} /> : <Spinner />;
-  const TABS: [RepoTab, string][] = [
-    ['code', '<> Code'],
-    ['issues', `◎ Issues${repo.open_issues_count ? ` ${repo.open_issues_count}` : ''}`],
-    ['pulls', '⇄ Pull requests'],
-    ['commits', '⏱ Commits'],
-    ['branches', '⑂ Branches'],
-    ['releases', '🏷 Releases'],
+  const TABS: [RepoTab, ReactNode, string, number?][] = [
+    ['code', <CodeIcon />, 'Code'],
+    ['issues', <IssueOpenedIcon />, 'Issues', repo.open_issues_count],
+    ['pulls', <GitPullRequestIcon />, 'Pull requests'],
+    ['commits', <HistoryIcon />, 'Commits'],
+    ['branches', <GitBranchIcon />, 'Branches'],
+    ['releases', <TagIcon />, 'Releases'],
   ];
   return (
     <div className="ghx-repo">
       <div className="ghx-repohead">
         <h2>
-          <img src={repo.owner.avatar_url} alt="" /> {repo.owner.login} / <b>{repo.name}</b> <span className="ghx-badge">{repo.private ? 'Private' : 'Public'}</span>
+          <img src={repo.owner.avatar_url} alt="" /> <span className="ghx-owner">{repo.owner.login}</span> <span className="muted">/</span> <b>{repo.name}</b> <span className="ghx-badge">{repo.private ? 'Private' : 'Public'}</span>
         </h2>
         <span className="ghx-repoactions">
           <button className={`ghx-pillbtn ${starred ? 'on' : ''}`} onClick={() => void star()} type="button">
-            {starred ? '★ Starred' : '☆ Star'} <span>{repo.stargazers_count}</span>
+            {starred ? <StarFillIcon className="ghx-starred" /> : <StarIcon />} {starred ? 'Starred' : 'Star'} <span>{repo.stargazers_count}</span>
           </button>
           <button className="ghx-pillbtn" onClick={() => void fork()} type="button">
-            🍴 Fork <span>{repo.forks_count}</span>
+            <RepoForkedIcon /> Fork <span>{repo.forks_count}</span>
           </button>
           <span className="ghx-clone">
-            <button className="btn btn-primary btn-sm ghx-green" onClick={() => setCloneOpen(!cloneOpen)} type="button">
-              {'<>'} Code ▾
+            <button className="ghx-btn ghx-green" onClick={() => setCloneOpen(!cloneOpen)} aria-label="Code" type="button">
+              <CodeIcon /> Code <TriangleDownIcon />
             </button>
             {cloneOpen && (
               <div className="ghx-clonebox">
-                <b>Clone with HTTPS</b>
+                <b>
+                  <CodeIcon /> Clone
+                </b>
+                <small className="muted">HTTPS</small>
                 <div className="chat-ask">
                   <input readOnly value={repo.clone_url} onFocus={(e) => e.target.select()} aria-label="Clone URL" />
-                  <button className="btn btn-outline btn-sm" onClick={() => void navigator.clipboard.writeText(repo.clone_url)} type="button">
-                    Copy
+                  <button className="ghx-btn" onClick={() => void navigator.clipboard.writeText(repo.clone_url)} aria-label="Copy url to clipboard" title="Copy url to clipboard" type="button">
+                    <CopyIcon />
                   </button>
                 </div>
-                <a href={`${repo.html_url}/archive/refs/heads/${repo.default_branch}.zip`}>⬇ Download ZIP</a>
+                <a href={`${repo.html_url}/archive/refs/heads/${repo.default_branch}.zip`}>
+                  <DownloadIcon /> Download ZIP
+                </a>
                 <a href={repo.html_url} target="_blank" rel="noreferrer">
-                  Open on github.com ↗
+                  <LinkExternalIcon /> Open on github.com
                 </a>
               </div>
             )}
@@ -608,9 +702,10 @@ function RepoView({ name, tab: startTab, issue, pull, go }: { name: string; tab?
       </div>
       {repo.description && <p className="muted ghx-desc">{repo.description}</p>}
       <nav className="ghx-tabs">
-        {TABS.map(([k, l]) => (
+        {TABS.map(([k, icon, l, n]) => (
           <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)} type="button">
-            {l}
+            {icon} {l}
+            {!!n && <span className="ghx-counter">{n}</span>}
           </button>
         ))}
       </nav>
@@ -712,13 +807,7 @@ function Code({ repo }: { repo: Repo }) {
   return (
     <div className="ghx-code">
       <div className="ghx-path">
-        <select className="ghx-branchsel" value={branch} onChange={(e) => (setBranch(e.target.value), setPath(''))} aria-label="Branch">
-          {(branches.length ? branches : [repo.default_branch]).map((b) => (
-            <option key={b} value={b}>
-              ⑂ {b}
-            </option>
-          ))}
-        </select>
+        <BranchPicker value={branch} branches={branches.length ? branches : [repo.default_branch]} onChange={(b) => (setBranch(b), setPath(''))} />
         <button onClick={() => setPath('')} type="button">
           {repo.name}
         </button>
@@ -732,8 +821,8 @@ function Code({ repo }: { repo: Repo }) {
         ))}
         {file && <span> / {file.name}</span>}
         {canPush && !file && (
-          <button className="btn btn-outline btn-sm ghx-addfile" onClick={() => setEditing({ path: path ? `${path}/` : '', text: '' })} type="button">
-            ＋ Add file
+          <button className="ghx-btn ghx-addfile" onClick={() => setEditing({ path: path ? `${path}/` : '', text: '' })} type="button">
+            <PlusIcon /> Add file
           </button>
         )}
       </div>
@@ -744,16 +833,16 @@ function Code({ repo }: { repo: Repo }) {
             <b>{file.name}</b>
             {!file.binary && <small className="muted">{file.text.split('\n').length} lines</small>}
             <span className="row-actions">
-              <a className="btn btn-text btn-sm" href={file.raw} target="_blank" rel="noreferrer">
+              <a className="ghx-btn" href={file.raw} target="_blank" rel="noreferrer">
                 Raw
               </a>
               {!file.binary && (
                 <>
-                  <button className="btn btn-outline btn-sm" onClick={() => void navigator.clipboard.writeText(file.text)} type="button">
-                    Copy
+                  <button className="ghx-btn ghx-iconbtn" onClick={() => void navigator.clipboard.writeText(file.text)} aria-label="Copy raw file" title="Copy raw file" type="button">
+                    <CopyIcon />
                   </button>
                   <button
-                    className="btn btn-outline btn-sm"
+                    className="ghx-btn"
                     onClick={() =>
                       void createAndOpen(file.name.replace(/\.(md|markdown|txt)$/i, ''), 'doc', {
                         tokens: markdownToTokens(/\.(md|markdown|txt)$/i.test(file.name) ? file.text : `# ${file.name}\n\`\`\`${file.name.split('.').pop()}\n${file.text}\n\`\`\``),
@@ -765,18 +854,18 @@ function Code({ repo }: { repo: Repo }) {
                     Open in CoWrite
                   </button>
                   {canPush && (
-                    <button className="btn btn-outline btn-sm" onClick={() => setEditing({ path: file.path, text: file.text, sha: file.sha })} type="button">
-                      ✏️ Edit
+                    <button className="ghx-btn ghx-iconbtn" onClick={() => setEditing({ path: file.path, text: file.text, sha: file.sha })} aria-label="Edit file" title="Edit this file" type="button">
+                      <PencilIcon />
                     </button>
                   )}
                 </>
               )}
               {canPush && (
-                <button className="btn btn-outline btn-sm ghx-danger" onClick={() => void remove()} type="button">
-                  🗑️ Delete
+                <button className="ghx-btn ghx-iconbtn ghx-danger" onClick={() => void remove()} aria-label="Delete file" title="Delete file" type="button">
+                  <TrashIcon />
                 </button>
               )}
-              <button className="btn btn-text btn-sm" onClick={() => setFile(null)} type="button">
+              <button className="ghx-btn" onClick={() => setFile(null)} type="button">
                 Close
               </button>
             </span>
@@ -813,20 +902,23 @@ function Code({ repo }: { repo: Repo }) {
                 <small className="muted">
                   {lastCommit.sha.slice(0, 7)} · {ago(lastCommit.date)}
                 </small>
+                <small className="ghx-histlink">
+                  <HistoryIcon /> History
+                </small>
               </div>
             )}
             <ul className="ghx-tree">
               {path && (
                 <li>
                   <button onClick={() => setPath(crumbs.slice(0, -1).join('/'))} type="button">
-                    📁 ..
+                    <FileDirectoryFillIcon className="ghx-dir" /> ..
                   </button>
                 </li>
               )}
               {items.map((it) => (
                 <li key={it.path}>
                   <button onClick={() => (it.type === 'dir' ? setPath(it.path) : void openFile(it))} type="button">
-                    {it.type === 'dir' ? '📁' : '📄'} {it.name}
+                    {it.type === 'dir' ? <FileDirectoryFillIcon className="ghx-dir" /> : <FileIcon className="ghx-fileic" />} {it.name}
                   </button>
                 </li>
               ))}
@@ -834,7 +926,9 @@ function Code({ repo }: { repo: Repo }) {
           </div>
           {readme && (
             <section className="ghx-readme">
-              <header>📖 README</header>
+              <header>
+                <BookIcon /> README
+              </header>
               <Md text={readme} />
             </section>
           )}
@@ -864,8 +958,16 @@ function Editor({ branch, initial, onCancel, onCommit }: { branch: string; initi
   return (
     <div className="ghx-editor">
       <div className="ghx-filebar">
-        {isNew ? <input className="ghx-pathinput" value={path} onChange={(e) => setPath(e.target.value)} placeholder="folder/name-your-file.md" aria-label="File path" autoFocus /> : <b>✏️ {path}</b>}
-        <small className="muted">on ⑂ {branch}</small>
+        {isNew ? (
+          <input className="ghx-pathinput" value={path} onChange={(e) => setPath(e.target.value)} placeholder="folder/name-your-file.md" aria-label="File path" autoFocus />
+        ) : (
+          <b>
+            <PencilIcon /> {path}
+          </b>
+        )}
+        <small className="muted">
+          in <GitBranchIcon /> {branch}
+        </small>
       </div>
       <textarea className="ghx-code-edit" value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} aria-label="File contents" />
       <div className="ghx-commitbox">
@@ -873,15 +975,41 @@ function Editor({ branch, initial, onCancel, onCommit }: { branch: string; initi
         <input value={message} onChange={(e) => setMessage(e.target.value)} placeholder={isNew ? `Create ${path || 'file'}` : `Update ${path.split('/').pop()}`} aria-label="Commit message" />
         {error && <p className="error-text">{error}</p>}
         <span className="row-actions">
-          <button className="btn btn-text btn-sm" onClick={onCancel} type="button">
-            Cancel
+          <button className="ghx-btn" onClick={onCancel} type="button">
+            Cancel changes
           </button>
-          <button className="btn btn-primary btn-sm ghx-green" disabled={busy || !path.trim() || path.endsWith('/')} onClick={() => void save()} type="button">
+          <button className="ghx-btn ghx-green" disabled={busy || !path.trim() || path.endsWith('/')} onClick={() => void save()} type="button">
             {busy ? 'Committing…' : 'Commit changes'}
           </button>
         </span>
       </div>
     </div>
+  );
+}
+
+/** GitHub's branch button: a bordered button that opens a filterable list of branches. */
+function BranchPicker({ value, branches, onChange }: { value: string; branches: string[]; onChange(b: string): void }) {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  return (
+    <span className="ghx-plus">
+      <button className="ghx-btn" onClick={() => setOpen(!open)} aria-label={`Branch: ${value}`} title="Switch branches" type="button">
+        <GitBranchIcon /> <b>{value}</b> <TriangleDownIcon />
+      </button>
+      {open && (
+        <div className="ghx-dropdown ghx-branchmenu" onMouseLeave={() => setOpen(false)}>
+          <b>Switch branches</b>
+          <input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Find a branch…" aria-label="Find a branch" autoFocus />
+          {branches
+            .filter((b) => b.toLowerCase().includes(filter.toLowerCase()))
+            .map((b) => (
+              <button key={b} onClick={() => (onChange(b), setOpen(false))} type="button">
+                <span className="ghx-tick">{b === value && <CheckIcon />}</span> {b}
+              </button>
+            ))}
+        </div>
+      )}
+    </span>
   );
 }
 
@@ -908,14 +1036,14 @@ function Issues({ repo, pulls, openNumber }: { repo: Repo; pulls: boolean; openN
       <div className="ghx-issuebar">
         <span className="seg">
           <button className={state === 'open' ? 'on' : ''} onClick={() => setState('open')} type="button">
-            ◎ Open
+            {pulls ? <GitPullRequestIcon /> : <IssueOpenedIcon />} Open
           </button>
           <button className={state === 'closed' ? 'on' : ''} onClick={() => setState('closed')} type="button">
-            ✓ Closed
+            <CheckIcon /> Closed
           </button>
         </span>
         {!pulls && (
-          <button className="btn btn-primary btn-sm ghx-green" onClick={() => setCreating(true)} type="button">
+          <button className="ghx-btn ghx-green" onClick={() => setCreating(true)} type="button">
             New issue
           </button>
         )}
@@ -937,7 +1065,9 @@ function IssueRows({ items, pulls, onOpen, showRepo }: { items: Issue[]; pulls: 
     <ul className="ghx-list">
       {items.map((i) => (
         <li key={`${i.repository_url}${i.number}`}>
-          <span className={`ghx-state ${i.state}`}>{pulls || i.pull_request ? '⇄' : i.state === 'open' ? '◎' : '✓'}</span>
+          <span className="ghx-state">
+            <StateIcon pull={pulls || !!i.pull_request} state={i.state} merged={!!(i.pull_request as { merged_at?: string } | undefined)?.merged_at} />
+          </span>
           <div>
             {showRepo && <small className="muted">{repoOf(i.repository_url)}</small>}
             <span>
@@ -954,7 +1084,11 @@ function IssueRows({ items, pulls, onOpen, showRepo }: { items: Issue[]; pulls: 
               #{i.number} opened {ago(i.created_at)} by {i.user.login}
             </small>
           </div>
-          {i.comments > 0 && <small className="muted">💬 {i.comments}</small>}
+          {i.comments > 0 && (
+            <small className="muted ghx-comments">
+              <CommentIcon /> {i.comments}
+            </small>
+          )}
         </li>
       ))}
     </ul>
@@ -994,11 +1128,11 @@ function Conversation({ repo, number, body, author, created, closable, state, se
         <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4} placeholder="Leave a comment (Markdown supported)" aria-label="Comment" />
         <div className="row-actions ghx-end">
           {closable && (
-            <button className="btn btn-outline btn-sm" onClick={() => void toggle()} type="button">
-              {state === 'open' ? '✓ Close' : '↺ Reopen'}
+            <button className="ghx-btn" onClick={() => void toggle()} type="button">
+              {state === 'open' ? <IssueClosedIcon className="ghx-ic done" /> : <IssueReopenedIcon className="ghx-ic open" />} {state === 'open' ? 'Close' : 'Reopen'}
             </button>
           )}
-          <button className="btn btn-primary btn-sm ghx-green" disabled={!text.trim()} onClick={() => void comment()} type="button">
+          <button className="ghx-btn ghx-green" disabled={!text.trim()} onClick={() => void comment()} type="button">
             Comment
           </button>
         </div>
@@ -1017,16 +1151,21 @@ function IssueView({ repo, number, onBack }: { repo: Repo; number: number; onBac
   if (!issue) return error ? <Err text={error} onClose={() => setError(null)} /> : <Spinner />;
   return (
     <div className="ghx-issue">
-      <button className="btn btn-text btn-sm" onClick={onBack} type="button">
-        ← All issues
+      <button className="ghx-btn ghx-backbtn" onClick={onBack} type="button">
+        <ArrowLeftIcon /> All issues
       </button>
       <h2>
         {issue.title} <span className="muted">#{issue.number}</span>
       </h2>
       <p>
-        <span className={`ghx-pill ${state}`}>{state === 'open' ? '◎ Open' : '✓ Closed'}</span>{' '}
+        <span className={`ghx-pill ${state === 'open' ? 'open' : 'done'}`}>
+          {state === 'open' ? <IssueOpenedIcon /> : <IssueClosedIcon />} {state === 'open' ? 'Open' : 'Closed'}
+        </span>{' '}
         <small className="muted">
-          {issue.user.login} opened this {ago(issue.created_at)} · <a href={issue.html_url} target="_blank" rel="noreferrer">github.com ↗</a>
+          <b>{issue.user.login}</b> opened this issue {ago(issue.created_at)} ·{' '}
+          <a href={issue.html_url} target="_blank" rel="noreferrer">
+            View on github.com <LinkExternalIcon size={12} />
+          </a>
         </small>
       </p>
       <Conversation repo={repo} number={number} body={issue.body} author={issue.user} created={issue.created_at} closable state={state} setState={setState} />
@@ -1074,24 +1213,26 @@ function PullView({ repo, number, onBack }: { repo: Repo; number: number; onBack
   if (!pr) return error ? <Err text={error} onClose={() => setError(null)} /> : <Spinner />;
   return (
     <div className="ghx-issue">
-      <button className="btn btn-text btn-sm" onClick={onBack} type="button">
-        ← All pull requests
+      <button className="ghx-btn ghx-backbtn" onClick={onBack} type="button">
+        <ArrowLeftIcon /> All pull requests
       </button>
       <h2>
         {pr.title} <span className="muted">#{pr.number}</span>
       </h2>
       <p>
-        <span className={`ghx-pill ${state}`}>{state === 'merged' ? '⇄ Merged' : state === 'open' ? '⇄ Open' : '✓ Closed'}</span>{' '}
+        <span className={`ghx-pill ${state === 'merged' ? 'merged' : state === 'open' ? 'open' : 'closed'}`}>
+          {state === 'merged' ? <GitMergeIcon /> : state === 'open' ? <GitPullRequestIcon /> : <GitPullRequestClosedIcon />} {state === 'merged' ? 'Merged' : state === 'open' ? 'Open' : 'Closed'}
+        </span>{' '}
         <small className="muted">
           {pr.user.login} wants to merge {pr.commits} commit{pr.commits === 1 ? '' : 's'} into <code>{pr.base.ref}</code> from <code>{pr.head.label}</code>
         </small>
       </p>
       <nav className="ghx-tabs">
         <button className={view === 'conversation' ? 'on' : ''} onClick={() => setView('conversation')} type="button">
-          💬 Conversation
+          <CommentDiscussionIcon /> Conversation
         </button>
         <button className={view === 'files' ? 'on' : ''} onClick={() => setView('files')} type="button">
-          📄 Files changed {pr.changed_files} <span className="ghx-add">+{pr.additions}</span> <span className="ghx-del">−{pr.deletions}</span>
+          <FileDiffIcon /> Files changed <span className="ghx-counter">{pr.changed_files}</span> <span className="ghx-add">+{pr.additions}</span> <span className="ghx-del">−{pr.deletions}</span>
         </button>
       </nav>
       <Err text={error} onClose={() => setError(null)} />
@@ -1106,8 +1247,12 @@ function PullView({ repo, number, onBack }: { repo: Repo; number: number; onBack
           <Conversation repo={repo} number={number} body={pr.body} author={pr.user} created={pr.created_at} closable={state !== 'merged'} state={state} setState={setState} />
           {state === 'open' && (
             <div className={`ghx-mergebox ${pr.mergeable === false ? 'bad' : ''}`}>
-              <b>{pr.mergeable === false ? '⚠️ This branch has conflicts that must be resolved on GitHub.' : '✓ This branch has no conflicts with the base branch.'}</b>
-              <button className="btn btn-primary btn-sm ghx-green" disabled={busy || pr.mergeable === false} onClick={() => void merge()} type="button">
+              <span className={`ghx-mergeic ${pr.mergeable === false ? 'bad' : ''}`}>{pr.mergeable === false ? <AlertIcon size={24} /> : <CheckIcon size={24} />}</span>
+              <span className="ghx-mergetext">
+                <b>{pr.mergeable === false ? 'This branch has conflicts that must be resolved' : 'This branch has no conflicts with the base branch'}</b>
+                <small className="muted">{pr.mergeable === false ? 'Resolve the conflicts on GitHub, then merge here.' : 'Merging can be performed automatically.'}</small>
+              </span>
+              <button className="ghx-btn ghx-green" disabled={busy || pr.mergeable === false} onClick={() => void merge()} type="button">
                 {busy ? 'Merging…' : 'Merge pull request'}
               </button>
             </div>
@@ -1123,7 +1268,7 @@ function Diff({ name, status, add, del, patch }: { name: string; status: string;
   return (
     <div className="ghx-file ghx-diff">
       <div className="ghx-filebar" onClick={() => setOpen(!open)}>
-        <span>{open ? '▾' : '▸'}</span>
+        {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         <b>{name}</b>
         <small className="muted">{status}</small>
         <span className="ghx-add">+{add}</span>
@@ -1173,14 +1318,14 @@ function NewIssue({ repo, onDone }: { repo: Repo; onDone(): void }) {
   };
   return (
     <div className="ghx-issue">
-      <button className="btn btn-text btn-sm" onClick={onDone} type="button">
-        ← Back
+      <button className="ghx-btn ghx-backbtn" onClick={onDone} type="button">
+        <ArrowLeftIcon /> Back
       </button>
       <h2>New issue</h2>
       <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title" aria-label="Title" />
       <textarea className="ghx-newbody" value={body} onChange={(e) => setBody(e.target.value)} rows={8} placeholder="Describe the issue (Markdown supported)" aria-label="Description" />
       <Err text={error} onClose={() => setError(null)} />
-      <button className="btn btn-primary ghx-green" disabled={!title.trim()} onClick={() => void submit()} type="button">
+      <button className="ghx-btn ghx-green" disabled={!title.trim()} onClick={() => void submit()} type="button">
         Submit new issue
       </button>
     </div>
@@ -1205,11 +1350,7 @@ function Commits({ repo }: { repo: Repo }) {
   if (open) return <CommitView repo={repo} sha={open} onBack={() => setOpen(null)} />;
   return (
     <div>
-      <select className="ghx-branchsel" value={branch} onChange={(e) => setBranch(e.target.value)} aria-label="Branch">
-        {(branches.length ? branches : [repo.default_branch]).map((b) => (
-          <option key={b}>{b}</option>
-        ))}
-      </select>
+      <BranchPicker value={branch} branches={branches.length ? branches : [repo.default_branch]} onChange={setBranch} />
       <Err text={error} onClose={() => setError(null)} />
       {!list ? (
         <Spinner />
@@ -1217,7 +1358,7 @@ function Commits({ repo }: { repo: Repo }) {
         <ul className="ghx-list ghx-commits">
           {list.map((c) => (
             <li key={c.sha}>
-              {c.author?.avatar_url ? <img className="ghx-mini" src={c.author.avatar_url} alt="" /> : <span className="ghx-state">⏺</span>}
+              {c.author?.avatar_url ? <img className="ghx-mini" src={c.author.avatar_url} alt="" /> : <span className="ghx-state"><GitCommitIcon /></span>}
               <div>
                 <button className="ghx-link small" onClick={() => setOpen(c.sha)} type="button">
                   {c.commit.message.split('\n')[0]}
@@ -1246,15 +1387,15 @@ function CommitView({ repo, sha, onBack }: { repo: Repo; sha: string; onBack(): 
   if (!c) return error ? <Err text={error} onClose={() => setError(null)} /> : <Spinner />;
   return (
     <div className="ghx-issue">
-      <button className="btn btn-text btn-sm" onClick={onBack} type="button">
-        ← All commits
+      <button className="ghx-btn ghx-backbtn" onClick={onBack} type="button">
+        <ArrowLeftIcon /> All commits
       </button>
       <h2>{c.commit.message.split('\n')[0]}</h2>
       {c.commit.message.includes('\n') && <pre className="ghx-commitmsg">{c.commit.message.split('\n').slice(1).join('\n').trim()}</pre>}
       <p className="muted">
         {c.commit.author.name} committed {ago(c.commit.author.date)} · <code>{sha.slice(0, 7)}</code> · {c.files.length} files changed <span className="ghx-add">+{c.stats.additions}</span> <span className="ghx-del">−{c.stats.deletions}</span> ·{' '}
         <a href={c.html_url} target="_blank" rel="noreferrer">
-          github.com ↗
+          View on github.com <LinkExternalIcon size={12} />
         </a>
       </p>
       {c.files.map((f) => (
@@ -1298,8 +1439,8 @@ function Branches({ repo }: { repo: Repo }) {
           }}
         >
           <input value={name} onChange={(e) => setName(e.target.value.replace(/\s+/g, '-'))} placeholder={`New branch from ${repo.default_branch}`} aria-label="New branch name" />
-          <button className="btn btn-primary btn-sm ghx-green" disabled={!name.trim()} type="submit">
-            Create branch
+          <button className="ghx-btn ghx-green" disabled={!name.trim()} type="submit">
+            <GitBranchIcon /> Create branch
           </button>
         </form>
       )}
@@ -1310,20 +1451,27 @@ function Branches({ repo }: { repo: Repo }) {
         <ul className="ghx-list">
           {list.map((b) => (
             <li key={b.name}>
-              <span className="ghx-state">⑂</span>
+              <span className="ghx-state muted">
+                <GitBranchIcon />
+              </span>
               <div>
                 <b>{b.name}</b>
                 <small className="muted">
                   {b.commit.sha.slice(0, 7)}
-                  {b.protected ? ' · 🛡 protected' : ''}
+                  {b.protected && (
+                    <>
+                      {' · '}
+                      <ShieldLockIcon size={12} /> protected
+                    </>
+                  )}
                 </small>
               </div>
               {b.name === repo.default_branch ? (
                 <span className="ghx-badge">default</span>
               ) : (
                 repo.permissions?.push !== false && (
-                  <button className="btn btn-text btn-sm ghx-danger" onClick={() => void remove(b.name)} type="button">
-                    Delete
+                  <button className="ghx-btn ghx-iconbtn ghx-danger" onClick={() => void remove(b.name)} aria-label={`Delete ${b.name}`} title="Delete this branch" type="button">
+                    <TrashIcon />
                   </button>
                 )
               )}
@@ -1349,7 +1497,10 @@ function Releases({ repo }: { repo: Repo }) {
       {list.map((r) => (
         <div key={r.id} className="ghx-file ghx-release">
           <div className="ghx-filebar">
-            <b>{r.name || r.tag_name}</b> <span className="ghx-badge">{r.tag_name}</span>
+            <b>{r.name || r.tag_name}</b>
+            <span className="ghx-badge">
+              <TagIcon size={12} /> {r.tag_name}
+            </span>
             {r.prerelease && <span className="ghx-badge">Pre-release</span>}
             <small className="muted">{ago(r.published_at)}</small>
           </div>
@@ -1358,7 +1509,9 @@ function Releases({ repo }: { repo: Repo }) {
             <ul className="ghx-assets">
               {r.assets.map((a) => (
                 <li key={a.id}>
-                  <a href={a.browser_download_url}>📦 {a.name}</a> <small className="muted">{Math.round(a.size / 1024)} KB</small>
+                  <a href={a.browser_download_url}>
+                    <PackageIcon /> {a.name}
+                  </a> <small className="muted">{Math.round(a.size / 1024)} KB</small>
                 </li>
               ))}
             </ul>
@@ -1469,15 +1622,19 @@ function Notifications({ go, onCount }: { go(n: Nav): void; onCount(n: number): 
             All
           </button>
         </span>
-        <button className="btn btn-outline btn-sm" onClick={() => void readAll()} type="button">
-          ✓ Mark all as read
+        <button className="ghx-btn" onClick={() => void readAll()} type="button">
+          <CheckIcon /> Mark all as done
         </button>
       </div>
       <Err text={error} onClose={() => setError(null)} />
       {!list ? (
         <Spinner />
       ) : !list.length ? (
-        <p className="gm-empty">All caught up! 🎉</p>
+        <div className="ghx-blank">
+          <InboxIcon size={32} />
+          <h3>All caught up!</h3>
+          <p className="muted">Take a break, write some code, do what you do best.</p>
+        </div>
       ) : (
         <ul className="ghx-list">
           {list.map((n) => (
@@ -1486,15 +1643,15 @@ function Notifications({ go, onCount }: { go(n: Nav): void; onCount(n: number): 
               <div>
                 <small className="muted">{n.repository.full_name}</small>
                 <button className="ghx-link small" onClick={() => open(n)} type="button">
-                  {n.subject.type === 'PullRequest' ? '⇄' : n.subject.type === 'Issue' ? '◎' : '•'} {n.subject.title}
+                  {n.subject.type === 'PullRequest' ? <GitPullRequestIcon className="ghx-ic open" /> : n.subject.type === 'Issue' ? <IssueOpenedIcon className="ghx-ic open" /> : n.subject.type === 'Release' ? <TagIcon /> : <GitCommitIcon />} {n.subject.title}
                 </button>
                 <small className="muted">
                   {n.reason.replace(/_/g, ' ')} · {ago(n.updated_at)}
                 </small>
               </div>
               {n.unread && (
-                <button className="btn btn-text btn-sm" onClick={() => void read(n.id)} title="Mark as read" type="button">
-                  ✓
+                <button className="ghx-btn ghx-iconbtn" onClick={() => void read(n.id)} aria-label="Mark as done" title="Done" type="button">
+                  <CheckIcon />
                 </button>
               )}
             </li>
@@ -1546,11 +1703,11 @@ function Explore({ q, go }: { q?: string; go(n: Nav): void }) {
         }}
       >
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Search repositories, e.g. react calendar language:typescript" aria-label="Search repositories" />
-        <button className="btn btn-primary btn-sm" type="submit">
-          Search
+        <button className="ghx-btn" type="submit">
+          <SearchIcon /> Search
         </button>
       </form>
-      <h3>{search ? `Repositories matching “${search}”` : '🔥 Trending this week'}</h3>
+      <h3>{search ? `Repositories matching “${search}”` : 'Trending this week'}</h3>
       <Err text={error} onClose={() => setError(null)} />
       {!repos ? <Spinner /> : <RepoRows repos={repos} go={go} empty="No repositories found." />}
     </div>

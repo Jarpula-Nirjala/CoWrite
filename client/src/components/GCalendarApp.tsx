@@ -4,6 +4,8 @@ import { allowUrl, appApi } from '../lib/google.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
 import { Modal, Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { MIcon } from './MIcon.tsx';
 
 interface Cal {
   id: string;
@@ -124,11 +126,11 @@ function Calendar() {
         <button className="gc-today" onClick={() => setCursor(new Date())} type="button">
           Today
         </button>
-        <button className="gm-icon" onClick={() => step(-1)} aria-label="Previous" type="button">
-          ‹
+        <button className="gm-icon" onClick={() => step(-1)} aria-label="Previous" title="Previous" type="button">
+          <MIcon path={ic.mdiChevronLeft} size={24} />
         </button>
-        <button className="gm-icon" onClick={() => step(1)} aria-label="Next" type="button">
-          ›
+        <button className="gm-icon" onClick={() => step(1)} aria-label="Next" title="Next" type="button">
+          <MIcon path={ic.mdiChevronRight} size={24} />
         </button>
         <b className="gc-label">{label}</b>
         <span className="gc-modes">
@@ -141,7 +143,14 @@ function Calendar() {
       </header>
       <aside className="gm-side">
         <button className="gm-compose" onClick={() => newAt(new Date(), new Date().getHours() + 1)} type="button">
-          ＋ <span>Create</span>
+          <svg width="32" height="32" viewBox="0 0 36 36" aria-hidden>
+            <path fill="#34A853" d="M16 16v14h4V20z" />
+            <path fill="#4285F4" d="M30 16H20l-4 4h14z" />
+            <path fill="#FBBC05" d="M6 16v4h10l4-4z" />
+            <path fill="#EA4335" d="M20 16V6h-4v14z" />
+            <path fill="none" d="M0 0h36v36H0z" />
+          </svg>{' '}
+          <span>Create</span>
         </button>
         {!canWrite && (
           <a className="dr-allow" href={allowUrl('calendar', 'calendar')}>
@@ -212,17 +221,22 @@ function Calendar() {
                 ? startOf(open).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })
                 : `${startOf(open).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long' })} · ${hm(startOf(open))} – ${hm(endOf(open))}`}
             </p>
-            {open.location && <p>📍 {open.location}</p>}
+            {open.location && (
+              <p className="gc-row">
+                <MIcon path={ic.mdiMapMarkerOutline} /> {open.location}
+              </p>
+            )}
             {open.hangoutLink && (
-              <p>
-                🎥{' '}
+              <p className="gc-row">
+                <MIcon path={ic.mdiVideoOutline} />{' '}
                 <a href={open.hangoutLink} target="_blank" rel="noreferrer">
                   Join Google Meet
                 </a>
               </p>
             )}
             {open.description && <p className="gc-desc">{open.description.replace(/<[^>]+>/g, ' ')}</p>}
-            <p className="muted small">📅 {cals.find((c) => c.id === open.calendarId)?.summary}</p>
+            <p className="muted small gc-row">
+              <MIcon path={ic.mdiCalendarBlankOutline} /> {cals.find((c) => c.id === open.calendarId)?.summary}</p>
             <div className="row-actions">
               {canWrite && (
                 <>
@@ -235,7 +249,7 @@ function Calendar() {
                 </>
               )}
               <a className="btn btn-text btn-sm" href={open.htmlLink} target="_blank" rel="noreferrer">
-                Open in Google ↗
+                Open in Google Calendar
               </a>
             </div>
           </div>
@@ -408,9 +422,9 @@ function EventEditor({ ev, cals, onClose, onSaved }: { ev: Partial<Ev> & { calen
             </>
           )}
         </div>
-        <input className="input" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="📍 Add location" aria-label="Location" />
+        <input className="input" value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} placeholder="Add location" aria-label="Location" />
         <label className="check-row">
-          <input type="checkbox" checked={f.meet} onChange={(e) => setF({ ...f, meet: e.target.checked })} /> 🎥 Add a Google Meet video call
+          <input type="checkbox" checked={f.meet} onChange={(e) => setF({ ...f, meet: e.target.checked })} /> <MIcon path={ic.mdiVideoOutline} size={18} /> Add Google Meet video conferencing
         </label>
         <textarea rows={3} value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} placeholder="Add description" aria-label="Description" />
         <select className="input" value={f.calendarId} onChange={(e) => setF({ ...f, calendarId: e.target.value })} aria-label="Calendar">

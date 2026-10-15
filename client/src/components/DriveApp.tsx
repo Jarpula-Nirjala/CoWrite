@@ -5,7 +5,9 @@ import { allowUrl, appApi } from '../lib/google.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
-import { Icon, Spinner } from './ui.tsx';
+import { Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { FileTypeIcon, MIcon } from './MIcon.tsx';
 
 interface DFile {
   id: string;
@@ -25,16 +27,6 @@ type View = 'mine' | 'shared' | 'recent' | 'starred' | 'trash';
 const FOLDER = 'application/vnd.google-apps.folder';
 const G = 'application/vnd.google-apps.';
 const FIELDS = 'nextPageToken,files(id,name,mimeType,iconLink,thumbnailLink,modifiedTime,size,starred,trashed,webViewLink,owners(displayName))';
-const KIND: Record<string, [string, string]> = {
-  [`${G}document`]: ['📄', 'Google Docs'],
-  [`${G}spreadsheet`]: ['📊', 'Google Sheets'],
-  [`${G}presentation`]: ['📽️', 'Google Slides'],
-  [`${G}form`]: ['📝', 'Google Forms'],
-  [`${G}drawing`]: ['🖌️', 'Google Drawings'],
-  [FOLDER]: ['📁', 'Folder'],
-  'application/pdf': ['📕', 'PDF'],
-};
-const kindOf = (m: string): [string, string] => KIND[m] ?? (m.startsWith('image/') ? ['🖼️', 'Image'] : m.startsWith('video/') ? ['🎞️', 'Video'] : m.startsWith('audio/') ? ['🎵', 'Audio'] : ['📎', 'File']);
 const size = (b?: string) => {
   const n = Number(b ?? 0);
   return !n ? '—' : n > 1_073_741_824 ? `${(n / 1_073_741_824).toFixed(1)} GB` : n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -185,11 +177,11 @@ function Drive() {
   };
 
   const NAV: [View, string, string][] = [
-    ['mine', '🏠', 'My Drive'],
-    ['shared', '👥', 'Shared with me'],
-    ['recent', '🕒', 'Recent'],
-    ['starred', '⭐', 'Starred'],
-    ['trash', '🗑️', 'Bin'],
+    ['mine', ic.mdiGoogleDrive, 'My Drive'],
+    ['shared', ic.mdiAccountMultipleOutline, 'Shared with me'],
+    ['recent', ic.mdiClockOutline, 'Recent'],
+    ['starred', ic.mdiStarOutline, 'Starred'],
+    ['trash', ic.mdiDeleteOutline, 'Bin'],
   ];
   const title = search ? `Search results for “${search}”` : view === 'mine' ? null : NAV.find((n) => n[0] === view)![2];
   const previewUrl = preview ? (preview.mimeType.startsWith(G) && preview.mimeType !== FOLDER ? (preview.webViewLink ?? '').replace(/\/(edit|view)[^/]*$/, '/preview') : `https://drive.google.com/file/d/${preview.id}/preview`) : '';
@@ -208,45 +200,47 @@ function Drive() {
             setPreview(null);
           }}
         >
-          <Icon name="search" size={16} />
+          <MIcon path={ic.mdiMagnify} size={22} />
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Search in Drive" aria-label="Search in Drive" />
           {search && (
-            <button onClick={() => (setSearch(''), setText(''))} type="button" aria-label="Clear search">
-              ✕
+            <button onClick={() => (setSearch(''), setText(''))} type="button" aria-label="Clear search" title="Clear search">
+              <MIcon path={ic.mdiClose} />
             </button>
           )}
         </form>
         <span className="dr-views">
           <button className={grid ? '' : 'on'} onClick={() => setGrid(false)} title="List view" aria-label="List view" type="button">
-            ☰
+            {!grid && <MIcon path={ic.mdiCheck} size={18} />}
+            <MIcon path={ic.mdiFormatListBulleted} size={18} />
           </button>
           <button className={grid ? 'on' : ''} onClick={() => setGrid(true)} title="Grid view" aria-label="Grid view" type="button">
-            ▦
+            {grid && <MIcon path={ic.mdiCheck} size={18} />}
+            <MIcon path={ic.mdiViewGridOutline} size={18} />
           </button>
         </span>
       </header>
       <aside className="gm-side">
         <div className="dr-new-wrap">
           <button className="gm-compose dr-new" onClick={() => setMenu(!menu)} type="button">
-            ＋ <span>New</span>
+            <MIcon path={ic.mdiPlus} size={24} /> <span>New</span>
           </button>
           {menu && (
             <div className="dr-menu" role="menu">
               <button onClick={() => void create(FOLDER, 'Folder')} type="button">
-                📁 New folder
+                <MIcon path={ic.mdiFolderPlusOutline} /> New folder
               </button>
               <button onClick={() => upRef.current?.click()} type="button">
-                ⬆️ File upload
+                <MIcon path={ic.mdiFileUploadOutline} /> File upload
               </button>
               <hr />
               <button onClick={() => void create(`${G}document`, 'Document')} type="button">
-                📄 Google Docs
+                <FileTypeIcon mime={`${G}document`} /> Google Docs
               </button>
               <button onClick={() => void create(`${G}spreadsheet`, 'Spreadsheet')} type="button">
-                📊 Google Sheets
+                <FileTypeIcon mime={`${G}spreadsheet`} /> Google Sheets
               </button>
               <button onClick={() => void create(`${G}presentation`, 'Presentation')} type="button">
-                📽️ Google Slides
+                <FileTypeIcon mime={`${G}presentation`} /> Google Slides
               </button>
             </div>
           )}
@@ -255,7 +249,9 @@ function Drive() {
         <nav>
           {NAV.map(([v, icon, label]) => (
             <button key={v} className={view === v && !search ? 'on' : ''} onClick={() => go(v)} type="button" title={label}>
-              <span className="gm-ico">{icon}</span>
+              <span className="gm-ico">
+                <MIcon path={icon} />
+              </span>
               <span className="gm-lname">{label}</span>
             </button>
           ))}
@@ -277,16 +273,18 @@ function Drive() {
         )}
       </aside>
       <main className="gm-main dr-main">
-        {busy && <p className="gm-cooldown">⏳ {busy}</p>}
+        {busy && <p className="gm-cooldown">
+            <MIcon path={ic.mdiClockOutline} size={18} /> {busy}
+          </p>}
         {error && <p className="error-text gm-error">{error}</p>}
         {preview ? (
           <div className="dr-preview">
             <div className="gm-bar">
-              <button className="gm-icon" onClick={() => setPreview(null)} aria-label="Back" type="button">
-                ←
+              <button className="gm-icon" onClick={() => setPreview(null)} aria-label="Back" title="Back" type="button">
+                <MIcon path={ic.mdiArrowLeft} />
               </button>
               <b className="dr-pname">
-                {kindOf(preview.mimeType)[0]} {preview.name}
+                <FileTypeIcon mime={preview.mimeType} name={preview.name} /> {preview.name}
               </b>
               {[`${G}document`, 'text/plain', 'text/markdown'].includes(preview.mimeType) && (
                 <button onClick={() => void toCoWrite(preview)} type="button">
@@ -294,21 +292,21 @@ function Drive() {
                 </button>
               )}
               <a className="dr-btn" href={`/api/apps-download/drive/${preview.id}`}>
-                ⬇ Download
+                <MIcon path={ic.mdiDownload} size={18} /> Download
               </a>
               {preview.webViewLink && (
                 <a className="dr-btn" href={preview.webViewLink} target="_blank" rel="noreferrer">
-                  ✏️ Edit in Google
+                  <MIcon path={ic.mdiOpenInNew} size={18} /> Open with Google
                 </a>
               )}
-              <button onClick={() => void patch(preview, { starred: !preview.starred }, 'Saving…')} type="button">
-                {preview.starred ? '★ Starred' : '☆ Star'}
+              <button className="gm-icon" onClick={() => void patch(preview, { starred: !preview.starred }, 'Saving…')} title={preview.starred ? 'Remove from Starred' : 'Add to Starred'} aria-label={preview.starred ? 'Remove from Starred' : 'Add to Starred'} type="button">
+                <MIcon path={preview.starred ? ic.mdiStar : ic.mdiStarOutline} />
               </button>
-              <button onClick={() => rename(preview)} type="button">
-                Rename
+              <button className="gm-icon" onClick={() => rename(preview)} title="Rename" aria-label="Rename" type="button">
+                <MIcon path={ic.mdiPencilOutline} />
               </button>
-              <button onClick={() => void patch(preview, { trashed: true }, 'Moving to bin…')} type="button">
-                🗑️
+              <button className="gm-icon" onClick={() => void patch(preview, { trashed: true }, 'Moving to bin…')} title="Move to bin" aria-label="Move to bin" type="button">
+                <MIcon path={ic.mdiDeleteOutline} />
               </button>
             </div>
             <iframe className="dr-frame" src={previewUrl} title={preview.name} allow="autoplay; fullscreen" />
@@ -321,7 +319,7 @@ function Drive() {
               ) : (
                 path.map((p, i) => (
                   <span key={p.id}>
-                    {i > 0 && ' › '}
+                    {i > 0 && <MIcon path={ic.mdiChevronRight} size={22} className="dr-crumbsep" />}
                     <button onClick={() => setPath(path.slice(0, i + 1))} type="button" disabled={i === path.length - 1}>
                       {p.name}
                     </button>
@@ -346,15 +344,19 @@ function Drive() {
                 {(group as DFile[]).map((f) => (
                   <div key={f.id} className={`dr-card ${f.mimeType === FOLDER ? 'folder' : ''}`} onDoubleClick={() => open(f)} onClick={() => f.mimeType === FOLDER && open(f)}>
                     {f.mimeType === FOLDER ? (
-                      <span className="dr-fname">📁 {f.name}</span>
+                      <span className="dr-fname">
+                        <MIcon path={ic.mdiFolder} color="#5f6368" /> {f.name}
+                      </span>
                     ) : (
                       <>
                         <span className="dr-fname">
-                          {f.iconLink ? <img src={f.iconLink} alt="" /> : kindOf(f.mimeType)[0]} {f.name}
+                          <FileTypeIcon mime={f.mimeType} name={f.name} /> {f.name}
                         </span>
                         <button className="dr-thumb" onClick={() => setPreview(f)} type="button" aria-label={`Preview ${f.name}`}>
                           {f.thumbnailLink ? <img src={f.thumbnailLink} alt="" referrerPolicy="no-referrer" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} /> : null}
-                          <span>{kindOf(f.mimeType)[0]}</span>
+                          <span>
+                            <FileTypeIcon mime={f.mimeType} name={f.name} size={64} />
+                          </span>
                         </button>
                         <small className="muted">{date(f.modifiedTime)}</small>
                       </>
@@ -383,7 +385,7 @@ function Drive() {
                     <tr key={f.id} onDoubleClick={() => open(f)}>
                       <td>
                         <button className="dr-row-name" onClick={() => open(f)} type="button">
-                          {f.iconLink ? <img src={f.iconLink} alt="" /> : kindOf(f.mimeType)[0]} {f.name} {f.starred && <span className="gm-star on">★</span>}
+                          <FileTypeIcon mime={f.mimeType} name={f.name} /> {f.name} {f.starred && <MIcon path={ic.mdiStar} size={16} color="#5f6368" title="Starred" />}
                         </button>
                       </td>
                       <td className="hide-sm muted">{f.owners?.[0]?.displayName ?? 'me'}</td>
@@ -415,28 +417,28 @@ function Actions({ f, trash, onStar, onRename, onTrash, onRestore, onDelete }: {
     <span className="dr-actions">
       {trash ? (
         <>
-          <button onClick={stop(onRestore)} title="Restore" type="button">
-            ↩
+          <button onClick={stop(onRestore)} title="Restore" aria-label="Restore" type="button">
+            <MIcon path={ic.mdiRestore} />
           </button>
-          <button onClick={stop(onDelete)} title="Delete for ever" type="button">
-            ✕
+          <button onClick={stop(onDelete)} title="Delete for ever" aria-label="Delete for ever" type="button">
+            <MIcon path={ic.mdiDeleteForeverOutline} />
           </button>
         </>
       ) : (
         <>
           {f.mimeType !== FOLDER && (
-            <a href={`/api/apps-download/drive/${f.id}`} title="Download" onClick={(e) => e.stopPropagation()}>
-              ⬇
+            <a href={`/api/apps-download/drive/${f.id}`} title="Download" aria-label="Download" onClick={(e) => e.stopPropagation()}>
+              <MIcon path={ic.mdiDownload} />
             </a>
           )}
           <button onClick={stop(onStar)} title={f.starred ? 'Remove star' : 'Star'} type="button">
-            {f.starred ? '★' : '☆'}
+            <MIcon path={f.starred ? ic.mdiStar : ic.mdiStarOutline} />
           </button>
-          <button onClick={stop(onRename)} title="Rename" type="button">
-            ✏️
+          <button onClick={stop(onRename)} title="Rename" aria-label="Rename" type="button">
+            <MIcon path={ic.mdiPencilOutline} />
           </button>
-          <button onClick={stop(onTrash)} title="Move to bin" type="button">
-            🗑️
+          <button onClick={stop(onTrash)} title="Move to bin" aria-label="Move to bin" type="button">
+            <MIcon path={ic.mdiDeleteOutline} />
           </button>
         </>
       )}

@@ -2,6 +2,8 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 import { navigate } from '../router.ts';
 import { AppLogo, type AppLogoName } from './AppLogo.tsx';
 import { Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { MIcon } from './MIcon.tsx';
 
 /** Apps that open as floating windows inside CoWrite. */
 export const WINDOW_APPS = {
@@ -132,16 +134,16 @@ function AppWindow({ win, onFocus, onChange, onClose }: { win: Win; onFocus(): v
         <b>{app.title}</b>
         <span className="win-buttons">
           <button onClick={() => onChange({ min: true })} title="Minimise" aria-label="Minimise" type="button">
-            ─
+            <MIcon path={ic.mdiWindowMinimize} size={16} />
           </button>
           <button onClick={() => onChange({ max: !win.max })} title={win.max ? 'Restore' : 'Maximise'} aria-label={win.max ? 'Restore' : 'Maximise'} type="button">
-            {win.max ? '❐' : '□'}
+            <MIcon path={win.max ? ic.mdiWindowRestore : ic.mdiWindowMaximize} size={16} />
           </button>
           <button onClick={() => (onClose(), navigate(app.page))} title="Open as a full page" aria-label="Open as a full page" type="button">
-            ↗
+            <MIcon path={ic.mdiOpenInNew} size={15} />
           </button>
           <button className="win-close" onClick={onClose} title="Close" aria-label="Close" type="button">
-            ✕
+            <MIcon path={ic.mdiClose} size={17} />
           </button>
         </span>
       </header>

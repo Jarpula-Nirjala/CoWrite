@@ -1918,7 +1918,9 @@ button.repo-card:hover {
   text-decoration: line-through;
 }
 .send-logo {
-  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  height: 28px;
 }
 .to-google {
   align-self: center;

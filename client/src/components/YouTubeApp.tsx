@@ -5,7 +5,9 @@ import { api, errorText } from '../api.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
-import { Icon, Spinner } from './ui.tsx';
+import { Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { MIcon } from './MIcon.tsx';
 
 interface Video {
   id: string;
@@ -90,8 +92,8 @@ function Tube() {
   return (
     <div className={`yt ${collapsed ? 'yt-collapsed' : ''}`}>
       <header className="yt-top">
-        <button className="gm-icon" onClick={() => setCollapsed(!collapsed)} aria-label="Menu" type="button">
-          ☰
+        <button className="gm-icon" onClick={() => setCollapsed(!collapsed)} aria-label="Guide" title="Guide" type="button">
+          <MIcon path={ic.mdiMenu} size={24} />
         </button>
         <span className="yt-brand">
           <AppLogo name="youtube" size={28} /> <b>YouTube</b>
@@ -105,20 +107,22 @@ function Tube() {
         >
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search YouTube" />
           <button type="submit" aria-label="Search">
-            <Icon name="search" size={18} />
+            <MIcon path={ic.mdiMagnify} size={24} />
           </button>
         </form>
       </header>
       <aside className="yt-side">
         {(
           [
-            ['trending', '🔥', 'Trending'],
-            ['mine', '▶️', 'Your videos'],
-            ['liked', '👍', 'Liked videos'],
+            ['trending', ic.mdiFire, 'Trending'],
+            ['mine', ic.mdiPlayBoxMultipleOutline, 'Your videos'],
+            ['liked', ic.mdiThumbUpOutline, 'Liked videos'],
           ] as const
         ).map(([k, icon, label]) => (
           <button key={k} className={feed.kind === k ? 'on' : ''} onClick={() => nav({ kind: k })} type="button" title={label}>
-            <span className="gm-ico">{icon}</span>
+            <span className="gm-ico">
+              <MIcon path={icon} size={24} />
+            </span>
             <span className="gm-lname">{label}</span>
           </button>
         ))}
@@ -134,7 +138,7 @@ function Tube() {
         {playing ? (
           <div className="yt-player">
             <button className="btn btn-text btn-sm" onClick={() => setPlaying(null)} type="button">
-              ← Back to {title}
+              <MIcon path={ic.mdiArrowLeft} size={18} /> Back to {title}
             </button>
             <div className="yt-frame">
               <iframe
@@ -149,11 +153,11 @@ function Tube() {
               {playing.channel} · {ago(playing.published)}
             </p>
             <span className="row-actions">
-              <button className="btn btn-primary btn-sm" onClick={() => notes(playing)} type="button">
-                📝 Take notes in CoWrite
+              <button className="yt-pill" onClick={() => notes(playing)} type="button">
+                <MIcon path={ic.mdiNoteEditOutline} /> Take notes in CoWrite
               </button>
-              <button className="btn btn-outline btn-sm" onClick={() => void navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${playing.id}`)} type="button">
-                Copy link
+              <button className="yt-pill" onClick={() => void navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${playing.id}`)} type="button">
+                <MIcon path={ic.mdiShareOutline} /> Share
               </button>
             </span>
             {videos && videos.length > 1 && (

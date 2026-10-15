@@ -17,6 +17,9 @@ import { useWindows, type WindowApp } from '../components/Windows.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Spinner } from '../components/ui.tsx';
+import * as ic from '@mdi/js';
+import { FileTypeIcon, MIcon } from '../components/MIcon.tsx';
+import { FileDirectoryFillIcon, FileIcon, LockIcon, RepoIcon } from '@primer/octicons-react';
 import { createAndOpen } from '../lib/create.ts';
 import { navigate, useSearch } from '../router.ts';
 
@@ -82,7 +85,7 @@ export function ConnectionsPage() {
             {tabs.find((t) => t.id === tab)?.win && (
               <div className="win-open-row">
                 <button className="btn btn-outline btn-sm" onClick={() => windows.open(tabs.find((t) => t.id === tab)!.win!)} type="button">
-                  ⧉ Open in a window
+                  <MIcon path={ic.mdiDockWindow} size={18} /> Open in a window
                 </button>
                 <span className="muted small">Floating windows stay open while you move around CoWrite; drag, resize, minimise or maximise them.</span>
               </div>
@@ -155,7 +158,7 @@ function csvToMarkdown(csv: string): string {
   return [line(rows[0]), `|${' --- |'.repeat(w)}`, ...rows.slice(1).map(line)].join('\n');
 }
 
-const KIND_ICON: Record<string, string> = { doc: '📄', sheet: '📊', slides: '📽️', pdf: '📕', text: '📃' };
+const KIND_MIME: Record<string, string> = { doc: 'application/vnd.google-apps.document', sheet: 'application/vnd.google-apps.spreadsheet', slides: 'application/vnd.google-apps.presentation', pdf: 'application/pdf', text: 'text/plain' };
 
 function DriveTab({ sheets, picker }: { sheets: boolean; picker: boolean }) {
   const [q, setQ] = useState('');
@@ -256,7 +259,9 @@ function DriveTab({ sheets, picker }: { sheets: boolean; picker: boolean }) {
               <tr key={f.id}>
                 <td>
                   <span className="recent-name">
-                    <span className="drive-kind">{KIND_ICON[f.kind] ?? '📃'}</span>
+                    <span className="drive-kind">
+                      <FileTypeIcon mime={KIND_MIME[f.kind] ?? 'text/plain'} />
+                    </span>
                     <b>{f.name}</b>
                   </span>
                 </td>
@@ -381,7 +386,7 @@ export function ReposTab() {
         {repos.map((r) => (
           <button key={r.fullName} className="repo-card" onClick={() => (setRepo(r.fullName), setPath(''))} type="button">
             <b>
-              {r.private ? '🔒' : '📘'} {r.fullName}
+              {r.private ? <LockIcon /> : <RepoIcon />} {r.fullName}
             </b>
             <small className="muted">{r.description || 'No description'}</small>
             <small className="muted">
@@ -421,10 +426,12 @@ export function ReposTab() {
             <li key={it.path} className="row-between">
               {it.type === 'dir' ? (
                 <button className="link-btn" onClick={() => setPath(it.path)} type="button">
-                  📁 {it.name}
+                  <FileDirectoryFillIcon fill="#54aeff" /> {it.name}
                 </button>
               ) : (
-                <span>📄 {it.name}</span>
+                <span>
+                  <FileIcon /> {it.name}
+                </span>
               )}
               {it.type === 'file' && it.size < 1_000_000 && (
                 <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => void open(it.path)} type="button">
@@ -512,7 +519,9 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
           </button>
         </div>
         <div className="send-card">
-          <span className="send-logo">✉️</span>
+          <span className="send-logo">
+            <AppLogo name="gmail" size={28} />
+          </span>
           <b>Email with Gmail</b>
           <small className="muted">Sends the document, formatted, from your own Gmail.</small>
           {features.gmail ? (
@@ -535,7 +544,9 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
           )}
         </div>
         <div className="send-card">
-          <span className="send-logo">📊</span>
+          <span className="send-logo">
+            <FileTypeIcon mime="application/vnd.google-apps.spreadsheet" size={30} />
+          </span>
           <b>Spreadsheet to Google Sheets</b>
           <select className="input" value={sheet} onChange={(e) => setSheet(e.target.value)} aria-label="Spreadsheet">
             {allDocs
@@ -620,7 +631,9 @@ export function TasksTab() {
         {lists.map((l) => (
           <div key={l.id} className="repo-card tasks-card">
             <div className="row-between">
-              <b>✅ {l.title}</b>
+              <b>
+                <AppLogo name="tasks" size={18} /> {l.title}
+              </b>
               <button className="btn btn-text btn-sm" onClick={() => toChecklist(l)} type="button">
                 Open as checklist
               </button>

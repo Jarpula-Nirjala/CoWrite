@@ -4,6 +4,8 @@ import { appApi } from '../lib/google.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
 import { Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { MIcon } from './MIcon.tsx';
 
 interface List {
   id: string;
@@ -103,12 +105,16 @@ function Tasks() {
         <nav>
           {lists.map((l) => (
             <button key={l.id} className={l.id === list ? 'on' : ''} onClick={() => setList(l.id)} type="button" title={l.title}>
-              <span className="gm-ico">☑️</span>
+              <span className="gm-ico">
+                <MIcon path={l.id === list ? ic.mdiCheckboxMarkedCircle : ic.mdiCheckboxBlankCircleOutline} />
+              </span>
               <span className="gm-lname">{l.title}</span>
             </button>
           ))}
           <button onClick={() => void newList()} type="button">
-            <span className="gm-ico">＋</span>
+            <span className="gm-ico">
+              <MIcon path={ic.mdiPlus} />
+            </span>
             <span className="gm-lname">Create new list</span>
           </button>
         </nav>
@@ -127,7 +133,9 @@ function Tasks() {
             void add();
           }}
         >
-          <span className="gt-plus">＋</span>
+          <span className="gt-plus">
+            <MIcon path={ic.mdiCheckboxMarkedCirclePlusOutline} size={22} />
+          </span>
           <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Add a task" aria-label="Add a task" />
         </form>
         {!tasks ? (
@@ -138,13 +146,13 @@ function Tasks() {
               {open.map((t) => (
                 <TaskRow key={t.id} t={t} open={openId === t.id} onToggleOpen={() => setOpenId(openId === t.id ? null : t.id)} onUpdate={(b) => void update(t, b)} onDelete={() => void remove(t)} />
               ))}
-              {!open.length && <li className="gt-empty">All tasks complete 🎉</li>}
+              {!open.length && <li className="gt-empty">All tasks complete. Nice work!</li>}
             </ul>
             {done.length > 0 && (
               <>
                 <div className="gt-done-head">
                   <button onClick={() => setShowDone(!showDone)} type="button">
-                    {showDone ? '▾' : '▸'} Completed ({done.length})
+                    <MIcon path={showDone ? ic.mdiChevronDown : ic.mdiChevronRight} /> Completed ({done.length})
                   </button>
                   <button onClick={() => void clearDone()} type="button">
                     Delete all completed
@@ -175,7 +183,7 @@ function TaskRow({ t, open, onToggleOpen, onUpdate, onDelete }: { t: Task; open:
   return (
     <li className={`gt-task ${done ? 'done' : ''}`}>
       <button className="gt-check" onClick={() => onUpdate({ status: done ? 'needsAction' : 'completed' })} aria-label={done ? 'Mark not done' : 'Mark complete'} type="button">
-        {done ? '✓' : ''}
+        <MIcon path={ic.mdiCheck} size={16} />
       </button>
       <div className="gt-body">
         {open ? (
@@ -183,7 +191,7 @@ function TaskRow({ t, open, onToggleOpen, onUpdate, onDelete }: { t: Task; open:
             <input className="gt-edit-title" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== t.title && onUpdate({ title: title.trim() })} aria-label="Title" />
             <textarea className="gt-notes" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (t.notes ?? '') && onUpdate({ notes })} placeholder="Details" rows={2} aria-label="Details" />
             <label className="gt-due">
-              📅 <input type="date" value={due ?? ''} onChange={(e) => onUpdate({ due: e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined })} aria-label="Due date" />
+              <MIcon path={ic.mdiCalendarBlankOutline} size={18} /> <input type="date" value={due ?? ''} onChange={(e) => onUpdate({ due: e.target.value ? `${e.target.value}T00:00:00.000Z` : undefined })} aria-label="Due date" />
             </label>
           </>
         ) : (
@@ -196,12 +204,12 @@ function TaskRow({ t, open, onToggleOpen, onUpdate, onDelete }: { t: Task; open:
       </div>
       <span className="gt-actions">
         {open && (
-          <button onClick={onToggleOpen} title="Done editing" type="button">
-            ✓
+          <button onClick={onToggleOpen} title="Done editing" aria-label="Done editing" type="button">
+            <MIcon path={ic.mdiCheck} />
           </button>
         )}
-        <button onClick={onDelete} title="Delete" type="button">
-          🗑️
+        <button onClick={onDelete} title="Delete" aria-label="Delete" type="button">
+          <MIcon path={ic.mdiDeleteOutline} />
         </button>
       </span>
     </li>

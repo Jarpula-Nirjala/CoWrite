@@ -5,7 +5,9 @@ import { createAndOpen } from '../lib/create.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { ContactInput } from './ContactInput.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
-import { Icon, Spinner } from './ui.tsx';
+import { Spinner } from './ui.tsx';
+import * as ic from '@mdi/js';
+import { FileTypeIcon, MIcon } from './MIcon.tsx';
 
 interface Label {
   id: string;
@@ -55,14 +57,14 @@ interface Draft {
 }
 
 const SYSTEM: { id: string; name: string; icon: string }[] = [
-  { id: 'INBOX', name: 'Inbox', icon: '📥' },
-  { id: 'STARRED', name: 'Starred', icon: '⭐' },
-  { id: 'IMPORTANT', name: 'Important', icon: '🏷️' },
-  { id: 'SENT', name: 'Sent', icon: '📤' },
-  { id: 'DRAFT', name: 'Drafts', icon: '📝' },
-  { id: 'ALL', name: 'All Mail', icon: '🗂️' },
-  { id: 'SPAM', name: 'Spam', icon: '⚠️' },
-  { id: 'TRASH', name: 'Bin', icon: '🗑️' },
+  { id: 'INBOX', name: 'Inbox', icon: ic.mdiInbox },
+  { id: 'STARRED', name: 'Starred', icon: ic.mdiStarOutline },
+  { id: 'IMPORTANT', name: 'Important', icon: ic.mdiLabelVariantOutline },
+  { id: 'SENT', name: 'Sent', icon: ic.mdiSendOutline },
+  { id: 'DRAFT', name: 'Drafts', icon: ic.mdiFileOutline },
+  { id: 'ALL', name: 'All Mail', icon: ic.mdiEmailMultipleOutline },
+  { id: 'SPAM', name: 'Spam', icon: ic.mdiAlertOctagonOutline },
+  { id: 'TRASH', name: 'Bin', icon: ic.mdiDeleteOutline },
 ];
 
 const when = (ms: number) => {
@@ -159,8 +161,8 @@ function Mailbox() {
   return (
     <div className={`gm ${collapsed ? 'gm-collapsed' : ''}`}>
       <header className="gm-top">
-        <button className="gm-icon" onClick={() => setCollapsed(!collapsed)} aria-label="Menu" type="button">
-          ☰
+        <button className="gm-icon" onClick={() => setCollapsed(!collapsed)} aria-label="Main menu" title="Main menu" type="button">
+          <MIcon path={ic.mdiMenu} size={24} />
         </button>
         <span className="gm-brand">
           <AppLogo name="gmail" size={26} /> <b>Gmail</b>
@@ -174,11 +176,11 @@ function Mailbox() {
             setOpen(null);
           }}
         >
-          <Icon name="search" size={16} />
+          <MIcon path={ic.mdiMagnify} size={22} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search mail" aria-label="Search mail" />
           {search && (
-            <button onClick={() => (setQ(''), setSearch(''), setPages([null]))} type="button" aria-label="Clear search">
-              ✕
+            <button onClick={() => (setQ(''), setSearch(''), setPages([null]))} type="button" aria-label="Clear search" title="Clear search">
+              <MIcon path={ic.mdiClose} />
             </button>
           )}
         </form>
@@ -188,12 +190,14 @@ function Mailbox() {
       </header>
       <aside className="gm-side">
         <button className="gm-compose" onClick={() => compose()} type="button">
-          ✏️ <span>Compose</span>
+          <MIcon path={ic.mdiPencilOutline} size={22} /> <span>Compose</span>
         </button>
         <nav>
           {SYSTEM.map((s) => (
             <button key={s.id} className={label === s.id && !search ? 'on' : ''} onClick={() => (choose(s.id), setSearch(''), setQ(''))} type="button" title={s.name}>
-              <span className="gm-ico">{s.icon}</span>
+              <span className="gm-ico">
+                <MIcon path={label === s.id && !search && s.id === 'INBOX' ? ic.mdiInbox : s.icon} />
+              </span>
               <span className="gm-lname">{s.name}</span>
               {count(s.id) > 0 && <b className="gm-count">{count(s.id)}</b>}
             </button>
@@ -201,7 +205,9 @@ function Mailbox() {
           {userLabels.length > 0 && <p className="gm-sub">Labels</p>}
           {userLabels.map((l) => (
             <button key={l.id} className={label === l.id && !search ? 'on' : ''} onClick={() => choose(l.id)} type="button" title={l.name}>
-              <span className="gm-dot" style={{ background: l.color ?? '#9aa0a6' }} />
+              <span className="gm-ico">
+                <MIcon path={ic.mdiLabel} color={l.color ?? '#9aa0a6'} />
+              </span>
               <span className="gm-lname">{l.name}</span>
               {l.unread > 0 && <b className="gm-count">{l.unread}</b>}
             </button>
@@ -212,7 +218,7 @@ function Mailbox() {
         {error && <p className="error-text gm-error">{error}</p>}
         {cooldown > 0 && (
           <div className="gm-cooldown" role="status">
-            ⏳ Gmail is limiting how fast your mailbox can be read. Loading again in {cooldown} s…
+            <MIcon path={ic.mdiClockOutline} size={18} /> Gmail is limiting how fast your mailbox can be read. Loading again in {cooldown} s…
             <button onClick={() => (setCooldown(0), setRetry((n) => n + 1))} type="button">
               Try now
             </button>
@@ -239,49 +245,50 @@ function Mailbox() {
                 onChange={(e) => setSelected(new Set(e.target.checked ? (threads ?? []).map((t) => t.id) : []))}
               />
               <button className="gm-icon" onClick={() => (load(), void loadLabels(true))} title="Refresh" aria-label="Refresh" type="button">
-                ⟳
+                <MIcon path={ic.mdiRefresh} />
               </button>
               {selected.size > 0 && (
                 <span className="gm-bulk">
                   {label === 'SPAM' || label === 'TRASH' ? (
-                    <button onClick={() => void act([...selected], 'inbox')} type="button">
-                      Move to Inbox
+                    <button className="gm-icon" onClick={() => void act([...selected], 'inbox')} title="Move to Inbox" aria-label="Move to Inbox" type="button">
+                      <MIcon path={ic.mdiInboxArrowDownOutline} />
                     </button>
                   ) : (
-                    <button onClick={() => void act([...selected], 'archive')} type="button">
-                      Archive
+                    <button className="gm-icon" onClick={() => void act([...selected], 'archive')} title="Archive" aria-label="Archive" type="button">
+                      <MIcon path={ic.mdiArchiveArrowDownOutline} />
                     </button>
                   )}
-                  <button onClick={() => void act([...selected], 'trash')} type="button">
-                    Delete
-                  </button>
-                  <button onClick={() => void act([...selected], 'read')} type="button">
-                    Mark as read
-                  </button>
-                  <button onClick={() => void act([...selected], 'unread')} type="button">
-                    Mark as unread
-                  </button>
                   {label !== 'SPAM' && (
-                    <button onClick={() => void act([...selected], 'spam')} type="button">
-                      Report spam
+                    <button className="gm-icon" onClick={() => void act([...selected], 'spam')} title="Report spam" aria-label="Report spam" type="button">
+                      <MIcon path={ic.mdiAlertOctagonOutline} />
                     </button>
                   )}
+                  <button className="gm-icon" onClick={() => void act([...selected], 'trash')} title="Delete" aria-label="Delete" type="button">
+                    <MIcon path={ic.mdiDeleteOutline} />
+                  </button>
+                  <span className="gm-sep" />
+                  <button className="gm-icon" onClick={() => void act([...selected], 'read')} title="Mark as read" aria-label="Mark as read" type="button">
+                    <MIcon path={ic.mdiEmailOpenOutline} />
+                  </button>
+                  <button className="gm-icon" onClick={() => void act([...selected], 'unread')} title="Mark as unread" aria-label="Mark as unread" type="button">
+                    <MIcon path={ic.mdiEmailOutline} />
+                  </button>
                 </span>
               )}
               <span className="gm-pages">
                 {threads && threads.length > 0 && `${from}–${from + threads.length - 1} of ${estimate > from + threads.length ? `about ${estimate}` : from + threads.length - 1}`}
-                <button className="gm-icon" disabled={pages.length < 2} onClick={() => setPages(pages.slice(0, -1))} aria-label="Newer" type="button">
-                  ‹
+                <button className="gm-icon" disabled={pages.length < 2} onClick={() => setPages(pages.slice(0, -1))} aria-label="Newer" title="Newer" type="button">
+                  <MIcon path={ic.mdiChevronLeft} />
                 </button>
-                <button className="gm-icon" disabled={!next} onClick={() => setPages([...pages, next])} aria-label="Older" type="button">
-                  ›
+                <button className="gm-icon" disabled={!next} onClick={() => setPages([...pages, next])} aria-label="Older" title="Older" type="button">
+                  <MIcon path={ic.mdiChevronRight} />
                 </button>
               </span>
             </div>
             {!threads ? (
               <Spinner />
             ) : !threads.length ? (
-              cooldown > 0 ? null : <p className="gm-empty">{search ? `No messages matched “${search}”.` : 'Nothing here. 🎉'}</p>
+              cooldown > 0 ? null : <p className="gm-empty">{search ? `No messages matched “${search}”.` : `No conversations in ${SYSTEM.find((x) => x.id === label)?.name ?? labels.find((l) => l.id === label)?.name ?? 'this label'}.`}</p>
             ) : (
               <ul className="gm-list">
                 {threads.map((t) => (
@@ -299,7 +306,10 @@ function Mailbox() {
                       aria-label="Select"
                     />
                     <button className={`gm-star ${t.starred ? 'on' : ''}`} onClick={(e) => (e.stopPropagation(), void star(t))} aria-label={t.starred ? 'Unstar' : 'Star'} type="button">
-                      {t.starred ? '★' : '☆'}
+                      <MIcon path={t.starred ? ic.mdiStar : ic.mdiStarOutline} color={t.starred ? '#f4b400' : undefined} />
+                    </button>
+                    <button className={`gm-imp ${t.important ? 'on' : ''}`} onClick={(e) => e.stopPropagation()} aria-label="Important" title={t.important ? 'Important' : 'Not important'} type="button">
+                      <MIcon path={t.important ? ic.mdiLabelVariant : ic.mdiLabelVariantOutline} color={t.important ? '#f4b400' : undefined} size={18} />
                     </button>
                     <span className="gm-from">
                       {t.from}
@@ -308,17 +318,21 @@ function Mailbox() {
                     <span className="gm-subject">
                       <b>{t.subject}</b> <span className="gm-snippet">— {decodeEntities(t.snippet)}</span>
                     </span>
-                    {t.attachment && <span className="gm-clip">📎</span>}
+                    {t.attachment && (
+                      <span className="gm-clip">
+                        <MIcon path={ic.mdiPaperclip} size={16} />
+                      </span>
+                    )}
                     <span className="gm-date">{when(t.date)}</span>
                     <span className="gm-hover">
-                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], 'archive'))} title="Archive" type="button">
-                        🗄️
+                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], 'archive'))} title="Archive" aria-label="Archive" type="button">
+                        <MIcon path={ic.mdiArchiveArrowDownOutline} />
                       </button>
-                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], 'trash'))} title="Delete" type="button">
-                        🗑️
+                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], 'trash'))} title="Delete" aria-label="Delete" type="button">
+                        <MIcon path={ic.mdiDeleteOutline} />
                       </button>
-                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], t.unread ? 'read' : 'unread'))} title={t.unread ? 'Mark as read' : 'Mark as unread'} type="button">
-                        {t.unread ? '✉️' : '📩'}
+                      <button onClick={(e) => (e.stopPropagation(), void act([t.id], t.unread ? 'read' : 'unread'))} title={t.unread ? 'Mark as read' : 'Mark as unread'} aria-label={t.unread ? 'Mark as read' : 'Mark as unread'} type="button">
+                        <MIcon path={t.unread ? ic.mdiEmailOpenOutline : ic.mdiEmailOutline} />
                       </button>
                     </span>
                   </li>
@@ -383,23 +397,24 @@ function ThreadView({ id, me, onBack, onAct, onReply }: { id: string; me: string
   return (
     <div className="gm-thread">
       <div className="gm-bar">
-        <button className="gm-icon" onClick={onBack} title="Back" aria-label="Back" type="button">
-          ←
+        <button className="gm-icon" onClick={onBack} title="Back to Inbox" aria-label="Back" type="button">
+          <MIcon path={ic.mdiArrowLeft} />
         </button>
-        <button onClick={() => onAct('archive')} type="button">
-          🗄️ Archive
+        <button className="gm-icon" onClick={() => onAct('archive')} title="Archive" aria-label="Archive" type="button">
+          <MIcon path={ic.mdiArchiveArrowDownOutline} />
         </button>
-        <button onClick={() => onAct('spam')} type="button">
-          ⚠️ Spam
+        <button className="gm-icon" onClick={() => onAct('spam')} title="Report spam" aria-label="Report spam" type="button">
+          <MIcon path={ic.mdiAlertOctagonOutline} />
         </button>
-        <button onClick={() => onAct('trash')} type="button">
-          🗑️ Delete
+        <button className="gm-icon" onClick={() => onAct('trash')} title="Delete" aria-label="Delete" type="button">
+          <MIcon path={ic.mdiDeleteOutline} />
         </button>
-        <button onClick={() => onAct('unread')} type="button">
-          ✉️ Mark unread
+        <span className="gm-sep" />
+        <button className="gm-icon" onClick={() => onAct('unread')} title="Mark as unread" aria-label="Mark as unread" type="button">
+          <MIcon path={ic.mdiEmailOutline} />
         </button>
-        <button onClick={toDoc} type="button">
-          📄 Save as CoWrite document
+        <button className="gm-icon" onClick={toDoc} title="Save as CoWrite document" aria-label="Save as CoWrite document" type="button">
+          <MIcon path={ic.mdiFileDocumentEditOutline} />
         </button>
       </div>
       <h2 className="gm-thread-title">{thread.subject}</h2>
@@ -410,7 +425,9 @@ function ThreadView({ id, me, onBack, onAct, onReply }: { id: string; me: string
             <header onClick={() => setExpanded((s) => new Set(s.has(m.id) && m !== last ? [...s].filter((x) => x !== m.id) : [...s, m.id]))}>
               <span className="gm-avatar">{nameOf(m.from)[0]?.toUpperCase()}</span>
               <span className="gm-msg-who">
-                <b>{nameOf(m.from)}</b> <small className="muted">&lt;{emailOf(m.from)}&gt;</small>
+                <span>
+                  <b>{nameOf(m.from)}</b> <small className="muted">&lt;{emailOf(m.from)}&gt;</small>
+                </span>
                 <small className="muted">{isOpen ? `to ${m.to}${m.cc ? `, cc ${m.cc}` : ''}` : decodeEntities(m.snippet)}</small>
               </span>
               <small className="muted">{new Date(m.date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</small>
@@ -422,7 +439,8 @@ function ThreadView({ id, me, onBack, onAct, onReply }: { id: string; me: string
                   <div className="gm-atts">
                     {m.attachments.map((a) => (
                       <a key={a.id} className="gm-att" href={`/api/gmail/attachment/${m.id}/${a.id}?name=${encodeURIComponent(a.name)}&mime=${encodeURIComponent(a.mime)}`}>
-                        📎 <span>{a.name}</span>
+                        <FileTypeIcon mime={a.mime} name={a.name} />
+                        <span>{a.name}</span>
                         <small className="muted">{kb(a.size)}</small>
                       </a>
                     ))}
@@ -430,13 +448,13 @@ function ThreadView({ id, me, onBack, onAct, onReply }: { id: string; me: string
                 )}
                 <div className="gm-replybar">
                   <button onClick={() => reply(m, false)} type="button">
-                    ↩ Reply
+                    <MIcon path={ic.mdiReply} size={18} /> Reply
                   </button>
                   <button onClick={() => reply(m, true)} type="button">
-                    ↩↩ Reply all
+                    <MIcon path={ic.mdiReplyAll} size={18} /> Reply all
                   </button>
                   <button onClick={() => forward(m)} type="button">
-                    ↪ Forward
+                    <MIcon path={ic.mdiShare} size={18} /> Forward
                   </button>
                 </div>
               </>
@@ -506,11 +524,11 @@ function Compose({ draft, onClose, onSent }: { draft: Draft; onClose(): void; on
       <header onClick={() => setMin(!min)}>
         <b>{d.subject || 'New message'}</b>
         <span>
-          <button onClick={(e) => (e.stopPropagation(), setMin(!min))} aria-label="Minimise" type="button">
-            ─
+          <button onClick={(e) => (e.stopPropagation(), setMin(!min))} aria-label="Minimise" title="Minimise" type="button">
+            <MIcon path={ic.mdiWindowMinimize} size={16} />
           </button>
-          <button onClick={(e) => (e.stopPropagation(), onClose())} aria-label="Close" type="button">
-            ✕
+          <button onClick={(e) => (e.stopPropagation(), onClose())} aria-label="Save & close" title="Save & close" type="button">
+            <MIcon path={ic.mdiClose} size={16} />
           </button>
         </span>
       </header>
@@ -545,9 +563,9 @@ function Compose({ draft, onClose, onSent }: { draft: Draft; onClose(): void; on
             <div className="gm-files">
               {files.map((f, i) => (
                 <span key={i}>
-                  📎 {f.name} <small>{kb(f.size)}</small>
+                  <FileTypeIcon mime={f.type} name={f.name} size={16} /> {f.name} <small>{kb(f.size)}</small>
                   <button onClick={() => setFiles(files.filter((_, k) => k !== i))} aria-label="Remove" type="button">
-                    ✕
+                    <MIcon path={ic.mdiClose} size={14} />
                   </button>
                 </span>
               ))}
@@ -560,19 +578,19 @@ function Compose({ draft, onClose, onSent }: { draft: Draft; onClose(): void; on
             </button>
             <span className="gm-fmt">
               <button onClick={() => fmt('bold')} title="Bold" type="button">
-                <b>B</b>
+                <MIcon path={ic.mdiFormatBold} />
               </button>
               <button onClick={() => fmt('italic')} title="Italic" type="button">
-                <i>I</i>
+                <MIcon path={ic.mdiFormatItalic} />
               </button>
               <button onClick={() => fmt('underline')} title="Underline" type="button">
-                <u>U</u>
+                <MIcon path={ic.mdiFormatUnderline} />
               </button>
               <button onClick={() => fmt('insertUnorderedList')} title="Bulleted list" type="button">
-                •≡
+                <MIcon path={ic.mdiFormatListBulleted} />
               </button>
               <button onClick={() => fmt('insertOrderedList')} title="Numbered list" type="button">
-                1≡
+                <MIcon path={ic.mdiFormatListNumbered} />
               </button>
               <button
                 onClick={() => {
@@ -582,18 +600,18 @@ function Compose({ draft, onClose, onSent }: { draft: Draft; onClose(): void; on
                 title="Insert link"
                 type="button"
               >
-                🔗
+                <MIcon path={ic.mdiLink} />
               </button>
               <button onClick={() => fileRef.current?.click()} title="Attach files" type="button">
-                📎
+                <MIcon path={ic.mdiPaperclip} />
               </button>
               <input ref={fileRef} type="file" hidden multiple onChange={(e) => (setFiles([...files, ...(e.target.files ?? [])]), (e.target.value = ''))} />
             </span>
             <button className="btn btn-text btn-sm" disabled={!!busy} onClick={() => void send(true)} type="button">
               Save draft
             </button>
-            <button className="gm-icon" onClick={onClose} title="Discard" aria-label="Discard" type="button">
-              🗑️
+            <button className="gm-icon" onClick={onClose} title="Discard draft" aria-label="Discard" type="button">
+              <MIcon path={ic.mdiDeleteOutline} />
             </button>
           </footer>
         </>
