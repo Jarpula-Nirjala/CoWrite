@@ -78,21 +78,3 @@
   font-size: 1.5rem;
 }
 
-/* Footer with application columns */
-.footer-inner {
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
-  max-width: 1280px;
-}
-.footer-apps-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.5rem 1rem;
-}
-.footer-col h4.footer-sub {
-  margin-top: 1.2rem;
-}
-@media (max-width: 1000px) {
-  .footer-inner {
-    grid-template-columns: 1fr 1fr;
-  }
-}

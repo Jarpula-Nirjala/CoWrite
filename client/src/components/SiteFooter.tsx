@@ -1,7 +1,41 @@
 import { AUTHOR, REPO_URL } from '../content.ts';
 import { Link } from '../router.ts';
-import { APPS, MANAGEMENT, SOLUTIONS } from '../lib/apps.ts';
+import { APPS, SOLUTIONS } from '../lib/apps.ts';
 import { Brand } from './Brand.tsx';
+
+type FooterLink = { name: string; to: string; external?: boolean };
+
+const app = (id: string): FooterLink => {
+  const a = APPS.find((x) => x.id === id)!;
+  return { name: a.name, to: a.to };
+};
+const solution = (name: string): FooterLink => ({ name, to: `/templates?cat=${encodeURIComponent(SOLUTIONS.find((s) => s.name === name)!.cat)}` });
+
+/** Four columns of five links each, so the footer lines up evenly. */
+const COLUMNS: { title: string; links: FooterLink[] }[] = [
+  { title: 'Apps', links: ['docs', 'sheets', 'slides', 'forms', 'drive'].map(app) },
+  { title: 'Solutions', links: ['Small business', 'Enterprise', 'Education', 'Healthcare', 'Personal & students'].map(solution) },
+  {
+    title: 'Product',
+    links: [
+      { name: 'Features', to: '/#features' },
+      { name: 'Live demo', to: '/#playground' },
+      { name: 'Templates', to: '/templates' },
+      { name: 'Security', to: '/account#security' },
+      { name: 'Admin & teams', to: '/workspaces' },
+    ],
+  },
+  {
+    title: 'Project',
+    links: [
+      { name: 'How it works', to: '/#how' },
+      { name: 'About', to: '/#about' },
+      { name: 'Source code', to: REPO_URL, external: true },
+      { name: 'LinkedIn', to: AUTHOR.linkedin, external: true },
+      { name: 'GitHub', to: AUTHOR.github, external: true },
+    ],
+  },
+];
 
 export function SiteFooter() {
   return (
@@ -10,56 +44,26 @@ export function SiteFooter() {
         <div className="footer-brand">
           <Brand />
           <p>A real-time collaborative editor built on a conflict-free replicated data type, written from scratch.</p>
-        </div>
-        <div className="footer-col footer-apps">
-          <h4>Included applications</h4>
-          <div className="footer-apps-grid">
-            {APPS.map((a) => (
-              <Link key={a.id} to={a.to}>
-                {a.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-        <div className="footer-col footer-apps">
-          <h4>Solutions</h4>
-          <div className="footer-apps-grid">
-            {SOLUTIONS.map((x) => (
-              <Link key={x.name} to={`/templates?cat=${encodeURIComponent(x.cat)}`}>
-                {x.name}
-              </Link>
-            ))}
-          </div>
-        </div>
-        <div className="footer-col">
-          <h4>Security and management</h4>
-          {MANAGEMENT.map((m) => (
-            <Link key={m.name} to={m.to}>
-              {m.name}
-            </Link>
-          ))}
-          <h4 className="footer-sub">Product</h4>
-          <Link to="/#features">Features</Link>
-          <Link to="/#playground">Live demo</Link>
-          <Link to="/templates">Templates</Link>
-          <Link to="/signup">Create an account</Link>
-        </div>
-        <div className="footer-col">
-          <h4>Project</h4>
-          <Link to="/#how">How it works</Link>
-          <Link to="/#about">About</Link>
-          <a href={REPO_URL} target="_blank" rel="noreferrer">
-            Source code
-          </a>
-          <h4 className="footer-sub">Contact</h4>
-          <a href={`mailto:${AUTHOR.email}`}>{AUTHOR.email}</a>
-          <a href={AUTHOR.linkedin} target="_blank" rel="noreferrer">
-            LinkedIn
-          </a>
-          <a href={AUTHOR.github} target="_blank" rel="noreferrer">
-            GitHub
+          <a className="footer-mail" href={`mailto:${AUTHOR.email}`}>
+            {AUTHOR.email}
           </a>
         </div>
+        {COLUMNS.map((c) => (
+          <nav key={c.title} className="footer-col" aria-label={c.title}>
+            <h4>{c.title}</h4>
+            {c.links.map((l) =>
+              l.external ? (
+                <a key={l.name} href={l.to} target="_blank" rel="noreferrer">
+                  {l.name}
+                </a>
+              ) : (
+                <Link key={l.name} to={l.to}>
+                  {l.name}
+                </Link>
+              ),
+            )}
+          </nav>
+        ))}
       </div>
       <div className="footer-bottom">
         <span>
