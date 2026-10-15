@@ -50,6 +50,22 @@ describe('professional templates', () => {
     for (const p of PHOTOS) assert.ok(fs.existsSync(`client/public/tpl/${p}.jpg`), p);
   });
 
+  it('asks Google for extra permissions only when a feature is switched on', async () => {
+    const { authorizeUrl, GOOGLE_EXTRAS } = await import('../server/oauth.ts');
+    process.env.GOOGLE_CLIENT_ID = 'x.apps.googleusercontent.com';
+    process.env.GOOGLE_CLIENT_SECRET = 'secret';
+    try {
+      const plain = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true)).searchParams.get('scope') ?? '';
+      const gmail = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['gmail'])).searchParams.get('scope') ?? '';
+      assert.ok(!plain.includes('gmail'));
+      for (const sc of GOOGLE_EXTRAS.gmail) assert.ok(gmail.includes(sc));
+      assert.ok(gmail.includes('drive.readonly'));
+    } finally {
+      delete process.env.GOOGLE_CLIENT_ID;
+      delete process.env.GOOGLE_CLIENT_SECRET;
+    }
+  });
+
   it('cleans what copying adds to a key', () => {
     const k = 'AQ.Ab8abcdefghijklmnop-XYZ';
     for (const messy of [` ${k}
@@ -146,6 +162,12 @@ describe('workspace apps', () => {
     assert.equal((await api('/integrations/github/token', { method: 'POST', body: { token: 'not-a-token' } })).status, 400);
     assert.equal((await api('/integrations/setup/google', { method: 'PUT', body: { clientId: 'x.apps.googleusercontent.com', clientSecret: 'secretsecret' } })).status, 403);
     assert.equal((await api('/integrations/github/repos')).status, 400, 'needs a connection first');
+    for (const path of ['/integrations/google/gmail', '/integrations/google/youtube', '/integrations/google/tasks', '/integrations/google/files']) {
+      const r = await api(path);
+      assert.equal(r.status, 400, path);
+      assert.match(r.body.error, /Connect your Google account/);
+    }
+    assert.deepEqual(st.google.features, {});
   });
 
   it('saves the new appearance and accessibility settings', async () => {

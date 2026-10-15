@@ -12,6 +12,7 @@ export interface ServiceStatus {
   account: { login?: string; name?: string; email?: string; avatar?: string | null; url?: string } | null;
   redirectUri: string;
   scopes: string;
+  features: Partial<Record<'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar', boolean>>;
 }
 export interface Integrations {
   owner: boolean;

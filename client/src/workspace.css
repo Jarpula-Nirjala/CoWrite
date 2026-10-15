@@ -1829,3 +1829,101 @@ button.repo-card:hover {
   background: color-mix(in srgb, #1a73e8 8%, var(--surface));
   color: var(--text);
 }
+
+/* Gmail, YouTube and Tasks tabs */
+.allow-card h3 {
+  margin: 0.6rem 0 0.2rem;
+}
+.allow-card > span {
+  opacity: 1 !important;
+}
+.allow-card p {
+  max-width: 560px;
+  text-align: center;
+}
+.mail-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.mail-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.mail-list li:last-child {
+  border-bottom: 0;
+}
+.mail-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.mail-text b,
+.mail-snippet {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mail-snippet {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.yt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.yt-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.yt-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--bg-alt);
+}
+.yt-card b {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 0.95rem;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.gtasks {
+  margin: 4px 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.gtasks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.gtasks li.done label {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.send-logo {
+  font-size: 1.6rem;
+}
+.to-google {
+  align-self: center;
+  margin-right: 8px;
+  color: var(--accent);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}

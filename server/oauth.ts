@@ -33,6 +33,15 @@ export const LINK_SCOPES: Record<Provider, string> = {
   github: 'read:user user:email repo gist',
 };
 
+/** Extra Google permissions, asked for only when someone switches the feature on. */
+export const GOOGLE_EXTRAS: Record<string, string[]> = {
+  gmail: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+  youtube: ['https://www.googleapis.com/auth/youtube.readonly'],
+  sheets: ['https://www.googleapis.com/auth/spreadsheets'],
+  tasks: ['https://www.googleapis.com/auth/tasks'],
+  calendar: ['https://www.googleapis.com/auth/calendar.events'],
+};
+
 const saved: Partial<Record<Provider, { id: string; secret: string }>> = {};
 const env = (p: Provider) => (p === 'google' ? { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET } : { id: process.env.GITHUB_CLIENT_ID, secret: process.env.GITHUB_CLIENT_SECRET });
 const creds = (p: Provider) => {
@@ -75,10 +84,11 @@ export async function saveOAuthClient(db: Db, vault: Vault, p: Provider, client:
   saved[p] = client;
 }
 
-export function authorizeUrl(p: Provider, redirectUri: string, state: string, link = false): string {
+export function authorizeUrl(p: Provider, redirectUri: string, state: string, link = false, extras: string[] = []): string {
   const { id } = creds(p);
   if (p === 'google') {
-    const q = new URLSearchParams({ client_id: id!, redirect_uri: redirectUri, response_type: 'code', scope: link ? LINK_SCOPES.google : 'openid email profile', state, prompt: link ? 'consent' : 'select_account' });
+    const scope = link ? [LINK_SCOPES.google, ...extras.flatMap((x) => GOOGLE_EXTRAS[x] ?? [])].join(' ') : 'openid email profile';
+    const q = new URLSearchParams({ client_id: id!, redirect_uri: redirectUri, response_type: 'code', scope, state, prompt: link ? 'consent' : 'select_account' });
     if (link) {
       q.set('access_type', 'offline');
       q.set('include_granted_scopes', 'true');

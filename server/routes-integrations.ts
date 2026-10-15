@@ -1,8 +1,9 @@
 import express from 'express';
+import { marked } from 'marked';
 import { toMarkdown } from '../shared/rich.ts';
 import { docAccess, type AppCtx } from './context.ts';
 import { HttpError, publicUrl, rateLimit, requireUser, str } from './http.ts';
-import { clientSource, enabledProviders, LINK_SCOPES, refreshGoogle, saveOAuthClient, type OAuthTokens, type Provider } from './oauth.ts';
+import { clientSource, enabledProviders, GOOGLE_EXTRAS, LINK_SCOPES, refreshGoogle, saveOAuthClient, type OAuthTokens, type Provider } from './oauth.ts';
 
 interface Row {
   access_token: string;
@@ -99,6 +100,8 @@ export function integrationRoutes(ctx: AppCtx) {
         account: it?.account ?? null,
         since: it?.created_at ?? null,
         redirectUri: `${publicUrl(req)}/api/auth/oauth/${p}/callback`,
+        // Which optional Google features this connection has permission for.
+        features: p === 'google' && it ? Object.fromEntries(Object.entries(GOOGLE_EXTRAS).map(([k, scopes]) => [k, scopes.every((sc) => it.scope.includes(sc))])) : {},
         scopes: LINK_SCOPES[p],
       };
     };
@@ -339,6 +342,221 @@ export function integrationRoutes(ctx: AppCtx) {
       body,
     });
     res.json({ url: out.webViewLink });
+  });
+
+  // ------------------------------------------------------------------ Gmail
+
+  const header = (h: { name: string; value: string }[] | undefined, n: string) => h?.find((x) => x.name.toLowerCase() === n)?.value ?? '';
+  type GmailPart = { mimeType: string; body?: { data?: string }; parts?: GmailPart[]; headers?: { name: string; value: string }[] };
+  const b64url = (s: string) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+  function bodyOf(part: GmailPart): { text: string; html: string } {
+    let text = '';
+    let html = '';
+    const walk = (p: GmailPart) => {
+      if (p.mimeType === 'text/plain' && p.body?.data && !text) text = b64url(p.body.data);
+      else if (p.mimeType === 'text/html' && p.body?.data && !html) html = b64url(p.body.data);
+      p.parts?.forEach(walk);
+    };
+    walk(part);
+    return { text, html };
+  }
+
+  r.get('/integrations/google/gmail', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const q = str(req.query.q, 200);
+    const list = await call<{ messages?: { id: string }[] }>('google', t, `https://gmail.googleapis.com/gmail/v1/users/me/messages?${new URLSearchParams({ maxResults: '25', ...(q ? { q } : { labelIds: 'INBOX' }) })}`);
+    const msgs = await Promise.all(
+      (list.messages ?? []).map((m) =>
+        call<{ id: string; snippet: string; internalDate: string; payload: { headers: { name: string; value: string }[] } }>(
+          'google',
+          t,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${m.id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From`,
+        ),
+      ),
+    );
+    res.json({
+      messages: msgs.map((m) => ({ id: m.id, subject: header(m.payload.headers, 'subject') || '(no subject)', from: header(m.payload.headers, 'from'), snippet: m.snippet, date: Number(m.internalDate) })),
+    });
+  });
+
+  r.get('/integrations/google/gmail/:id', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const m = await call<{ internalDate: string; payload: GmailPart }>('google', t, `https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(String(req.params.id))}?format=full`);
+    const { text, html } = bodyOf(m.payload);
+    res.json({
+      subject: header(m.payload.headers, 'subject') || '(no subject)',
+      from: header(m.payload.headers, 'from'),
+      to: header(m.payload.headers, 'to'),
+      date: Number(m.internalDate),
+      text: (text || html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/gi, '').replace(/<br\s*\/?>|<\/p>|<\/div>|<\/li>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"')).replace(/\n{3,}/g, '\n\n').trim().slice(0, 200_000),
+    });
+  });
+
+  r.post('/docs/:id/send/gmail', rateLimit(20, 10 * 60_000), async (req, res) => {
+    const a = await docAccess(ctx, req, res, 'viewer', { registered: true });
+    const t = await token(a.user!.id, 'google');
+    const to = str(req.body?.to, 500)
+      .split(/[,;\s]+/)
+      .filter(Boolean);
+    if (!to.length || to.some((x) => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) throw new HttpError(400, 'Enter valid email addresses, separated by commas.');
+    const title = a.doc?.title ?? 'Document';
+    const subject = str(req.body?.subject, 200) || title;
+    const note = str(req.body?.note, 2000);
+    const html = `${note ? `<p>${note.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>')}</p><hr>` : ''}${await marked.parse(await markdownOf(a.docId))}<p style="color:#888;font-size:12px">Sent from CoWrite · <a href="${publicUrl(req)}/d/${a.docId}">open the live document</a></p>`;
+    const mime = [
+      `To: ${to.join(', ')}`,
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: base64',
+      '',
+      Buffer.from(html).toString('base64'),
+    ].join('\r\n');
+    await call('google', t, 'https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ raw: Buffer.from(mime).toString('base64url') }),
+    });
+    res.json({ ok: true, sentTo: to });
+  });
+
+  // ---------------------------------------------------------------- YouTube
+
+  type YtItem = { id: string | { videoId?: string }; snippet: { title: string; channelTitle: string; publishedAt: string; thumbnails: { medium?: { url: string }; default?: { url: string } }; resourceId?: { videoId: string } } };
+  const ytOut = (items: YtItem[]) =>
+    items
+      .map((v) => ({
+        id: typeof v.id === 'string' ? (v.snippet.resourceId?.videoId ?? v.id) : (v.id.videoId ?? ''),
+        title: v.snippet.title,
+        channel: v.snippet.channelTitle,
+        published: v.snippet.publishedAt,
+        thumb: v.snippet.thumbnails.medium?.url ?? v.snippet.thumbnails.default?.url ?? '',
+      }))
+      .filter((v) => v.id);
+
+  r.get('/integrations/google/youtube', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const q = str(req.query.q, 200).trim();
+    if (q) {
+      const out = await call<{ items: YtItem[] }>('google', t, `https://www.googleapis.com/youtube/v3/search?${new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '18', q, safeSearch: 'moderate' })}`);
+      res.json({ videos: ytOut(out.items) });
+      return;
+    }
+    // No search: the person's own uploads.
+    const ch = await call<{ items?: { contentDetails: { relatedPlaylists: { uploads: string } } }[] }>('google', t, 'https://www.googleapis.com/youtube/v3/channels?part=contentDetails&mine=true');
+    const uploads = ch.items?.[0]?.contentDetails.relatedPlaylists.uploads;
+    if (!uploads) {
+      res.json({ videos: [], noChannel: true });
+      return;
+    }
+    const out = await call<{ items: YtItem[] }>('google', t, `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=24&playlistId=${encodeURIComponent(uploads)}`);
+    res.json({ videos: ytOut(out.items) });
+  });
+
+  // ----------------------------------------------------------------- Sheets
+
+  r.get('/integrations/google/sheets/:id', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const id = encodeURIComponent(String(req.params.id));
+    const meta = await call<{ properties: { title: string }; sheets: { properties: { title: string } }[] }>('google', t, `https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=properties.title,sheets.properties.title`);
+    const first = meta.sheets[0]?.properties.title ?? 'Sheet1';
+    const vals = await call<{ values?: string[][] }>('google', t, `https://sheets.googleapis.com/v4/spreadsheets/${id}/values/${encodeURIComponent(`'${first.replace(/'/g, "''")}'!A1:Z500`)}?valueRenderOption=FORMULA`);
+    res.json({ title: meta.properties.title, rows: (vals.values ?? []).map((r) => r.map((c) => String(c ?? ''))) });
+  });
+
+  r.post('/docs/:id/send/sheets', rateLimit(20, 10 * 60_000), async (req, res) => {
+    const a = await docAccess(ctx, req, res, 'viewer', { registered: true });
+    const t = await token(a.user!.id, 'google');
+    if (a.doc?.kind !== 'sheet') throw new HttpError(400, 'Choose a spreadsheet.');
+    const room = await ctx.rooms.open(a.docId);
+    if (!room) throw new HttpError(503, 'Server busy, try again.');
+    if (room.encrypted) throw new HttpError(400, 'End-to-end encrypted documents cannot be sent to other services.');
+    const grid: string[][] = [];
+    for (const o of room.doc.objectsWith('cell:')) {
+      const m = /^cell:([A-Z]+)(\d+)$/.exec(o.key);
+      if (!m) continue;
+      const col = [...m[1]].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+      const row = Number(m[2]) - 1;
+      if (row > 5000 || col > 200) continue;
+      (grid[row] ??= [])[col] = String(o.fields.v ?? '');
+    }
+    const values = Array.from({ length: grid.length }, (_, r) => Array.from({ length: grid[r]?.length ?? 0 }, (_, c) => grid[r]?.[c] ?? ''));
+    const sheet = await call<{ spreadsheetId: string; spreadsheetUrl: string }>('google', t, 'https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ properties: { title: a.doc?.title ?? 'CoWrite sheet' } }),
+    });
+    if (values.length)
+      await call('google', t, `https://sheets.googleapis.com/v4/spreadsheets/${sheet.spreadsheetId}/values/A1?valueInputOption=USER_ENTERED`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ values }),
+      });
+    res.json({ url: sheet.spreadsheetUrl });
+  });
+
+  // ------------------------------------------------------------------ Tasks
+
+  r.get('/integrations/google/tasks', limiter, async (_req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const lists = await call<{ items?: { id: string; title: string }[] }>('google', t, 'https://tasks.googleapis.com/tasks/v1/users/@me/lists?maxResults=20');
+    const out = await Promise.all(
+      (lists.items ?? []).slice(0, 6).map(async (l) => {
+        const tasks = await call<{ items?: { id: string; title: string; notes?: string; due?: string; status: string }[] }>('google', t, `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(l.id)}/tasks?showCompleted=true&showHidden=false&maxResults=100`);
+        return { id: l.id, title: l.title, tasks: (tasks.items ?? []).filter((x) => x.title).map((x) => ({ id: x.id, title: x.title, notes: x.notes ?? '', due: x.due?.slice(0, 10) ?? null, done: x.status === 'completed' })) };
+      }),
+    );
+    res.json({ lists: out });
+  });
+
+  r.post('/integrations/google/tasks/:list', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const title = str(req.body?.title, 500).trim();
+    if (!title) throw new HttpError(400, 'Write the task first.');
+    const due = /^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.due)) ? `${req.body.due}T00:00:00.000Z` : undefined;
+    const task = await call<{ id: string }>('google', t, `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(String(req.params.list))}/tasks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title, ...(due ? { due } : {}) }),
+    });
+    res.status(201).json({ id: task.id });
+  });
+
+  r.patch('/integrations/google/tasks/:list/:task', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    await call('google', t, `https://tasks.googleapis.com/tasks/v1/lists/${encodeURIComponent(String(req.params.list))}/tasks/${encodeURIComponent(String(req.params.task))}`, {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(req.body?.done === true ? { status: 'completed' } : { status: 'needsAction', completed: null }),
+    });
+    res.json({ ok: true });
+  });
+
+  // ------------------------------------------------- Calendar (write)
+
+  r.post('/events/:eid/google', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const [e] = await db.query<{ title: string; notes: string; day: string; start_time: string | null; end_time: string | null }>('select title, notes, day, start_time, end_time from events where id = $1 and user_id = $2', [String(req.params.eid), user.id]);
+    if (!e) throw new HttpError(404, 'Event not found.');
+    const tz = str(req.body?.timeZone, 60) || 'UTC';
+    const next = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    const body = e.start_time
+      ? { start: { dateTime: `${e.day}T${e.start_time}:00`, timeZone: tz }, end: { dateTime: `${e.day}T${e.end_time ?? e.start_time}:00`, timeZone: tz } }
+      : { start: { date: e.day }, end: { date: next(e.day) } };
+    const out = await call<{ htmlLink: string }>('google', t, 'https://www.googleapis.com/calendar/v3/calendars/primary/events', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ summary: e.title, description: `${e.notes ? `${e.notes}\n\n` : ''}Added from CoWrite`, ...body }),
+    });
+    res.json({ url: out.htmlLink });
   });
 
   return r;

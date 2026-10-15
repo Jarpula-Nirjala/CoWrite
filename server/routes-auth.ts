@@ -5,7 +5,7 @@ import type { AppCtx } from './context.ts';
 import { HttpError, SESSION_COOKIE, currentUser, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
 import { cleanKey, inspectKey, keyCandidates, PROVIDER_NAMES } from './llm.ts';
-import { authorizeUrl, enabledProviders, exchangeCode, type Provider } from './oauth.ts';
+import { authorizeUrl, enabledProviders, exchangeCode, GOOGLE_EXTRAS, type Provider } from './oauth.ts';
 import { saveIntegration } from './routes-integrations.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
@@ -181,7 +181,10 @@ export function authRoutes(ctx: AppCtx) {
     // "link" connects the account to the signed-in user so CoWrite can read Drive, Calendar or repositories.
     const link = req.query.link === '1' && !!currentUser(res);
     res.cookie(STATE_COOKIE, `${state}|${next}|${link ? 'link' : 'signin'}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
-    res.redirect(authorizeUrl(p, redirectUri(req, p), state, link));
+    const extras = String(req.query.add ?? '')
+      .split(',')
+      .filter((x) => x in GOOGLE_EXTRAS);
+    res.redirect(authorizeUrl(p, redirectUri(req, p), state, link, extras));
   });
 
   r.get('/oauth/:provider/callback', async (req, res) => {

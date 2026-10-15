@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EMBED } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { api, errorText, timeAgo, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
@@ -9,7 +10,11 @@ import { Icon, Spinner } from '../components/ui.tsx';
 import { createAndOpen } from '../lib/create.ts';
 import { navigate, useSearch } from '../router.ts';
 
-type Tab = 'drive' | 'calendar' | 'repos' | 'gists' | 'send';
+type Tab = 'drive' | 'calendar' | 'gmail' | 'youtube' | 'tasks' | 'repos' | 'gists' | 'send';
+type Feature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar';
+
+/** Asks Google for one more permission (the ones already given are kept). */
+export const allowUrl = (f: Feature, tab: string) => `/api/auth/oauth/google?link=1&add=${f}&next=${encodeURIComponent(`/connections?tab=${tab}`)}`;
 
 /** Open Google Drive files, Google Calendar, GitHub repositories and gists inside CoWrite, and send documents back. */
 export function ConnectionsPage() {
@@ -25,8 +30,10 @@ export function ConnectionsPage() {
   }, [ready, user]);
   useEffect(() => {
     if (!data) return;
-    if (just === 'github' || (!data.google.connected && data.github.connected)) setTab('repos');
-  }, [data, just]);
+    const want = new URLSearchParams(search).get('tab') as Tab | null;
+    if (want) setTab(want);
+    else if (just === 'github' || (!data.google.connected && data.github.connected)) setTab('repos');
+  }, [data, just, search]);
 
   if (!ready || !user || !data) return <Spinner />;
   const g = data.google.connected;
@@ -34,6 +41,9 @@ export function ConnectionsPage() {
   const tabs: { id: Tab; label: string; on: boolean; logo: 'g' | 'gh' | null }[] = [
     { id: 'drive', label: 'Google Drive', on: g, logo: 'g' },
     { id: 'calendar', label: 'Google Calendar', on: g, logo: 'g' },
+    { id: 'gmail', label: 'Gmail', on: g, logo: 'g' },
+    { id: 'youtube', label: 'YouTube', on: g, logo: 'g' },
+    { id: 'tasks', label: 'Google Tasks', on: g, logo: 'g' },
     { id: 'repos', label: 'GitHub repositories', on: gh, logo: 'gh' },
     { id: 'gists', label: 'GitHub gists', on: gh, logo: 'gh' },
     { id: 'send', label: 'Send a document', on: g || gh, logo: null },
@@ -62,20 +72,26 @@ export function ConnectionsPage() {
                 </button>
               ))}
             </nav>
-            {(tab === 'drive' || tab === 'calendar') && !g ? (
+            {['drive', 'calendar', 'gmail', 'youtube', 'tasks'].includes(tab) && !g ? (
               <NotConnected name="Google" onDone={reload} />
             ) : (tab === 'repos' || tab === 'gists') && !gh ? (
               <NotConnected name="GitHub" onDone={reload} />
             ) : tab === 'drive' ? (
-              <DriveTab />
+              <DriveTab sheets={!!data.google.features.sheets} />
             ) : tab === 'calendar' ? (
               <CalendarTab />
+            ) : tab === 'gmail' ? (
+              data.google.features.gmail ? <GmailTab /> : <Allow f="gmail" tab="gmail" what="read your inbox to bring emails into CoWrite, and send documents from your Gmail" />
+            ) : tab === 'youtube' ? (
+              data.google.features.youtube ? <YouTubeTab /> : <Allow f="youtube" tab="youtube" what="search YouTube and list your own videos, so you can put them in documents" />
+            ) : tab === 'tasks' ? (
+              data.google.features.tasks ? <TasksTab /> : <Allow f="tasks" tab="tasks" what="see, tick off and add your Google Tasks" />
             ) : tab === 'repos' ? (
               <ReposTab />
             ) : tab === 'gists' ? (
               <GistsTab />
             ) : (
-              <SendTab google={g} github={gh} />
+              <SendTab google={g} github={gh} features={data.google.features} />
             )}
           </>
         )}
@@ -115,7 +131,7 @@ function csvToMarkdown(csv: string): string {
 
 const KIND_ICON: Record<string, string> = { doc: '📄', sheet: '📊', slides: '📽️', pdf: '📕', text: '📃' };
 
-function DriveTab() {
+function DriveTab({ sheets }: { sheets: boolean }) {
   const [q, setQ] = useState('');
   const [files, setFiles] = useState<{ id: string; name: string; kind: string; modified: string; url: string; owner: string }[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -130,6 +146,14 @@ function DriveTab() {
     setBusy(id);
     setError(null);
     try {
+      if (kind === 'sheet' && sheets) {
+        // A real CoWrite spreadsheet, formulas included.
+        const r = await api<{ title: string; rows: string[][] }>(`/integrations/google/sheets/${id}`);
+        const col = (c: number) => (c < 26 ? String.fromCharCode(65 + c) : String.fromCharCode(64 + Math.floor(c / 26)) + String.fromCharCode(65 + (c % 26)));
+        const objects = r.rows.flatMap((row, ri) => row.map((v, ci) => ({ key: `cell:${col(ci)}${ri + 1}`, fields: { v, ...(ri === 0 ? { b: true } : {}) } as Record<string, unknown> }))).filter((o) => o.fields.v !== '');
+        await createAndOpen(r.title, 'sheet', { tokens: [], objects });
+        return;
+      }
       const r = await api<{ name: string; text: string }>(`/integrations/google/file/${id}`);
       await importText(r.name, r.text, kind === 'sheet');
     } catch (e) {
@@ -150,7 +174,10 @@ function DriveTab() {
           <Icon name="search" size={16} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your Drive" aria-label="Search Drive" />
         </label>
-        <span className="muted small">Google Docs, Sheets, Slides and text files, newest first.</span>
+        <span className="muted small">
+          Google Docs, Sheets, Slides and text files, newest first.{' '}
+          {!sheets && <a href={allowUrl('sheets', 'drive')}>Allow Google Sheets to open sheets as real spreadsheets →</a>}
+        </span>
       </form>
       {error && <p className="error-text">{error}</p>}
       {!files ? (
@@ -219,7 +246,10 @@ function CalendarTab() {
   };
   return (
     <section>
-      <p className="muted">Your next 30 days from Google Calendar. They also appear on the CoWrite <a href="/calendar">Calendar</a> page.</p>
+      <p className="muted">
+        Your next 30 days from Google Calendar. They also appear on the CoWrite <a href="/calendar">Calendar</a> page.{' '}
+        <a href={allowUrl('calendar', 'calendar')}>Allow adding CoWrite events to Google Calendar →</a>
+      </p>
       {error && <p className="error-text">{error}</p>}
       {!events ? (
         <Spinner />
@@ -401,7 +431,11 @@ function GistsTab() {
   );
 }
 
-function SendTab({ google, github }: { google: boolean; github: boolean }) {
+function SendTab({ google, github, features }: { google: boolean; github: boolean; features: Partial<Record<Feature, boolean>> }) {
+  const [to, setTo] = useState('');
+  const [note, setNote] = useState('');
+  const [allDocs, setAllDocs] = useState<DocMeta[]>([]);
+  const [sheet, setSheet] = useState('');
   const [docs, setDocs] = useState<DocMeta[] | null>(null);
   const [doc, setDoc] = useState('');
   const [repos, setRepos] = useState<{ fullName: string }[]>([]);
@@ -411,16 +445,38 @@ function SendTab({ google, github }: { google: boolean; github: boolean }) {
   const [result, setResult] = useState<{ text: string; url: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    api<{ documents: DocMeta[] }>('/docs').then((r) => (setDocs(r.documents.filter((d) => d.kind === 'doc' && !d.encrypted)), setDoc(r.documents.find((d) => d.kind === 'doc' && !d.encrypted)?.id ?? '')), () => setDocs([]));
+    api<{ documents: DocMeta[] }>('/docs').then(
+      (r) => {
+        setAllDocs(r.documents);
+        setDocs(r.documents.filter((d) => d.kind === 'doc' && !d.encrypted));
+        setDoc(r.documents.find((d) => d.kind === 'doc' && !d.encrypted)?.id ?? '');
+        setSheet(r.documents.find((d) => d.kind === 'sheet' && !d.encrypted)?.id ?? '');
+      },
+      () => setDocs([]),
+    );
     if (github) api<{ repos: { fullName: string }[] }>('/integrations/github/repos').then((r) => (setRepos(r.repos), setRepo(r.repos[0]?.fullName ?? '')), () => {});
   }, [github]);
-  const send = async (where: 'google' | 'gist' | 'github') => {
+  const send = async (where: 'google' | 'gist' | 'github' | 'gmail' | 'sheets') => {
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const r = await api<{ url: string; updated?: boolean }>(`/docs/${doc}/send/${where}`, { method: 'POST', body: where === 'github' ? { repo, path } : where === 'gist' ? { public: false } : {} });
-      setResult({ url: r.url, text: where === 'google' ? 'Saved as a Google Doc.' : where === 'gist' ? 'Saved as a private gist.' : r.updated ? 'Updated the file on GitHub.' : 'Added the file to GitHub.' });
+      const target = where === 'sheets' ? sheet : doc;
+      const body = where === 'github' ? { repo, path } : where === 'gist' ? { public: false } : where === 'gmail' ? { to, note } : {};
+      const r = await api<{ url?: string; updated?: boolean; sentTo?: string[] }>(`/docs/${target}/send/${where}`, { method: 'POST', body });
+      const text =
+        where === 'gmail'
+          ? `Emailed to ${r.sentTo?.join(', ')}.`
+          : where === 'sheets'
+            ? 'Saved to Google Sheets.'
+            : where === 'google'
+              ? 'Saved as a Google Doc.'
+              : where === 'gist'
+                ? 'Saved as a private gist.'
+                : r.updated
+                  ? 'Updated the file on GitHub.'
+                  : 'Added the file to GitHub.';
+      setResult({ url: r.url ?? '', text });
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -450,6 +506,46 @@ function SendTab({ google, github }: { google: boolean; github: boolean }) {
           </button>
         </div>
         <div className="send-card">
+          <span className="send-logo">✉️</span>
+          <b>Email with Gmail</b>
+          <small className="muted">Sends the document, formatted, from your own Gmail.</small>
+          {features.gmail ? (
+            <>
+              <input className="input" value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com, …" aria-label="Recipients" />
+              <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="A short note (optional)" aria-label="Note" />
+              <button className="btn btn-primary btn-sm" disabled={!doc || !to.trim() || busy} onClick={() => void send('gmail')} type="button">
+                Send email
+              </button>
+            </>
+          ) : (
+            <a className="btn btn-outline btn-sm" href={allowUrl('gmail', 'send')}>
+              Allow Gmail
+            </a>
+          )}
+        </div>
+        <div className="send-card">
+          <span className="send-logo">📊</span>
+          <b>Spreadsheet to Google Sheets</b>
+          <select className="input" value={sheet} onChange={(e) => setSheet(e.target.value)} aria-label="Spreadsheet">
+            {allDocs
+              .filter((d) => d.kind === 'sheet' && !d.encrypted)
+              .map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+          </select>
+          {features.sheets ? (
+            <button className="btn btn-primary btn-sm" disabled={!sheet || busy} onClick={() => void send('sheets')} type="button">
+              Save to Google Sheets
+            </button>
+          ) : (
+            <a className="btn btn-outline btn-sm" href={allowUrl('sheets', 'send')}>
+              Allow Google Sheets
+            </a>
+          )}
+        </div>
+        <div className="send-card">
           <GitHubLogo size={28} />
           <b>Save as a GitHub gist</b>
           <small className="muted">A private gist with the document as Markdown.</small>
@@ -475,11 +571,238 @@ function SendTab({ google, github }: { google: boolean; github: boolean }) {
       {result && (
         <p className="ok-text">
           ✓ {result.text}{' '}
-          <a href={result.url} target="_blank" rel="noreferrer">
-            Open it ↗
-          </a>
+          {result.url && (
+            <a href={result.url} target="_blank" rel="noreferrer">
+              Open it ↗
+            </a>
+          )}
         </p>
       )}
+    </section>
+  );
+}
+
+function Allow({ f, tab, what }: { f: Feature; tab: string; what: string }) {
+  const name = { gmail: 'Gmail', youtube: 'YouTube', sheets: 'Google Sheets', tasks: 'Google Tasks', calendar: 'Google Calendar' }[f];
+  return (
+    <div className="keep-empty allow-card">
+      <span>
+        <GoogleLogo size={56} />
+      </span>
+      <h3>Allow CoWrite to use {name}</h3>
+      <p className="muted">CoWrite needs your permission to {what}. Google will ask you to confirm; you can remove access at any time in your Google account.</p>
+      <a className="btn btn-primary" href={allowUrl(f, tab)}>
+        Allow {name}
+      </a>
+      <p className="muted small">Make sure the {name} API is enabled in your Google Cloud project.</p>
+    </div>
+  );
+}
+
+function GmailTab() {
+  const [q, setQ] = useState('');
+  const [mails, setMails] = useState<{ id: string; subject: string; from: string; snippet: string; date: number }[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const load = (query = q) => {
+    setMails(null);
+    setError(null);
+    api<{ messages: NonNullable<typeof mails> }>(`/integrations/google/gmail?q=${encodeURIComponent(query)}`).then((r) => setMails(r.messages), (e) => (setMails([]), setError(errorText(e))));
+  };
+  useEffect(() => load(''), []);
+  const open = async (id: string) => {
+    setBusy(id);
+    try {
+      const m = await api<{ subject: string; from: string; to: string; date: number; text: string }>(`/integrations/google/gmail/${id}`);
+      await importText(m.subject, `# ${m.subject}\n**From:** ${m.from}  \n**To:** ${m.to}  \n**Date:** ${new Date(m.date).toLocaleString()}\n\n---\n\n${m.text}`);
+    } catch (e) {
+      setError(errorText(e));
+      setBusy(null);
+    }
+  };
+  return (
+    <section>
+      <form
+        className="tool-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          load();
+        }}
+      >
+        <label className="tpl-search">
+          <Icon name="search" size={16} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search mail, e.g. from:boss subject:report" aria-label="Search Gmail" />
+        </label>
+        <span className="muted small">Open an email as a document for notes, reply drafts or minutes. To email a document, use “Send a document”.</span>
+      </form>
+      {error && <p className="error-text">{error}</p>}
+      {!mails ? (
+        <Spinner />
+      ) : !mails.length ? (
+        <p className="muted">No emails found.</p>
+      ) : (
+        <ul className="mail-list">
+          {mails.map((m) => (
+            <li key={m.id}>
+              <span className="mail-text">
+                <b>{m.subject}</b>
+                <small className="muted">
+                  {m.from.replace(/<.*>/, '').trim()} · {timeAgo(m.date)}
+                </small>
+                <small className="mail-snippet">{m.snippet}</small>
+              </span>
+              <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => void open(m.id)} type="button">
+                {busy === m.id ? 'Opening…' : 'Open in CoWrite'}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function YouTubeTab() {
+  const [q, setQ] = useState('');
+  const [videos, setVideos] = useState<{ id: string; title: string; channel: string; published: string; thumb: string }[] | null>(null);
+  const [mine, setMine] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const load = (query: string) => {
+    setVideos(null);
+    setError(null);
+    setMine(!query);
+    api<{ videos: NonNullable<typeof videos>; noChannel?: boolean }>(`/integrations/google/youtube?q=${encodeURIComponent(query)}`).then(
+      (r) => {
+        setVideos(r.videos);
+        if (r.noChannel) setError('You have no YouTube channel yet. Search for any video above.');
+      },
+      (e) => (setVideos([]), setError(errorText(e))),
+    );
+  };
+  useEffect(() => load(''), []);
+  const toDoc = async (v: { id: string; title: string; channel: string }) => {
+    await createAndOpen(v.title, 'doc', {
+      tokens: [
+        ...markdownToTokens(`# ${v.title}\n*${v.channel}* · https://www.youtube.com/watch?v=${v.id}`),
+        { ch: EMBED, a: { atom: 'embed', src: `https://www.youtube-nocookie.com/embed/${v.id}`, kind: 'YouTube', ratio: 56.25, url: `https://www.youtube.com/watch?v=${v.id}` } },
+        { ch: '\n' },
+        ...markdownToTokens('## Notes\n- '),
+      ],
+      settings: { theme: 'simple', font: 'sans' },
+    });
+  };
+  const copy = (id: string) => void navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${id}`).then(() => (setCopied(id), setTimeout(() => setCopied(null), 1500)));
+  return (
+    <section>
+      <form
+        className="tool-row"
+        onSubmit={(e) => {
+          e.preventDefault();
+          load(q.trim());
+        }}
+      >
+        <label className="tpl-search">
+          <Icon name="search" size={16} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search YouTube" aria-label="Search YouTube" />
+        </label>
+        <span className="muted small">{mine ? 'Your uploads' : 'Search results'} · “Take notes” puts the video in a new document above your notes.</span>
+      </form>
+      {error && <p className="muted">{error}</p>}
+      {!videos ? (
+        <Spinner />
+      ) : (
+        <div className="yt-grid">
+          {videos.map((v) => (
+            <article key={v.id} className="yt-card">
+              <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noreferrer">
+                <img src={v.thumb} alt="" loading="lazy" />
+              </a>
+              <b>{v.title}</b>
+              <small className="muted">
+                {v.channel} · {new Date(v.published).toLocaleDateString()}
+              </small>
+              <span className="row-actions">
+                <button className="btn btn-primary btn-sm" onClick={() => void toDoc(v)} type="button">
+                  Take notes
+                </button>
+                <button className="btn btn-text btn-sm" onClick={() => copy(v.id)} type="button">
+                  {copied === v.id ? '✓ Copied' : 'Copy link'}
+                </button>
+              </span>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+interface TaskList {
+  id: string;
+  title: string;
+  tasks: { id: string; title: string; notes: string; due: string | null; done: boolean }[];
+}
+
+function TasksTab() {
+  const [lists, setLists] = useState<TaskList[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const load = () => api<{ lists: TaskList[] }>('/integrations/google/tasks').then((r) => setLists(r.lists), (e) => (setLists([]), setError(errorText(e))));
+  useEffect(() => {
+    void load();
+  }, []);
+  const toggle = async (list: string, id: string, done: boolean) => {
+    setLists((ls) => ls?.map((l) => (l.id !== list ? l : { ...l, tasks: l.tasks.map((t) => (t.id === id ? { ...t, done } : t)) })) ?? null);
+    await api(`/integrations/google/tasks/${encodeURIComponent(list)}/${encodeURIComponent(id)}`, { method: 'PATCH', body: { done } }).catch((e) => setError(errorText(e)));
+  };
+  const add = async (list: string) => {
+    const title = (draft[list] ?? '').trim();
+    if (!title) return;
+    setDraft({ ...draft, [list]: '' });
+    await api(`/integrations/google/tasks/${encodeURIComponent(list)}`, { method: 'POST', body: { title } }).catch((e) => setError(errorText(e)));
+    void load();
+  };
+  const toChecklist = (l: TaskList) => void importText(l.title, `# ${l.title}\n${l.tasks.map((t) => `- [${t.done ? 'x' : ' '}] ${t.title}${t.due ? ` (due ${t.due})` : ''}`).join('\n')}`);
+  if (!lists) return <Spinner />;
+  return (
+    <section>
+      {error && <p className="error-text">{error}</p>}
+      <div className="repo-grid">
+        {lists.map((l) => (
+          <div key={l.id} className="repo-card tasks-card">
+            <div className="row-between">
+              <b>✅ {l.title}</b>
+              <button className="btn btn-text btn-sm" onClick={() => toChecklist(l)} type="button">
+                Open as checklist
+              </button>
+            </div>
+            <ul className="gtasks">
+              {l.tasks.map((t) => (
+                <li key={t.id} className={t.done ? 'done' : ''}>
+                  <label>
+                    <input type="checkbox" checked={t.done} onChange={(e) => void toggle(l.id, t.id, e.target.checked)} /> {t.title}
+                  </label>
+                  {t.due && <small className="muted">{t.due}</small>}
+                </li>
+              ))}
+              {!l.tasks.length && <li className="muted">No tasks.</li>}
+            </ul>
+            <form
+              className="chat-ask"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void add(l.id);
+              }}
+            >
+              <input value={draft[l.id] ?? ''} onChange={(e) => setDraft({ ...draft, [l.id]: e.target.value })} placeholder="Add a task" aria-label={`Add a task to ${l.title}`} />
+              <button className="btn btn-primary btn-sm" type="submit">
+                Add
+              </button>
+            </form>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }

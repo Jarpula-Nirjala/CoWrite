@@ -75,6 +75,19 @@ export function CalendarPage() {
   const [editing, setEditing] = useState<Partial<CalEvent> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showDone, setShowDone] = useState(false);
+  const [gcalWrite, setGcalWrite] = useState(false);
+  const [sent, setSent] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    api<{ google: { connected: boolean; features: { calendar?: boolean } } }>('/integrations').then((r) => setGcalWrite(r.google.connected && !!r.google.features.calendar), () => {});
+  }, []);
+  const toGoogle = async (id: string) => {
+    try {
+      await api(`/events/${id}/google`, { method: 'POST', body: { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+      setSent((x) => new Set([...x, id]));
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
 
   const loadEvents = useCallback(() => {
     // Everything visible in the grid, plus the next two months for "Upcoming".
@@ -252,6 +265,11 @@ export function CalendarPage() {
                     </strong>
                     {e.notes && <span className="muted small">{e.notes}</span>}
                   </button>
+                  {gcalWrite && !e.id.startsWith('g:') && (
+                    <button className="link-btn to-google" disabled={sent.has(e.id)} onClick={() => void toGoogle(e.id)} title="Add this event to your Google Calendar" type="button">
+                      {sent.has(e.id) ? '✓ In Google' : '→ Google'}
+                    </button>
+                  )}
                 </li>
               ))}
               {day?.tasks.map((t) => (
