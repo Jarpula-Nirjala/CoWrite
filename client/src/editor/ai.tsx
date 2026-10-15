@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Icon } from '../components/ui.tsx';
 import { Link } from '../router.ts';
 import { useSpeech } from './speech.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 export type AiAction = 'continue' | 'summarize' | 'rewrite' | 'grammar' | 'shorten' | 'expand' | 'custom' | 'tone';
 
@@ -15,13 +16,13 @@ const ACTIONS: { id: Exclude<AiAction, 'custom' | 'tone'>; label: string; hint: 
 ];
 
 export const TONES = [
-  { id: 'formal', label: '🎩 Formal' },
-  { id: 'casual', label: '😊 Casual' },
-  { id: 'persuasive', label: '📣 Persuasive' },
-  { id: 'simple', label: '🧒 Simpler' },
-  { id: 'friendly', label: '🤝 Friendly' },
-  { id: 'confident', label: '💪 Confident' },
-  { id: 'academic', label: '🎓 Academic' },
+  { id: 'formal', label: 'Formal' },
+  { id: 'casual', label: 'Casual' },
+  { id: 'persuasive', label: 'Persuasive' },
+  { id: 'simple', label: 'Simpler' },
+  { id: 'friendly', label: 'Friendly' },
+  { id: 'confident', label: 'Confident' },
+  { id: 'academic', label: 'Academic' },
 ] as const;
 
 export const LANGS = ['Hindi', 'Telugu', 'Tamil', 'Marathi', 'Bengali', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu', 'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Arabic', 'Russian'];
@@ -162,22 +163,28 @@ export function AiPanel(props: {
         <p className="small muted">{ai} reads the document like an editor and leaves comments on specific sentences.</p>
         <input className="input" value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (optional): e.g. persuasiveness for investors" maxLength={200} />
         <button className="btn btn-outline btn-sm" disabled={!!blocked || busy} onClick={() => props.onTool({ kind: 'review', focus })} type="button">
-          💬 Review my document
+          <Glyph e="💬" size={16} /> Review my document
         </button>
       </div>
 
       <h3 className="ai-h">Transform</h3>
       <div className="ai-tool">
         <button className="ai-action" disabled={!!blocked || busy || !props.signedIn} onClick={() => props.onTool({ kind: 'slides' })} type="button">
-          <strong>📊 Turn into a presentation</strong>
+          <strong>
+            <Glyph e="📊" size={16} /> Turn into a presentation
+          </strong>
           <span className="muted small">{props.signedIn ? 'Builds a themed slide deck with speaker notes.' : 'Sign in to create a deck.'}</span>
         </button>
         <button className="ai-action" disabled={!!writeBlocked || busy} onClick={() => props.onTool({ kind: 'summary-card' })} type="button">
-          <strong>🧾 Add a summary card</strong>
+          <strong>
+            <Glyph e="🧾" size={16} /> Add a summary card
+          </strong>
           <span className="muted small">A live TL;DR at the top you can refresh any time.</span>
         </button>
         <button className="ai-action" disabled={!!writeBlocked || busy} onClick={() => props.onTool({ kind: 'photo-notes' })} type="button">
-          <strong>📷 Photo of notes → text</strong>
+          <strong>
+            <Glyph e="📷" size={16} /> Photo of notes to text
+          </strong>
           <span className="muted small">Upload a whiteboard or notebook photo; {ai} types it up.</span>
         </button>
         <div className="ai-row">
@@ -187,7 +194,7 @@ export function AiPanel(props: {
             ))}
           </select>
           <button className="btn btn-outline btn-sm" disabled={!!blocked || busy || !props.signedIn} onClick={() => props.onTool({ kind: 'translate', lang })} type="button" title="Creates a linked copy that re-translates itself when this document changes">
-            🌐 Live translation
+            <Glyph e="🌐" size={16} /> Live translation
           </button>
         </div>
       </div>

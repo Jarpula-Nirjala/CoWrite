@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from '../router.ts';
 import { localPrefs } from '../lib/prefs.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 export interface Writing {
   today: number;
@@ -49,12 +50,14 @@ export function StreakPanel({ writing }: { writing: Writing }) {
         </div>
         <div className="streak-stats">
           <div className="streak-big">
-            <span aria-hidden>{writing.streak > 0 ? '🔥' : '✏️'}</span>
+            <span aria-hidden>
+              <Glyph e={writing.streak > 0 ? '🔥' : '✏️'} size={40} />
+            </span>
             <strong>{writing.streak}</strong>
             <span>day{writing.streak === 1 ? '' : 's'} in a row</span>
           </div>
           <p className="muted small">
-            Longest streak: {writing.longest} day{writing.longest === 1 ? '' : 's'}. {pct >= 1 ? 'Goal reached today. 🎉' : writing.streak > 0 && writing.today === 0 ? 'Write something today to keep your streak.' : 'Words are estimated from characters typed.'}{' '}
+            Longest streak: {writing.longest} day{writing.longest === 1 ? '' : 's'}. {pct >= 1 ? 'Goal reached today.' : writing.streak > 0 && writing.today === 0 ? 'Write something today to keep your streak.' : 'Words are estimated from characters typed.'}{' '}
             <Link to="/account">Change goal</Link>
           </p>
         </div>

@@ -5,6 +5,7 @@ import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Modal, Spinner } from '../components/ui.tsx';
 import { Link, navigate } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 interface Task {
   docId: string;
@@ -101,7 +102,7 @@ export function CalendarPage() {
           const st = new Date(g.start);
           const en = new Date(g.end);
           const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-          return { id: `g:${g.id}`, title: `🗓 ${g.title}`, notes: g.url, day: g.allDay ? g.start.slice(0, 10) : ymd(st), start: g.allDay ? null : hm(st), end: g.allDay ? null : hm(en), color: 'teal', kind: 'meeting', remind: false };
+          return { id: `g:${g.id}`, title: g.title, notes: g.url, day: g.allDay ? g.start.slice(0, 10) : ymd(st), start: g.allDay ? null : hm(st), end: g.allDay ? null : hm(en), color: 'teal', kind: 'meeting', remind: false };
         }),
       () => [] as CalEvent[],
     );
@@ -216,9 +217,9 @@ export function CalendarPage() {
                 const items = byDay.get(k);
                 const other = d.getMonth() !== month.getMonth();
                 const chips = [
-                  ...(items?.events ?? []).map((e) => ({ key: e.id, label: `${kindOf(e.kind).icon} ${e.title}`, color: EVENT_COLORS[e.color] ?? EVENT_COLORS.blue })),
+                  ...(items?.events ?? []).map((e) => ({ key: e.id, label: e.title, color: EVENT_COLORS[e.color] ?? EVENT_COLORS.blue })),
                   ...(items?.tasks ?? []).map((t) => ({ key: t.docId + t.key, label: `☐ ${t.text || 'Task'}`, color: !t.done && k < today ? '#d93025' : '#188038' })),
-                  ...(items?.reminders ?? []).map((r) => ({ key: r.id, label: `⏰ ${r.note}`, color: '#f29900' })),
+                  ...(items?.reminders ?? []).map((r) => ({ key: r.id, label: r.note, color: '#f29900' })),
                 ];
                 return (
                   <button
@@ -261,7 +262,7 @@ export function CalendarPage() {
                   <button className="day-event-btn" onClick={() => (e.id.startsWith('g:') ? window.open(e.notes, '_blank', 'noopener') : setEditing(e))} title={e.id.startsWith('g:') ? 'From Google Calendar: opens in Google' : undefined} type="button">
                     <span className="day-time">{e.start ? `${fmtTime(e.start)}${e.end ? ` – ${fmtTime(e.end)}` : ''}` : 'All day'}</span>
                     <strong>
-                      {kindOf(e.kind).icon} {e.title}
+                      <Glyph e={kindOf(e.kind).icon} size={16} /> {e.title}
                     </strong>
                     {e.notes && <span className="muted small">{e.notes}</span>}
                   </button>
@@ -286,7 +287,9 @@ export function CalendarPage() {
                 <li key={r.id} className="day-event" style={{ '--c': '#f29900' } as React.CSSProperties}>
                   <span className="day-event-btn">
                     <span className="day-time">{new Date(r.at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}</span>
-                    <strong>⏰ {r.note}</strong>
+                    <strong>
+                    <Glyph e="⏰" size={16} /> {r.note}
+                  </strong>
                   </span>
                   <button className="link-btn" onClick={() => void api(`/reminders/${r.id}`, { method: 'DELETE' }).then(() => setReminders((x) => x.filter((y) => y.id !== r.id)))} aria-label="Delete reminder" type="button">
                     ×
@@ -306,7 +309,7 @@ export function CalendarPage() {
                           {parse(e.day).toLocaleDateString(undefined, { month: 'short' })}
                         </span>
                         <span>
-                          {kindOf(e.kind).icon} {e.title}
+                          <Glyph e={kindOf(e.kind).icon} size={16} /> {e.title}
                           <small className="muted">{e.start ? fmtTime(e.start) : 'All day'}</small>
                         </span>
                       </button>
@@ -402,7 +405,7 @@ function EventDialog({ initial, onClose, onSave, onDelete }: { initial: Partial<
         <div className="kind-row">
           {EVENT_KINDS.map((k) => (
             <button key={k.id} type="button" className={`kind-chip ${e.kind === k.id ? 'on' : ''}`} onClick={() => set({ kind: k.id, color: k.color })}>
-              {k.icon} {k.label}
+              <Glyph e={k.icon} size={16} /> {k.label}
             </button>
           ))}
         </div>

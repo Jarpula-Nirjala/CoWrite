@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { CallManager } from '../editor/rtc.ts';
 import { Icon } from './ui.tsx';
+import { ProductIcon } from './ProductIcon.tsx';
 
 /** Shown in a document opened as a meeting room until you join the call. */
 export function MeetBanner({ call, onError }: { call: CallManager | null; onError(msg: string): void }) {
@@ -10,7 +11,9 @@ export function MeetBanner({ call, onError }: { call: CallManager | null; onErro
   const join = (video: boolean) => call.join(video).catch((e) => onError(`Could not start the ${video ? 'camera' : 'microphone'}: ${(e as Error).message}`));
   return (
     <div className="meet-banner" role="dialog" aria-label="Meeting room">
-      <span className="meet-banner-icon">🎥</span>
+      <span className="meet-banner-icon">
+        <ProductIcon id="meet" size={34} />
+      </span>
       <div>
         <strong>This document is a meeting room</strong>
         <small>Join the call; everyone here can write the notes together. Invite people with Share, then send them the link.</small>

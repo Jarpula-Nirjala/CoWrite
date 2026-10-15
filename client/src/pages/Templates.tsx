@@ -19,11 +19,11 @@ import { navigate, useSearch } from '../router.ts';
 const STARTERS = ['blank', 'gdoc-paperback', 'gdoc-report-simple', 'gdoc-report-luxe', 'gdoc-mla', 'gdoc-book-report', 'gdoc-class-notes', 'gdoc-lab-report'];
 const KIND_FILTERS: { id: DocKind | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
-  { id: 'slides', label: '📊 Slides' },
-  { id: 'doc', label: '📄 Docs' },
-  { id: 'sheet', label: '📈 Sheets' },
-  { id: 'board', label: '🧩 Whiteboards' },
-  { id: 'kanban', label: '🗂️ Boards' },
+  { id: 'slides', label: 'Slides' },
+  { id: 'doc', label: 'Docs' },
+  { id: 'sheet', label: 'Sheets' },
+  { id: 'board', label: 'Whiteboards' },
+  { id: 'kanban', label: 'Boards' },
 ];
 const same = (s: string) => Promise.resolve(s);
 

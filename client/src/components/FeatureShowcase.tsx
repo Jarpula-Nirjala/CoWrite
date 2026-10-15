@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Glyph } from './Glyph.tsx';
 
 type Item = [icon: string, title: string, body: string];
 interface Group {
@@ -158,7 +159,7 @@ export function FeatureShowcase() {
           const inGroup = card.gi === k;
           return (
             <button key={x.title} className={`showcase-chip ${inGroup ? 'active' : ''}`} style={{ '--tc': x.color } as CSSProperties} onClick={() => setI(start)} type="button">
-              <span>{x.icon}</span> {x.title}
+              <Glyph e={x.icon} size={18} /> {x.title}
               {inGroup && <span className="chip-progress" style={{ width: `${((i - start + 1) / x.items.length) * 100}%` }} />}
             </button>
           );
@@ -181,11 +182,13 @@ export function FeatureShowcase() {
                 <div className="fcard-photo">
                   {near && <img src={`/features/${IMAGES[k]}.jpg`} alt="" loading="lazy" draggable={false} />}
                   <span className="fcard-badge">
-                    {g.icon} {g.title}
+                    <Glyph e={g.icon} size={15} /> {g.title}
                   </span>
                 </div>
                 <div className="fcard-body">
-                  <span className="fcard-icon">{c.icon}</span>
+                  <span className="fcard-icon">
+                    <Glyph e={c.icon} size={24} />
+                  </span>
                   <span className="fcard-count">
                     {k - first(c.gi) + 1} / {g.items.length}
                   </span>

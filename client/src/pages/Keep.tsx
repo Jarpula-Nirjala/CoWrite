@@ -4,6 +4,8 @@ import { useAuth } from '../auth.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Modal, Spinner } from '../components/ui.tsx';
 import { navigate } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
+import { ProductIcon } from '../components/ProductIcon.tsx';
 
 interface Item {
   text: string;
@@ -91,15 +93,15 @@ export function Keep() {
           <div className="keep-top">
             <nav className="keep-views">
               <button className={view === 'notes' ? 'on' : ''} onClick={() => setView('notes')} type="button">
-                💡 Notes
+                <Glyph e="💡" /> Notes
               </button>
               {labels.map((l) => (
                 <button key={l} className={view === l ? 'on' : ''} onClick={() => setView(l)} type="button">
-                  🏷️ {l}
+                  <Glyph e="🏷️" /> {l}
                 </button>
               ))}
               <button className={view === 'archive' ? 'on' : ''} onClick={() => setView('archive')} type="button">
-                🗄️ Archive
+                <Glyph e="🗄️" /> Archive
               </button>
             </nav>
             <label className="tpl-search">
@@ -113,7 +115,9 @@ export function Keep() {
             <Spinner />
           ) : !shown.length ? (
             <div className="keep-empty">
-              <span>💡</span>
+              <span>
+                <ProductIcon id="keep" size={56} />
+              </span>
               <p className="muted">{view === 'archive' ? 'Your archived notes appear here' : q ? 'No matching notes' : 'Notes you add appear here'}</p>
             </div>
           ) : (
@@ -153,7 +157,7 @@ function NoteGrid({ notes, onOpen, onSave }: { notes: Note[]; onOpen(n: Note): v
             aria-label={n.pinned ? 'Unpin' : 'Pin'}
             type="button"
           >
-            📌
+            <Glyph e="📌" size={18} />
           </button>
           {n.title && <h3>{n.title}</h3>}
           {n.body && <p>{n.body.length > 400 ? `${n.body.slice(0, 400)}…` : n.body}</p>}
@@ -271,10 +275,10 @@ function NoteEditor({ initial, onDone, onDelete, autoFocus }: { initial: Draft; 
           ))}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => setD({ ...d, items: items ? null : (d.body || '').split('\n').filter(Boolean).map((t) => ({ text: t, done: false })).concat(d.body ? [] : [{ text: '', done: false }]), body: items ? items.map((i) => i.text).join('\n') : '' })} type="button">
-          {items ? '📝 Text' : '☑️ Checklist'}
+          <Glyph e={items ? '📝' : '☑️'} size={16} /> {items ? 'Text' : 'Checklist'}
         </button>
         <button className={`btn btn-ghost btn-sm ${d.pinned ? 'on' : ''}`} onClick={() => setD({ ...d, pinned: !d.pinned })} type="button">
-          📌 {d.pinned ? 'Pinned' : 'Pin'}
+          <Glyph e="📌" size={16} /> {d.pinned ? 'Pinned' : 'Pin'}
         </button>
         <form
           className="ne-label"
@@ -285,12 +289,12 @@ function NoteEditor({ initial, onDone, onDelete, autoFocus }: { initial: Draft; 
             setLabel('');
           }}
         >
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="🏷️ Add label" aria-label="Add label" />
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Add label" aria-label="Add label" />
         </form>
         {onDelete && (
           <>
             <button className="btn btn-ghost btn-sm" onClick={() => onDone({ ...d, archived: !d.archived })} type="button">
-              🗄️ {d.archived ? 'Unarchive' : 'Archive'}
+              <Glyph e="🗄️" size={16} /> {d.archived ? 'Unarchive' : 'Archive'}
             </button>
             <button className="btn btn-ghost btn-sm" onClick={onDelete} type="button">
               <Icon name="trash" size={14} /> Delete

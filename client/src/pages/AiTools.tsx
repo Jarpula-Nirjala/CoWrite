@@ -12,6 +12,8 @@ import { createAndOpen } from '../lib/create.ts';
 import { download, exportDocx, safeFileName } from '../lib/exporters.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate, useSearch } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
+import { FileTypeIcon } from '../components/MIcon.tsx';
 
 interface Tool {
   id: string;
@@ -49,7 +51,7 @@ export const PRODUCTIVITY_TOOLS: Tool[] = [
   { id: 'academy', name: 'CoWrite Academy', desc: 'Guides and tips for every feature', icon: '🎓', color: '#00897b', link: '/#how' },
   { id: 'batch-print', name: 'Batch Print', desc: 'Print several documents at once', icon: '🖨️', color: '#5f6368' },
   { id: 'batch-rename', name: 'Batch Rename', desc: 'Rename many documents in one go', icon: '🏷️', color: '#f9ab00' },
-  { id: 'extract-img', name: 'Extract Image from PDF', desc: 'Save every photo inside a PDF', icon: '🧩', color: '#c2185b' },
+  { id: 'extract-img', name: 'Extract Image from PDF', desc: 'Save every photo inside a PDF', icon: '🖼️', color: '#c2185b' },
 ];
 
 const LANGS = ['Hindi', 'Telugu', 'Tamil', 'Marathi', 'Bengali', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu', 'English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Arabic', 'Russian'];
@@ -95,7 +97,7 @@ export function AiTools() {
       </div>
       <SiteFooter />
       {tool && (
-        <Modal title={`${tool.icon} ${tool.name}`} onClose={() => setOpen(null)} wide>
+        <Modal title={tool.name} onClose={() => setOpen(null)} wide>
           <ToolBody id={tool.id} />
         </Modal>
       )}
@@ -110,7 +112,9 @@ function ToolGrid({ title, tools, onPick }: { title: string; tools: Tool[]; onPi
       <div className="tool-grid">
         {tools.map((t) => (
           <button key={t.id} className="tool-card" style={{ '--tc': t.color } as CSSProperties} onClick={() => onPick(t)} type="button">
-            <span className="tool-icon">{t.icon}</span>
+            <span className="tool-icon">
+              <Glyph e={t.icon} size={24} />
+            </span>
             <span className="tool-text">
               <strong>{t.name}</strong>
               <small>{t.desc}</small>
@@ -326,7 +330,7 @@ function TextTool({ id }: { id: string }) {
       {error && <p className="error-text">{error}</p>}
       {issues && (
         <div className="spell-issues">
-          <h4>{issues.length ? `${issues.length} suggestion${issues.length === 1 ? '' : 's'}` : 'No mistakes found 🎉'}</h4>
+          <h4>{issues.length ? `${issues.length} suggestion${issues.length === 1 ? '' : 's'}` : 'No mistakes found'}</h4>
           <ul>
             {issues.map((i, k) => (
               <li key={k}>
@@ -390,7 +394,9 @@ function FileTool({ id }: { id: 'translate-image' | 'img-text' | 'pdf-word' | st
         <FilePick accept={accept} label={id === 'pdf-word' ? 'Drop a PDF here' : 'Drop an image here (photo, screenshot or scan)'} onFile={(f) => (setFile(f[0] ?? null), setOut(null))} />
       ) : (
         <div className="file-chip">
-          {url ? <img src={url} alt="" /> : <span className="file-ico">📄</span>}
+          {url ? <img src={url} alt="" /> : <span className="file-ico">
+              <FileTypeIcon mime={file.type} name={file.name} size={34} />
+            </span>}
           <span>
             <b>{file.name}</b>
             <small className="muted">{Math.round(file.size / 1024)} KB</small>
@@ -439,7 +445,9 @@ function ChatPdf() {
   return (
     <div className="chat-pdf">
       <div className="file-chip">
-        <span className="file-ico">📕</span>
+        <span className="file-ico">
+          <FileTypeIcon mime="application/pdf" size={34} />
+        </span>
         <span>
           <b>{file.name}</b>
           <small className="muted">{Math.round(file.size / 1024)} KB</small>
@@ -747,7 +755,7 @@ function SplitMerge() {
             <ol className="pdf-list">
               {files.map((f, i) => (
                 <li key={i}>
-                  📕 {f.name}
+                  <FileTypeIcon mime="application/pdf" size={18} /> {f.name}
                   <button onClick={() => setFiles(files.filter((_, k) => k !== i))} type="button" aria-label="Remove">
                     ×
                   </button>
@@ -765,7 +773,9 @@ function SplitMerge() {
             <FilePick accept="application/pdf" label="Drop a PDF to split" onFile={(f) => void pickSplit(f)} />
           ) : (
             <div className="file-chip">
-              <span className="file-ico">📕</span>
+              <span className="file-ico">
+                <FileTypeIcon mime="application/pdf" size={34} />
+              </span>
               <span>
                 <b>{files[0].name}</b>
                 <small className="muted">{pages ?? '…'} pages</small>
@@ -1042,7 +1052,7 @@ function BatchTool({ mode }: { mode: 'print' | 'rename' }) {
       {msg && <p className="ok-text">{msg}</p>}
       {error && <p className="error-text">{error}</p>}
       <button className="btn btn-primary" disabled={busy || !chosen.length} onClick={() => void (mode === 'print' ? print() : rename())} type="button">
-        {mode === 'print' ? `🖨️ Print ${chosen.length || ''} documents` : `🏷️ Rename ${chosen.length || ''} documents`}
+        <Glyph e={mode === 'print' ? '🖨️' : '🏷️'} /> {mode === 'print' ? `Print ${chosen.length || ''} documents` : `Rename ${chosen.length || ''} documents`}
       </button>
     </div>
   );

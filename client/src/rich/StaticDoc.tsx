@@ -130,7 +130,7 @@ export function StaticDoc({
       const k = t.attrs.inline;
       inline.push(
         <span key={key++} className={`chip chip-${String(k)}`}>
-          {k === 'mention' ? `@${String(t.attrs.name ?? '')}` : k === 'date' ? `📅 ${String(t.attrs.date ?? '')}` : k === 'math' ? String(t.attrs.tex ?? '') : ''}
+          {k === 'mention' ? `@${String(t.attrs.name ?? '')}` : k === 'date' ? String(t.attrs.date ?? '') : k === 'math' ? String(t.attrs.tex ?? '') : ''}
         </span>,
       );
     } else {

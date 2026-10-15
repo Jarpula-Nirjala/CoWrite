@@ -1,9 +1,11 @@
 import type { EditorState } from 'prosemirror-state';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Dropdown, Icon } from '../components/ui.tsx';
 import { clearFormatting, currentPara, indent, isMarkActive, markValue, setBlock, setMarkValue, setParaAttrs, toggleMark } from './commands.ts';
 import type { RichHandle } from './RichEditor.tsx';
 import { FONT_NAMES } from './schema.ts';
+import { MIcon } from '../components/MIcon.tsx';
+import { mdiFormatAlignCenter, mdiFormatAlignJustify, mdiFormatAlignLeft, mdiFormatAlignRight } from '@mdi/js';
 
 const COLORS = ['#111418', '#5f6368', '#b3261e', '#c15f3c', '#a8842f', '#2e7d5b', '#1f6f8b', '#1f3a68', '#6b4c9a', '#9c3d6b'];
 const HIGHLIGHTS = ['#fff59d', '#ffe0b2', '#c8e6c9', '#bbdefb', '#e1bee7', '#f8bbd0', '#eeeeee'];
@@ -56,7 +58,7 @@ export function RichToolbar({
   const font = markValue(state, 'font') ?? 'serif';
   const size = markValue(state, 'size') ?? '';
   const run = handle.run;
-  const btn = (label: string, icon: string, onClick: () => void, active = false, text?: string) => (
+  const btn = (label: string, icon: string, onClick: () => void, active = false, text?: ReactNode) => (
     <button
       type="button"
       className={`tool ${active ? 'on' : ''}`}
@@ -186,7 +188,7 @@ export function RichToolbar({
       </div>
       <div className="tool-group">
         {(['left', 'center', 'right', 'justify'] as const).map((a) =>
-          btn(`Align ${a}`, '', () => run(setParaAttrs({ align: a === 'left' ? null : a })), (para?.attrs.align ?? 'left') === a, a === 'left' ? '⇤' : a === 'center' ? '↔' : a === 'right' ? '⇥' : '☰'),
+          btn(`Align ${a}`, '', () => run(setParaAttrs({ align: a === 'left' ? null : a })), (para?.attrs.align ?? 'left') === a, <MIcon path={a === 'left' ? mdiFormatAlignLeft : a === 'center' ? mdiFormatAlignCenter : a === 'right' ? mdiFormatAlignRight : mdiFormatAlignJustify} size={18} />),
         )}
       </div>
       <div className="tool-group">

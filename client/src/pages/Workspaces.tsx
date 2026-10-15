@@ -6,6 +6,7 @@ import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Avatar, Icon, Spinner } from '../components/ui.tsx';
 import { Link, navigate } from '../router.ts';
+import { KIND_PRODUCT, ProductIcon } from '../components/ProductIcon.tsx';
 
 interface Workspace {
   id: string;
@@ -21,7 +22,6 @@ interface Detail {
   documents: { id: string; title: string; kind: string; updatedAt: number; isTemplate: boolean; ownerName: string }[];
 }
 
-const KIND_ICON: Record<string, string> = { doc: '📄', slides: '📊', board: '🧩', kanban: '🗂️', sheet: '📈' };
 
 /** Teams: shared spaces where every member can open every document, plus team templates. */
 export function Workspaces() {
@@ -176,7 +176,9 @@ export function Workspaces() {
                 <ul className="ws-docs">
                   {detail.documents.map((d) => (
                     <li key={d.id}>
-                      <span>{KIND_ICON[d.kind] ?? '📄'}</span>
+                      <span>
+                        <ProductIcon id={KIND_PRODUCT[d.kind] ?? 'docs'} size={20} />
+                      </span>
                       <Link to={`/d/${d.id}`}>{d.title}</Link>
                       {d.isTemplate && <span className="pill">Team template</span>}
                       <span className="muted small">

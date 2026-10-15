@@ -10,8 +10,8 @@ import { CATEGORIES, GALLERY, type Category, type GalleryItem } from '../lib/gal
 import { DEFAULT_SETTINGS, paperProps, type DocSettings } from '../rich/settings.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Modal } from './ui.tsx';
+import { KIND_PRODUCT, ProductIcon } from './ProductIcon.tsx';
 
-const KIND_ICON: Record<string, string> = { doc: '📄', slides: '📊', board: '🧩', kanban: '🗂️', sheet: '📈' };
 const same = (s: string) => Promise.resolve(s);
 
 /** The “New from template” dialog with live previews of every template. */
@@ -41,7 +41,7 @@ export function TemplateGallery({
         <div className="gallery-tabs" role="tablist">
           {([...(team.length ? ['Team' as const] : []), 'All' as const, ...CATEGORIES]).map((c) => (
             <button key={c} role="tab" aria-selected={cat === c} className={`gallery-tab ${cat === c ? 'active' : ''}`} onClick={() => setCat(c)} type="button">
-              {c === 'Team' ? '👥 Team templates' : c}
+              {c === 'Team' ? 'Team templates' : c}
             </button>
           ))}
         </div>
@@ -54,7 +54,9 @@ export function TemplateGallery({
             .map((t) => (
               <button key={t.id} className="gallery-card" disabled={busy} onClick={() => onPickTeam?.(t)} type="button">
                 <span className="gallery-preview team-preview">
-                  <span>{KIND_ICON[t.kind] ?? '📄'}</span>
+                  <span>
+                    <ProductIcon id={KIND_PRODUCT[t.kind] ?? 'docs'} size={44} />
+                  </span>
                 </span>
                 <span className="gallery-name">{t.title}</span>
                 <span className="muted small">From the “{t.workspace}” workspace</span>
@@ -66,7 +68,7 @@ export function TemplateGallery({
               <Preview item={g} />
             </span>
             <span className="gallery-name">
-              <span aria-hidden>{KIND_ICON[g.kind]}</span> {g.name}
+              <ProductIcon id={KIND_PRODUCT[g.kind] ?? 'docs'} size={18} /> {g.name}
             </span>
             <span className="muted small">{g.description}</span>
           </button>

@@ -13,6 +13,7 @@ import { GALLERY, type GalleryItem } from '../lib/gallery.ts';
 import { pendingContent } from '../lib/templates.ts';
 import { localPrefs } from '../lib/prefs.ts';
 import { Link, navigate } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 const BADGE: Record<string, string> = { doc: 'D', slides: 'P', board: 'W', kanban: 'K', sheet: 'S' };
 const KIND_LABEL: Record<string, string> = { doc: 'Document', slides: 'Presentation', board: 'Whiteboard', kanban: 'Kanban board', sheet: 'Spreadsheet' };
@@ -112,15 +113,17 @@ export function Dashboard() {
           <div>
             <p className="kicker">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}</p>
             <h1>
-              {greeting()}, {first} <span className="wave">👋</span>
+              {greeting()}, {first}
             </h1>
             <p className="muted">What would you like to create today?</p>
           </div>
           {writing && (
             <div className="hello-stats">
-              <span title="Writing streak">🔥 {writing.streak} day streak</span>
+              <span title="Writing streak">
+                <Glyph e="🔥" size={16} /> {writing.streak} day streak
+              </span>
               <span title="Today's words">
-                ✍️ {words}/{goal} words today
+                <Glyph e="✍️" size={16} /> {words}/{goal} words today
               </span>
             </div>
           )}
@@ -137,7 +140,9 @@ export function Dashboard() {
               onClick={() => (a.to ? navigate(a.to) : a.label === 'Open' ? openInput.current?.click() : void create(GALLERY.find((g) => g.id === 'blank')!))}
               type="button"
             >
-              <span>{a.icon}</span>
+              <span>
+                <Glyph e={a.icon} size={20} />
+              </span>
               {a.label}
             </button>
           ))}
@@ -210,7 +215,7 @@ export function Dashboard() {
                               </span>
                               <span>
                                 <b>{d.title}</b>
-                                <small>{KIND_LABEL[d.kind] ?? 'Document'}{d.starred ? ' · ★ Starred' : ''}</small>
+                                <small>{KIND_LABEL[d.kind] ?? 'Document'}{d.starred ? ' · Starred' : ''}</small>
                               </span>
                             </Link>
                           </td>
@@ -259,7 +264,9 @@ export function Dashboard() {
 
             <section className="side-card">
               <div className="row-between">
-                <h3>📅 Due soon</h3>
+                <h3>
+                  <Glyph e="📅" /> Due soon
+                </h3>
                 <Link className="small" to="/calendar">
                   Calendar
                 </Link>
@@ -279,18 +286,40 @@ export function Dashboard() {
             </section>
 
             <section className="side-card">
-              <h3>⚡ Shortcuts</h3>
+              <h3>
+                <Glyph e="⚡" /> Shortcuts
+              </h3>
               <div className="shortcut-grid">
-                <Link to="/calendar">📅 Calendar</Link>
-                <Link to="/workspaces">👥 Teams</Link>
-                <Link to="/ask">❓ Ask AI</Link>
-                <Link to="/activity">🔥 Streaks</Link>
-                <Link to="/documents">📁 Library</Link>
-                <Link to="/keep">💡 Keep</Link>
-                <Link to="/drive">☁️ Drive</Link>
-                <Link to="/meet">🎥 Meet</Link>
-                <Link to="/assistant">✦ Assistant</Link>
-                <Link to="/account">⚙️ Settings</Link>
+                <Link to="/calendar">
+                  <Glyph e="📅" /> Calendar
+                </Link>
+                <Link to="/workspaces">
+                  <Glyph e="👥" /> Teams
+                </Link>
+                <Link to="/ask">
+                  <Glyph e="❓" /> Ask AI
+                </Link>
+                <Link to="/activity">
+                  <Glyph e="🔥" /> Streaks
+                </Link>
+                <Link to="/documents">
+                  <Glyph e="📁" /> Library
+                </Link>
+                <Link to="/keep">
+                  <Glyph e="💡" /> Keep
+                </Link>
+                <Link to="/drive">
+                  <Glyph e="☁️" /> Drive
+                </Link>
+                <Link to="/meet">
+                  <Glyph e="🎥" /> Meet
+                </Link>
+                <Link to="/assistant">
+                  <Glyph e="✦" /> Assistant
+                </Link>
+                <Link to="/account">
+                  <Glyph e="⚙️" /> Settings
+                </Link>
               </div>
             </section>
           </aside>

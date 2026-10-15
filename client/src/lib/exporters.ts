@@ -169,7 +169,7 @@ export async function exportDocx(title: string, tokens: Token[], resolve: Resolv
         break;
       case 'file':
       case 'audio':
-        children.push(new d.Paragraph({ children: [new d.TextRun({ text: `📎 ${String(a.name ?? 'Attachment')}`, italics: true })] }));
+        children.push(new d.Paragraph({ children: [new d.TextRun({ text: `Attachment: ${String(a.name ?? 'file')}`, italics: true })] }));
         break;
       default:
         break;

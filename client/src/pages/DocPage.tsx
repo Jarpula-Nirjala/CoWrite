@@ -44,6 +44,7 @@ import { DEFAULT_SETTINGS, paperProps, printCss, readSettings, settingsOps, type
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate, queryParam } from '../router.ts';
 import { MeetBanner } from '../components/MeetBanner.tsx';
+import { Glyph } from '../components/Glyph.tsx';
 
 type PanelId = 'outline' | 'comments' | 'suggestions' | 'chat' | 'history' | 'time' | 'review' | 'draft' | 'site' | 'stats' | 'page' | 'ai' | 'network';
 
@@ -585,7 +586,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
             const add = document.createElement('button');
             add.type = 'button';
             add.className = 'reaction-add';
-            add.textContent = '☺+';
+            add.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7.5 10a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm6 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zM12 17.5c-2.3 0-4.3-1.3-5.3-3.2l1.8-.9c.7 1.3 2 2.1 3.5 2.1s2.8-.8 3.5-2.1l1.8.9c-1 1.9-3 3.2-5.3 3.2zM12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8zm7 0v3h3v2h-3v3h-2V7h-3V5h3V2z"/></svg>';
             add.title = 'React to this paragraph';
             add.onmousedown = (e) => e.preventDefault();
             add.onclick = () => {
@@ -1195,7 +1196,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
                         void narrate();
                       }}
                     >
-                      🎧 Audio narration (.mp3)
+                      <Glyph e="🎧" size={16} /> Audio narration (.mp3)
                     </button>
                   </>
                 )}
@@ -1224,7 +1225,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
               </button>
             </div>
           )}
-          {speech.listening && <div className="banner info">🎙 Listening… {speech.interim && <em className="muted">“{speech.interim}”</em>}</div>}
+          {speech.listening && <div className="banner info"><Glyph e="🎙" size={16} /> Listening… {speech.interim && <em className="muted">“{speech.interim}”</em>}</div>}
           {speech.error && <div className="banner error">{speech.error}</div>}
           {client.error && <div className="banner error">{client.error}</div>}
           {s.secondaryTab && <div className="banner info">This document is open in another tab, so this tab will not keep an offline copy.</div>}

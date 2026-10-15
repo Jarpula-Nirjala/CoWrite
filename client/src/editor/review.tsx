@@ -5,6 +5,7 @@ import { api, errorText, timeAgo } from '../api.ts';
 import { Icon } from '../components/ui.tsx';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import type { Lock, Workflow } from './team.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 const STEPS = [
   { id: 'draft', label: 'Draft' },
@@ -105,7 +106,7 @@ export function ReviewPanel(props: {
       )}
       {canEdit && (
         <button className="btn btn-text btn-sm" onClick={props.onSignature} type="button">
-          ✍️ Add a signature block
+          <Glyph e="✍️" size={16} /> Add a signature block
         </button>
       )}
       {error && <p className="error-text small">{error}</p>}
@@ -184,7 +185,7 @@ export function DraftPanel(props: { docId: string; share: string | null; serverS
   return (
     <div className="draft">
       <p className="muted small">
-        🔒 Only you can see this draft{props.serverSide ? '' : ' (it is stored on this device)'}. Write a section in private, polish it, then reveal it to everyone in one go. Markdown works: # heading, - list, **bold**.
+        <Glyph e="🔒" size={14} /> Only you can see this draft{props.serverSide ? '' : ' (it is stored on this device)'}. Write a section in private, polish it, then reveal it to everyone in one go. Markdown works: # heading, - list, **bold**.
       </p>
       <textarea className="input draft-input" rows={10} value={md} disabled={!loaded} onChange={(e) => save(e.target.value)} placeholder="Write your private section here…" />
       <span className="muted small">{saved === 'saving' ? 'Saving…' : saved === 'saved' ? 'Draft saved' : ''}</span>

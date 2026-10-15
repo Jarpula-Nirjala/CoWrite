@@ -4,6 +4,8 @@ import { useAuth } from '../auth.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Modal, Spinner } from '../components/ui.tsx';
 import { Link, navigate, useSearch } from '../router.ts';
+import { ProductIcon } from '../components/ProductIcon.tsx';
+import { FileTypeIcon } from '../components/MIcon.tsx';
 
 interface DriveFile {
   id: string;
@@ -18,14 +20,13 @@ interface DriveFile {
 
 const FILTERS = [
   { id: 'all', label: 'All files' },
-  { id: 'images', label: '🖼️ Photos' },
-  { id: 'pdf', label: '📕 PDFs' },
-  { id: 'media', label: '🎞️ Audio & video' },
-  { id: 'other', label: '📎 Other' },
+  { id: 'images', label: 'Photos' },
+  { id: 'pdf', label: 'PDFs' },
+  { id: 'media', label: 'Audio & video' },
+  { id: 'other', label: 'Other' },
 ] as const;
 const kb = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 const kindOf = (m: string) => (m.startsWith('image/') ? 'images' : m === 'application/pdf' ? 'pdf' : /^(audio|video)\//.test(m) ? 'media' : 'other');
-const ICON: Record<string, string> = { images: '🖼️', pdf: '📕', media: '🎞️', other: '📎' };
 
 /** Drive and Pics: every file you have uploaded, with storage use. */
 export function Drive() {
@@ -89,7 +90,9 @@ export function Drive() {
         <main className="drive">
           <header className="drive-head">
             <div>
-              <h1>{pics ? '🖼️ Pics' : '☁️ Drive'}</h1>
+              <h1 className="page-title-ic">
+                <ProductIcon id={pics ? 'pics' : 'drive'} size={34} /> {pics ? 'Pics' : 'Drive'}
+              </h1>
               <p className="muted">{pics ? 'Every photo you have added to your documents.' : 'Files you have uploaded to your documents.'}</p>
             </div>
             <div className="drive-actions">
@@ -122,14 +125,18 @@ export function Drive() {
             <Spinner />
           ) : !shown.length ? (
             <div className="keep-empty">
-              <span>{pics ? '🖼️' : '☁️'}</span>
+              <span>
+                <ProductIcon id={pics ? 'pics' : 'drive'} size={56} />
+              </span>
               <p className="muted">Nothing here yet. Upload a file, or add images to a document.</p>
             </div>
           ) : grid ? (
             <div className="drive-grid">
               {shown.map((f) => (
                 <button key={f.id} className="drive-card" onClick={() => setViewing(f)} type="button">
-                  <span className="drive-thumb">{kindOf(f.mime) === 'images' ? <img src={f.url} alt="" loading="lazy" /> : <span>{ICON[kindOf(f.mime)]}</span>}</span>
+                  <span className="drive-thumb">{kindOf(f.mime) === 'images' ? <img src={f.url} alt="" loading="lazy" /> : <span>
+                      <FileTypeIcon mime={f.mime} name={f.name} size={44} />
+                    </span>}</span>
                   <span className="drive-name">{f.name}</span>
                   <span className="muted small">
                     {kb(f.size)} · {new Date(f.createdAt).toLocaleDateString()}
@@ -153,7 +160,7 @@ export function Drive() {
                   <tr key={f.id}>
                     <td>
                       <button className="link-btn" onClick={() => setViewing(f)} type="button">
-                        {ICON[kindOf(f.mime)]} {f.name}
+                        <FileTypeIcon mime={f.mime} name={f.name} /> {f.name}
                       </button>
                     </td>
                     <td>{f.docId ? <Link to={`/d/${f.docId}`}>{f.docTitle ?? 'Open'}</Link> : <span className="muted">—</span>}</td>

@@ -3,6 +3,7 @@ import { api, timeAgo, type Notification, type Prefs, type ThemeId } from '../ap
 import { APPS } from '../lib/apps.ts';
 import { APP_THEMES, effectiveTheme, localPrefs, savePrefs } from '../lib/prefs.ts';
 import { ThemeIcon } from './ThemeIcon.tsx';
+import { ProductIcon } from './ProductIcon.tsx';
 import { AppLogo } from './AppLogo.tsx';
 import { useWindows, WINDOW_APPS, type WindowApp } from './Windows.tsx';
 import { useAuth } from '../auth.tsx';
@@ -40,8 +41,8 @@ export function AppLauncher() {
         <div className="launcher" role="menu">
           {APPS.map((a) => (
             <Link key={a.id} role="menuitem" className="launcher-app" to={a.to} onClick={close} title={a.blurb}>
-              <span className="launcher-icon" style={{ background: `color-mix(in srgb, ${a.color} 14%, transparent)` }}>
-                {a.icon}
+              <span className="launcher-icon">
+                <ProductIcon id={a.id} size={34} />
               </span>
               <span>{a.name}</span>
             </Link>

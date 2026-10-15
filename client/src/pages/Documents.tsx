@@ -13,6 +13,8 @@ import { pendingContent, type InitialContent } from '../lib/templates.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { htmlToTokens } from '../rich/importHtml.ts';
 import { Link, navigate, useSearch } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
+import { KIND_PRODUCT, ProductIcon } from '../components/ProductIcon.tsx';
 
 type View = 'all' | 'recent' | 'starred' | 'shared' | 'trash';
 
@@ -301,7 +303,7 @@ export function Documents() {
                             setTemplatesOpen('All');
                           }}
                         >
-                          ✨ Templates
+                          <Glyph e="🎨" /> Templates
                         </button>
                         {NEW_KINDS.map((k) => (
                           <button
@@ -314,7 +316,7 @@ export function Documents() {
                               void createWith(blank.title, blank.build(), k.kind);
                             }}
                           >
-                            {k.icon} New {k.label}
+                            <ProductIcon id={KIND_PRODUCT[k.kind] ?? 'docs'} size={18} /> New {k.label}
                           </button>
                         ))}
                         <hr className="menu-sep" />
@@ -326,7 +328,7 @@ export function Documents() {
                             void create({ title: 'Private document', encrypted: true });
                           }}
                         >
-                          🔒 End-to-end encrypted document
+                          <Glyph e="🔒" /> End-to-end encrypted document
                         </button>
                         <button
                           role="menuitem"
@@ -371,7 +373,7 @@ export function Documents() {
               </div>
               {kindFilter && (
                 <Link className="kind-filter-chip" to="/documents">
-                  {NEW_KINDS.find((k) => k.kind === kindFilter)?.icon ?? '📄'} {KIND_NAME[kindFilter]}s only ×
+                  <ProductIcon id={KIND_PRODUCT[kindFilter] ?? 'docs'} size={16} /> {KIND_NAME[kindFilter]}s only ×
                 </Link>
               )}
               <span className="muted small">{docs ? `${docs.length} document${docs.length === 1 ? '' : 's'}` : ''}</span>
@@ -415,7 +417,9 @@ export function Documents() {
                         <span className="doc-link">{d.title}</span>
                       ) : (
                         <Link className="doc-link" to={`/d/${d.id}`}>
-                          {d.kind && d.kind !== 'doc' && <span className="kind-icon" title={KIND_NAME[d.kind]}>{NEW_KINDS.find((k) => k.kind === d.kind)?.icon}</span>}
+                          {d.kind && d.kind !== 'doc' && <span className="kind-icon" title={KIND_NAME[d.kind]}>
+                              <ProductIcon id={KIND_PRODUCT[d.kind] ?? 'docs'} size={18} />
+                            </span>}
                           {d.title}
                         </Link>
                       )}
@@ -485,7 +489,7 @@ export function Documents() {
                                 </button>
                                 {lib.folders.map((f) => (
                                   <button key={f.id} role="menuitem" type="button" disabled={d.folderId === f.id} onClick={() => (close(), void patch(d, { folderId: f.id }))}>
-                                    📁 {f.name}
+                                    <Glyph e="📁" /> {f.name}
                                   </button>
                                 ))}
                               </div>

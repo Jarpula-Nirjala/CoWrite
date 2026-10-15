@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { Glyph } from './Glyph.tsx';
 
 /** True once the element has scrolled into view (stays true). */
 function useSeen<T extends Element>(threshold = 0.3) {
@@ -116,7 +117,9 @@ export function Bento() {
     <div className="bento" ref={ref}>
       {TILES.map((t, i) => (
         <article key={t.title} className={`bento-tile ${t.size} ${i === lit ? 'lit' : ''}`} onMouseEnter={() => setLit(i)}>
-          <span className="bento-icon">{t.icon}</span>
+          <span className="bento-icon">
+            <Glyph e={t.icon} size={26} />
+          </span>
           <h4>{t.title}</h4>
           <p>{t.text}</p>
         </article>
@@ -185,7 +188,8 @@ export function ScrollStory() {
               Owners: <span className="mock-old">Asha</span> <span className="mock-new">Asha and Meera</span>
               <span className="mock-cursor m">Meera</span>
             </span>
-            <span className="mock-ai">✨ Summary: launch Friday, Meera owns QA, Ravi ships the release notes.</span>
+            <span className="mock-ai">
+              <Glyph e="✨" size={14} /> Summary: launch Friday, Meera owns QA, Ravi ships the release notes.</span>
             <span className="mock-react">👍 3 🎉 1</span>
             <span className="mock-bubble">Ravi: can we say Thursday?</span>
           </div>

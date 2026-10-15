@@ -7,6 +7,8 @@ import { createAndOpen } from '../lib/create.ts';
 import { GALLERY } from '../lib/gallery.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { Link, navigate, useSearch } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
+import { ProductIcon } from '../components/ProductIcon.tsx';
 
 /** Meet and Chat: rooms are documents with a built-in call and chat, so notes and the meeting live together. */
 export function Meet() {
@@ -85,7 +87,9 @@ export function Meet() {
           </div>
           <div className="meet-art" aria-hidden>
             <img src="/features/calls.jpg" alt="" />
-            <span className="meet-badge">🔒 Peer-to-peer · 🎥 Video · 🎙️ Voice · 💬 Chat · 📝 Shared notes</span>
+            <span className="meet-badge">
+              <Glyph e="🔒" size={14} /> Peer-to-peer · <Glyph e="🎥" size={14} /> Video · <Glyph e="🎙️" size={14} /> Voice · <Glyph e="💬" size={14} /> Chat · <Glyph e="📝" size={14} /> Shared notes
+            </span>
           </div>
         </section>
         <section>
@@ -99,7 +103,9 @@ export function Meet() {
               {recent.map((d) => (
                 <li key={d.id}>
                   <Link to={`/d/${d.id}${d.title.startsWith('Meeting') ? '?meet=1' : '?panel=chat'}`}>
-                    <span>{d.title.startsWith('Meeting') ? '🎥' : '💬'}</span>
+                    <span>
+                      <ProductIcon id={d.title.startsWith('Meeting') ? 'meet' : 'chat'} size={30} />
+                    </span>
                     <b>{d.title}</b>
                     <small className="muted">{timeAgo(d.updatedAt)}</small>
                   </Link>

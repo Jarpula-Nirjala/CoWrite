@@ -7,6 +7,8 @@ import { Icon } from '../components/ui.tsx';
 import { createAndOpen } from '../lib/create.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
+import { Glyph } from '../components/Glyph.tsx';
+import { ProductIcon } from '../components/ProductIcon.tsx';
 
 interface Msg {
   role: 'user' | 'assistant';
@@ -155,7 +157,7 @@ export function Assistant() {
                     <button key={label} onClick={() => void send(q)} disabled={!aiReady} type="button">
                       <span>{q}</span>
                       <b>
-                        {icon} {label}
+                        <Glyph e={icon} size={16} /> {label}
                       </b>
                     </button>
                   ))}
@@ -165,7 +167,9 @@ export function Assistant() {
               <div className="as-thread">
                 {chat.messages.map((m, i) => (
                   <div key={i} className={`as-msg ${m.role}`}>
-                    {m.role === 'assistant' && <span className="as-avatar">✦</span>}
+                    {m.role === 'assistant' && <span className="as-avatar">
+                        <ProductIcon id="assistant" size={22} />
+                      </span>}
                     <div className="as-bubble">
                       {m.role === 'user' ? m.text : m.text ? <StaticDoc tokens={toTokens(m.text)} resolve={same} /> : <span className="as-typing"><i /><i /><i /></span>}
                       {m.role === 'assistant' && m.text && !(busy && i === chat.messages.length - 1) && (
@@ -208,7 +212,7 @@ export function Assistant() {
               aria-label="Message"
             />
             <button className="as-send" disabled={busy || !input.trim() || !aiReady} aria-label="Send" type="submit">
-              ➤
+              <Glyph e="➤" size={20} />
             </button>
           </form>
           <p className="muted small as-foot">

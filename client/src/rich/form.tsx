@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, errorText } from '../api.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 export type QType = 'short' | 'long' | 'choice' | 'checkbox' | 'rating' | 'email' | 'date';
 export interface Question {
@@ -63,7 +64,9 @@ export function FormFill({ form, docId, share, preview = false }: { form: FormDa
   if (state === 'sent')
     return (
       <div className="form-thanks">
-        <span>✅</span>
+        <span>
+          <Glyph e="✅" size={40} />
+        </span>
         <strong>Thanks! Your response was recorded.</strong>
         <button className="btn btn-text btn-sm" onClick={() => (setAnswers({}), setState('idle'))} type="button">
           Submit another response
@@ -145,7 +148,7 @@ export function StaticForm({ data }: { data: Record<string, unknown> }) {
   const form = asForm(data);
   return (
     <div className="form-block">
-      <h3 className="form-title">📝 {form.title}</h3>
+      <h3 className="form-title">{form.title}</h3>
       <FormFill form={form} docId={ctx?.docId ?? null} share={ctx?.share ?? null} preview={!ctx} />
     </div>
   );
@@ -162,7 +165,7 @@ export function FormEditor({ data, readOnly, docId, share, update }: { data: Rec
     <div className="form-block" data-stop>
       <div className="form-head">
         {readOnly ? (
-          <h3 className="form-title">📝 {form.title}</h3>
+          <h3 className="form-title">{form.title}</h3>
         ) : (
           <input className="form-title-input" value={form.title} onChange={(e) => save({ title: e.target.value })} aria-label="Form title" />
         )}

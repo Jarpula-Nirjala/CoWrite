@@ -9,6 +9,8 @@ import { designedDeck, type DesignedDeck } from '../lib/designedDeck.ts';
 import type { DocSettings } from '../rich/settings.ts';
 import { Link } from '../router.ts';
 import { Icon } from './ui.tsx';
+import { Glyph } from './Glyph.tsx';
+import { ProductIcon } from './ProductIcon.tsx';
 
 const STYLES = [
   { id: 'pro', name: 'Pro', hint: 'Corporate, clean, data-led' },
@@ -99,10 +101,10 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
         </span>
         <div className="sc-kinds" role="tablist">
           <button role="tab" aria-selected={kind === 'slides'} className={kind === 'slides' ? 'on' : ''} onClick={() => setKind('slides')} type="button">
-            📊 Slides
+            <ProductIcon id="slides" size={18} /> Slides
           </button>
           <button role="tab" aria-selected={kind === 'doc'} className={kind === 'doc' ? 'on' : ''} onClick={() => setKind('doc')} type="button">
-            📄 Docs
+            <ProductIcon id="docs" size={18} /> Docs
           </button>
         </div>
       </div>
@@ -129,7 +131,7 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
         )}
         {source && (
           <span className="sc-file">
-            📎 {source.name} <small>({Math.round(source.text.length / 1000)}k characters)</small>
+            <Glyph e="📎" size={16} /> {source.name} <small>({Math.round(source.text.length / 1000)}k characters)</small>
             <button onClick={() => setSource(null)} type="button" aria-label="Remove file">
               ×
             </button>

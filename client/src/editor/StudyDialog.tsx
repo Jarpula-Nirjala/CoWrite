@@ -4,6 +4,7 @@ import { api, errorText } from '../api.ts';
 import { Modal } from '../components/ui.tsx';
 import { uid } from '../kinds/objects.ts';
 import { cardKey, cardsFromNotes, makeQuiz, schedule, type Card, type Review } from './study.ts';
+import { Glyph } from '../components/Glyph.tsx';
 
 type Tab = 'cards' | 'study' | 'quiz';
 
@@ -126,7 +127,7 @@ export function StudyDialog(props: {
           <div className="row-actions">
             {props.aiReady && props.canEdit && props.registered && (
               <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void generate()} type="button">
-                ✨ {busy ? 'Writing cards…' : 'Make cards with AI'}
+                <Glyph e="✨" size={16} /> {busy ? 'Writing cards…' : 'Make cards with AI'}
               </button>
             )}
             <button className="btn btn-outline btn-sm" disabled={!cards.length} onClick={() => setTab('study')} type="button">
@@ -143,7 +144,7 @@ export function StudyDialog(props: {
                   <strong>{c.q}</strong>
                   <span>{c.a}</span>
                   <span className="muted small">
-                    {c.source === 'ai' ? '✨ AI' : '📝 notes'} · {r ? (r.due <= now ? 'due' : `next in ${Math.max(1, Math.round((r.due - now) / 86_400_000))} d`) : 'new'}
+                    {c.source === 'ai' ? 'AI' : 'Notes'} · {r ? (r.due <= now ? 'due' : `next in ${Math.max(1, Math.round((r.due - now) / 86_400_000))} d`) : 'new'}
                   </span>
                 </li>
               );
@@ -167,7 +168,9 @@ function StudyMode({ cards, reviews, onGrade, allDone }: { cards: Card[]; review
   if (!card)
     return (
       <div className="study-done">
-        <span>🎉</span>
+        <span>
+          <Glyph e="✅" size={44} />
+        </span>
         <h3>Session complete</h3>
         <p className="muted">You reviewed {queue.length} cards. Come back when more are due; spaced repetition shows each card just before you would forget it.</p>
       </div>
@@ -233,7 +236,9 @@ function QuizMode({ cards }: { cards: Card[] }) {
   if (!q)
     return (
       <div className="study-done">
-        <span>{score / quiz.length >= 0.8 ? '🏆' : score / quiz.length >= 0.5 ? '👍' : '📚'}</span>
+        <span>
+          <Glyph e={score / quiz.length >= 0.8 ? '🏆' : score / quiz.length >= 0.5 ? '👍' : '📚'} size={44} />
+        </span>
         <h3>
           You scored {score} / {quiz.length}
         </h3>

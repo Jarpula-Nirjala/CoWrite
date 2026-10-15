@@ -147,6 +147,7 @@
   border: 4px solid #fff;
   border-radius: 18px;
   background: linear-gradient(135deg, var(--gc), color-mix(in srgb, var(--gc) 60%, #ffffff));
+  color: #fff;
   box-shadow: 0 8px 18px color-mix(in srgb, var(--gc) 40%, transparent);
   font-size: 1.6rem;
 }

@@ -85,7 +85,7 @@ export function WebsitePanel({
           }}
           type="button"
         >
-          {meta.published ? 'Unpublish' : '🌐 Publish website'}
+          {meta.published ? 'Unpublish' : 'Publish website'}
         </button>
       )}
       {!owner && !meta.published && <p className="muted small">Only the owner can publish.</p>}
