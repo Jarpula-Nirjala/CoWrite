@@ -108,7 +108,7 @@ export function Preview({ item }: { item: GalleryItem }) {
       const els: Obj<El>[] = objects.filter((o) => o.key.startsWith('el:') && o.fields.slide === first.id).map((o) => ({ id: o.key.slice(3), key: o.key, f: o.fields as unknown as El }));
       return (
         <span className="tpl-center">
-          <SlideView slide={first} els={els} theme={themeById(deck.theme)} deck={{ ...deck, numbers: false }} width={236} index={0} total={slides.length} resolve={same} />
+          <SlideView slide={first} els={els} theme={themeById(deck.theme, deck.custom)} deck={{ ...deck, numbers: false }} width={236} index={0} total={slides.length} resolve={same} />
           {slides.length > 1 && <span className="tpl-badge">{slides.length} slides</span>}
         </span>
       );

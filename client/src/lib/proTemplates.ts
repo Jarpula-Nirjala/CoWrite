@@ -221,10 +221,10 @@ const pair = (s: string): [string, string] => {
 };
 
 /** Turns an AI Smart Create outline into designed slides. */
-export function aiDeck(o: AiOutline) {
+export function aiDeck(o: AiOutline, opts: { cover?: boolean } = {}) {
   const t = themeById(o.theme);
   let section = 0;
-  const slides: SlideOut[] = [S.cover(t, o.title, o.subtitle, o.cover)];
+  const slides: SlideOut[] = opts.cover === false ? [] : [S.cover(t, o.title, o.subtitle, o.cover)];
   for (const s of o.slides) {
     const b = s.bullets.filter((x) => x.trim());
     switch (s.layout) {

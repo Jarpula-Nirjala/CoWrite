@@ -26,6 +26,8 @@ import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.t
 import { extraRoutes, runDigests } from './routes-extra.ts';
 import { lifeRoutes, runEventReminders } from './routes-life.ts';
 import { toolRoutes } from './routes-tools.ts';
+import { integrationRoutes } from './routes-integrations.ts';
+import { loadOAuthClients } from './oauth.ts';
 
 export interface ServerOptions {
   port: number;
@@ -156,6 +158,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const rooms = new RoomManager(hooks, opts.limits ?? DEFAULT_LIMITS);
   const vault = new Vault(db);
+  await loadOAuthClients(db, vault).catch((err) => console.error('Could not load saved sign-in settings:', err));
   const ctx: AppCtx = { db, auth, docs, rooms, notifier, ai: new AiHub(db, vault), vault };
 
   // Linked translations follow their source a little after edits stop.
@@ -220,6 +223,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(extraRoutes(ctx));
   api.use(lifeRoutes(ctx));
   api.use(toolRoutes(ctx));
+  api.use(integrationRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });
   });

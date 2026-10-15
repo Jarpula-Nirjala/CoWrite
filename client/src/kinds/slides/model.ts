@@ -44,6 +44,8 @@ export interface DeckSettings {
   logo: string | null;
   footer: string;
   numbers: boolean;
+  /** A theme designed for this deck (used when theme is "custom"). */
+  custom?: SlideTheme | null;
 }
 
 export const DECK_DEFAULTS: DeckSettings = { theme: 'navy', logo: null, footer: '', numbers: true };

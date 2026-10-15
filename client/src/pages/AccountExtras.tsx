@@ -1,9 +1,10 @@
 import { AI_PROVIDER_NAMES } from '../auth.tsx';
 import { useEffect, useState } from 'react';
-import { api, errorText, type Brand, type User } from '../api.ts';
+import { api, errorText, type Brand, type Prefs, type User } from '../api.ts';
 import { downscale, pickFile } from '../editor/useFiles.ts';
 import { SLIDE_THEMES } from '../kinds/slides/themes.ts';
 import { APP_THEMES, DEFAULT_PREFS, localPrefs, savePrefs } from '../lib/prefs.ts';
+import { ThemeIcon } from '../components/ThemeIcon.tsx';
 
 const FONTS: [string, string][] = [
   ['serif', 'Times New Roman'],
@@ -26,25 +27,99 @@ export function AppearanceSection({ signedIn }: { signedIn: boolean }) {
     setP(next);
     void savePrefs(next, signedIn);
   };
+  const seg = <K extends 'textSize' | 'spacing' | 'appFont'>(key: K, options: [NonNullable<Prefs[K]>, string][]) => (
+    <span className="seg">
+      {options.map(([v, label]) => (
+        <button key={v} className={(p[key] ?? DEFAULT_PREFS[key]) === v ? 'on' : ''} onClick={() => set({ [key]: v } as Partial<Prefs>)} type="button">
+          {label}
+        </button>
+      ))}
+    </span>
+  );
+  const toggles: [keyof Prefs, string, string][] = [
+    ['dyslexic', 'Dyslexia-friendly font', 'OpenDyslexic with extra spacing, everywhere in CoWrite'],
+    ['reduceMotion', 'Reduce motion', 'Turns off animations, sliding carousels and smooth scrolling'],
+    ['underlineLinks', 'Underline links', 'Makes every link easy to spot without relying on colour'],
+    ['strongFocus', 'Strong focus outline', 'A thick, high-visibility outline for keyboard navigation'],
+    ['bigCursor', 'Large mouse pointer', 'A bigger, high-contrast cursor that is easier to follow'],
+    ['grayscale', 'Grayscale', 'Removes colour, which some people find calmer or easier to read'],
+  ];
+  const card = (t: (typeof APP_THEMES)[number]) => (
+    <button key={t.id} className={`theme-pick ${p.theme === t.id ? 'active' : ''}`} style={{ background: t.bg, color: t.fg, borderBottom: `4px solid ${t.accent}` }} onClick={() => set({ theme: t.id })} aria-pressed={p.theme === t.id} type="button">
+      <span className="theme-pick-icon" style={{ color: t.accent }}>
+        <ThemeIcon name={t.icon} size={24} />
+      </span>
+      {t.name}
+    </button>
+  );
   return (
-    <div className="panel">
+    <div className="panel appearance" id="appearance">
       <h2>Appearance &amp; accessibility</h2>
-      <div className="theme-picks">
-        {APP_THEMES.map((t) => (
-          <button key={t.id} className={`theme-pick ${p.theme === t.id ? 'active' : ''}`} style={{ background: t.bg, color: t.fg, borderBottom: `4px solid ${t.accent}` }} onClick={() => set({ theme: t.id })} aria-pressed={p.theme === t.id} type="button">
-            <span>Aa</span>
-            {t.name}
-          </button>
+      <h3 className="appearance-h">Light themes</h3>
+      <div className="theme-picks">{APP_THEMES.filter((t) => !t.dark).map(card)}</div>
+      <h3 className="appearance-h">Dark themes</h3>
+      <div className="theme-picks">{APP_THEMES.filter((t) => t.dark).map(card)}</div>
+
+      <h3 className="appearance-h">Reading</h3>
+      <div className="a11y-rows">
+        <div className="a11y-row">
+          <span>
+            <b>Text size</b>
+            <small>Scales the whole interface</small>
+          </span>
+          {seg('textSize', [
+            ['sm', 'A−'],
+            ['md', 'A'],
+            ['lg', 'A+'],
+            ['xl', 'A++'],
+          ])}
+        </div>
+        <div className="a11y-row">
+          <span>
+            <b>Line spacing</b>
+            <small>More room between lines and letters</small>
+          </span>
+          {seg('spacing', [
+            ['normal', 'Normal'],
+            ['relaxed', 'Relaxed'],
+          ])}
+        </div>
+        <div className="a11y-row">
+          <span>
+            <b>Interface font</b>
+            <small>Documents keep their own fonts</small>
+          </span>
+          {seg('appFont', [
+            ['default', 'Classic'],
+            ['sans', 'Modern'],
+            ['readable', 'Readable'],
+            ['mono', 'Mono'],
+          ])}
+        </div>
+      </div>
+
+      <h3 className="appearance-h">Comfort &amp; accessibility</h3>
+      <div className="a11y-toggles">
+        {toggles.map(([key, label, hint]) => (
+          <label key={key} className="a11y-toggle">
+            <input type="checkbox" role="switch" checked={!!p[key]} onChange={(e) => set({ [key]: e.target.checked } as Partial<Prefs>)} />
+            <span className="switch" aria-hidden />
+            <span>
+              <b>{label}</b>
+              <small>{hint}</small>
+            </span>
+          </label>
         ))}
       </div>
-      <label className="check-row">
-        <input type="checkbox" checked={p.dyslexic} onChange={(e) => set({ dyslexic: e.target.checked })} /> Dyslexia-friendly font (OpenDyslexic) with extra spacing
-      </label>
+
       <label className="field">
         <span>Daily writing goal (words)</span>
         <input className="input" type="number" min={0} max={20000} step={50} value={p.dailyGoal} onChange={(e) => set({ dailyGoal: Number(e.target.value) })} />
       </label>
-      <p className="muted small">Your streak and progress towards the goal are on the Activity page.</p>
+      <p className="muted small">Your streak and progress towards the goal are on the Activity page. These settings follow your account to every device.</p>
+      <button className="btn btn-outline btn-sm" onClick={() => set({ ...DEFAULT_PREFS, dailyGoal: p.dailyGoal })} type="button">
+        Reset appearance
+      </button>
     </div>
   );
 }

@@ -51,7 +51,7 @@ export default function SlidesEditor(p: KindProps) {
   const slides = useObjects<SlideFields>(doc, 'slide', version);
   const allEls = useObjects<El>(doc, 'el', version);
   const deck = useMemo(() => readDeck(doc), [doc, version]);
-  const theme = themeById(deck.theme);
+  const theme = themeById(deck.theme, deck.custom);
   const [curId, setCur] = useState<string | null>(null);
   const cur = slides.find((s) => s.id === curId) ?? slides[0] ?? null;
   const curIndex = cur ? slides.indexOf(cur) : -1;
@@ -1010,7 +1010,7 @@ function Presenter({
   const [notes, setNotes] = useState(false);
   const [started] = useState(Date.now());
   const [, tick] = useState(0);
-  const theme = themeById(deck.theme);
+  const theme = themeById(deck.theme, deck.custom);
   const i = Math.min(index, slides.length - 1);
   const go = useCallback((n: number) => setIndex(Math.max(0, Math.min(slides.length - 1, n))), [setIndex, slides.length]);
 

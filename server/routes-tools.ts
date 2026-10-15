@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import type { AppCtx } from './context.ts';
 import { HttpError, rateLimit, requireUser, str } from './http.ts';
@@ -20,6 +21,60 @@ export const PHOTOS = [
 ];
 const LANGS = ['English', 'Hindi', 'Telugu', 'Tamil', 'Marathi', 'Bengali', 'Gujarati', 'Kannada', 'Malayalam', 'Punjabi', 'Urdu', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Japanese', 'Korean', 'Chinese (Simplified)', 'Arabic', 'Russian'];
 
+const FONTS = ['Poppins', 'Inter', 'Montserrat', 'Roboto', 'Open Sans', 'Lato', 'Raleway', 'Nunito', 'Space Grotesk', 'Playfair Display', 'Merriweather', 'Georgia', 'Times New Roman', 'Arial', 'Segoe UI'];
+const LAYOUTS = ['cover', 'section', 'bullets', 'text-image', 'cards', 'process', 'nested', 'compare', 'hub', 'stats', 'timeline', 'quote', 'references', 'closing'];
+
+interface DesignedSlide {
+  layout: string;
+  dark: boolean;
+  title: string;
+  subtitle: string;
+  subtitle2?: string;
+  bullets: string[];
+  items: { icon: string; heading: string; text: string }[];
+  imageQuery: string;
+  notes: string;
+  image?: string | null;
+}
+interface DesignedDeck {
+  title: string;
+  subtitle: string;
+  design: Record<string, string>;
+  slides: DesignedSlide[];
+}
+
+/** Finds a free (CC0 / public domain) photo on Openverse and stores it as the person's file. */
+async function stockPhoto(ctx: AppCtx, userId: string, query: string): Promise<string | null> {
+  try {
+    const q = new URLSearchParams({ q: query, license: 'cc0,pdm', page_size: '6', mature: 'false', aspect_ratio: 'wide' });
+    const res = await fetch(`https://api.openverse.org/v1/images/?${q}`, { headers: { 'user-agent': 'CoWrite/1.0' }, signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const results = ((await res.json()) as { results?: { id: string; title?: string }[] }).results ?? [];
+    for (const r of results.slice(0, 3)) {
+      const img = await fetch(`https://api.openverse.org/v1/images/${r.id}/thumb/`, { headers: { 'user-agent': 'CoWrite/1.0' }, signal: AbortSignal.timeout(8000) }).catch(() => null);
+      if (!img?.ok) continue;
+      const mime = (img.headers.get('content-type') ?? 'image/jpeg').split(';')[0];
+      if (!mime.startsWith('image/')) continue;
+      const data = Buffer.from(await img.arrayBuffer());
+      if (data.length < 2000 || data.length > 3_000_000) continue;
+      const id = crypto.randomBytes(16).toString('base64url');
+      await ctx.db.query('insert into files (id, owner_id, doc_id, name, mime, size, data, created_at) values ($1, $2, null, $3, $4, $5, $6, $7)', [
+        id,
+        userId,
+        `${query.slice(0, 40)}.jpg`,
+        mime,
+        data.length,
+        data,
+        Date.now(),
+      ]);
+      return `/api/files/${id}`;
+    }
+  } catch {
+    // No photo is fine: the slide falls back to a built-in picture.
+  }
+  return null;
+}
+
 const MARKDOWN_GUIDE = `Write GitHub-flavoured Markdown. You may also use these CoWrite extensions where they genuinely help:
 - "->centred text<-" on its own line centres a line
 - "> [!info] text", "> [!tip] text", "> [!warning] text" for callouts
@@ -41,9 +96,10 @@ export function toolRoutes(ctx: AppCtx) {
     const user = requireUser(res);
     const kind = req.body?.kind === 'slides' ? 'slides' : 'doc';
     const style = ['pro', 'creative', 'classic'].includes(req.body?.style) ? String(req.body.style) : 'pro';
-    const prompt = str(req.body?.prompt, 4000).trim();
+    const prompt = str(req.body?.prompt, 30_000).trim();
     const source = str(req.body?.source, 60_000).trim();
-    const pages = Math.min(20, Math.max(4, Number(req.body?.slides) || 9));
+    // The number of slides in total (cover and closing included); 0 means "follow the request".
+    const total = Math.min(30, Math.max(1, Math.round(Number(req.body?.slides) || 10)));
     if (prompt.length < 4 && source.length < 40) throw new HttpError(400, 'Describe what you want to create, or upload a document.');
     const ai = await aiFor(user.id);
     const brief = `${prompt ? `<request>\n${prompt}\n</request>\n` : ''}${source ? `<source_document>\n${source}\n</source_document>\nBase the content on the source document.\n` : ''}`;
@@ -68,48 +124,86 @@ export function toolRoutes(ctx: AppCtx) {
       return;
     }
 
-    const out = await ai.json<{ title: string; subtitle: string; theme: string; cover: string; slides: { layout: string; title: string; bullets: string[]; notes: string; photo: string }[] }>(
-      'You are an expert presentation designer who writes clear, persuasive slide decks.',
-      `${brief}\nCreate a presentation of about ${pages} slides (not counting the cover). Mix layouts for variety:
-- "agenda": bullets are 3-5 short section names
-- "title-content": 3-5 bullets under 14 words
-- "image-text": 3-4 bullets beside a photo; choose the photo that fits best
-- "stats": exactly 3 bullets, each "VALUE | caption" (e.g. "38% | growth in revenue")
-- "process": 3-4 bullets, each "Step | short description"
-- "two-column": an even number of bullets; the first half is the left column; start each column with its heading
-- "quote": bullets[0] is the quote, title is who said it
-- "section": a divider; bullets[0] is a one-line description
-- "closing": the last slide, e.g. "Thank you" with contact details in bullets[0]
-Speaker notes: 1-3 sentences. Style: ${style}.`,
+    const auto = !Number(req.body?.slides);
+    const backdrop = req.body?.backdrop === 'dark' || req.body?.backdrop === 'light' ? String(req.body.backdrop) : null;
+    const out = await ai.json<DesignedDeck>(
+      `You are an award-winning presentation designer and subject expert. You turn a request into a complete, professionally designed slide deck.
+Follow the user's instructions exactly: their slide list, slide order, slide count, colours (hex), fonts, layouts, diagrams and wording take priority over any default. Only where they leave something open, choose what a top design agency would.`,
+      `${brief}
+${auto ? 'Use the number of slides the request asks for; if it does not say, choose what the topic needs (usually 8-12).' : `Create exactly ${total} slides in total, including the cover and the closing slide.`}
+${backdrop ? `Every slide will sit on the user's own background picture, which is mostly ${backdrop}; choose ${backdrop === 'dark' ? 'light' : 'dark'} text colours that read well on it.` : ''}
+Default style if the request gives none: ${style === 'creative' ? 'bold and colourful' : style === 'classic' ? 'formal and elegant' : 'clean, modern corporate'}.
+
+Design rules:
+- design.darkBg / design.lightBg are hex colours for dark slides (cover, sections, closing) and light content slides; design.darkText is for text on light slides, design.lightText for text on dark slides; accent and accent2 are highlight colours. Use the user's hex colours when given.
+- Mark a slide "dark": true when it should use the dark background (cover, section dividers, closing, or where the user asks).
+- Pick a layout per slide that shows the idea best:
+  cover (title, subtitle, presenter line in subtitle2), section (divider), bullets (3-6 short bullets), text-image (bullets beside a photo),
+  cards (2-6 items: icon emoji, heading, one-sentence text — for types, categories, applications, features),
+  process (3-6 items in order: icon, heading, short text — workflows and steps),
+  nested (2-4 items from outermost to innermost: heading and example — hierarchies such as AI > ML > DL),
+  compare (exactly 2 items: heading and text with points separated by " | " — pros/cons, before/after),
+  hub (one central idea in subtitle and 4-6 surrounding items — ethics, components, factors),
+  stats (2-4 items: heading is the number, text the caption), timeline (3-6 items: heading is the date or phase),
+  quote (bullets[0] is the quote, subtitle the author), references (bullets are sources with URLs), closing (title like "Thank You", subtitle like "Questions and Answers", bullets[0] an optional final message).
+- Keep on-slide text short (bullets under 14 words, card text under 18 words). Put the detailed explanation in notes (2-4 sentences of speaker notes).
+- imageQuery: 2-4 English keywords for a real stock photo that directly supports the slide (for cover, text-image and closing slides, and cards slides when useful), otherwise "".
+- icon: a single emoji that fits each item.`,
       {
         type: 'object',
         properties: {
           title: { type: 'string' },
           subtitle: { type: 'string' },
-          theme: { type: 'string', enum: DECK_STYLES[style] },
-          cover: { type: 'string', enum: PHOTOS },
+          design: {
+            type: 'object',
+            properties: {
+              darkBg: { type: 'string' },
+              lightBg: { type: 'string' },
+              darkText: { type: 'string' },
+              lightText: { type: 'string' },
+              accent: { type: 'string' },
+              accent2: { type: 'string' },
+              headingFont: { type: 'string', enum: FONTS },
+              bodyFont: { type: 'string', enum: FONTS },
+              mood: { type: 'string', enum: ['tech', 'corporate', 'academic', 'creative', 'minimal', 'warm', 'nature', 'medical', 'finance'] },
+            },
+            required: ['darkBg', 'lightBg', 'darkText', 'lightText', 'accent', 'accent2', 'headingFont', 'bodyFont', 'mood'],
+          },
           slides: {
             type: 'array',
             items: {
               type: 'object',
               properties: {
-                layout: { type: 'string', enum: ['agenda', 'title-content', 'image-text', 'stats', 'process', 'two-column', 'quote', 'section', 'closing'] },
+                layout: { type: 'string', enum: LAYOUTS },
+                dark: { type: 'boolean' },
                 title: { type: 'string' },
+                subtitle: { type: 'string' },
+                subtitle2: { type: 'string' },
                 bullets: { type: 'array', items: { type: 'string' } },
+                items: {
+                  type: 'array',
+                  items: { type: 'object', properties: { icon: { type: 'string' }, heading: { type: 'string' }, text: { type: 'string' } }, required: ['icon', 'heading', 'text'] },
+                },
+                imageQuery: { type: 'string' },
                 notes: { type: 'string' },
-                photo: { type: 'string', enum: PHOTOS },
               },
-              required: ['layout', 'title', 'bullets', 'notes', 'photo'],
-              additionalProperties: false,
+              required: ['layout', 'dark', 'title', 'subtitle', 'bullets', 'items', 'imageQuery', 'notes'],
             },
           },
         },
-        required: ['title', 'subtitle', 'theme', 'cover', 'slides'],
-        additionalProperties: false,
+        required: ['title', 'subtitle', 'design', 'slides'],
       },
-      16000,
+      30000,
     );
-    res.json({ kind, deck: { ...out, theme: DECK_STYLES[style].includes(out.theme) ? out.theme : DECK_STYLES[style][0], slides: (out.slides ?? []).slice(0, 30) } });
+    const slides = (out.slides ?? []).slice(0, auto ? 30 : total);
+    if (!slides.length) throw new HttpError(502, 'The AI did not return any slides. Please try again.');
+    // Real photos for the slides that asked for one, stored as the person's own files.
+    const wanted = slides.map((s, i) => ({ i, q: (s.imageQuery ?? '').trim() })).filter((x) => x.q && !backdrop).slice(0, 8);
+    const found = await Promise.all(wanted.map((w) => stockPhoto(ctx, user.id, w.q)));
+    wanted.forEach((w, k) => {
+      (slides[w.i] as DesignedSlide).image = found[k];
+    });
+    res.json({ kind, designed: true, deck: { ...out, slides } });
   });
 
   // ---------------------------------------------------------- text tools

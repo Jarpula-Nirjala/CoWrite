@@ -27,6 +27,7 @@ export const APPS: AppInfo[] = [
   { id: 'notebook', name: 'Notebook', icon: '📚', color: '#5e35b1', to: '/ask', blurb: 'Ask your documents' },
   { id: 'studio', name: 'AI Studio', icon: '🪄', color: '#c2185b', to: '/ai', blurb: 'AI tools' },
   { id: 'templates', name: 'Templates', icon: '🎨', color: '#a8842f', to: '/templates', blurb: '80+ designs' },
+  { id: 'connections', name: 'Connected', icon: '🔗', color: '#1a73e8', to: '/connections', blurb: 'Google and GitHub' },
 ];
 
 export const MANAGEMENT = [

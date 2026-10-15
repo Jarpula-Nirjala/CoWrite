@@ -363,6 +363,19 @@ const MIGRATIONS: string[] = [
      updated_at double precision not null
    );
    create index notes_user on notes (user_id);`,
+  // 5: linked Google and GitHub accounts (tokens are sealed with the vault key).
+  `create table integrations (
+     user_id text not null references users(id) on delete cascade,
+     provider text not null,
+     access_token text not null,
+     refresh_token text,
+     expires_at double precision,
+     scope text not null default '',
+     account jsonb not null default '{}',
+     via text not null default 'oauth',
+     created_at double precision not null,
+     primary key (user_id, provider)
+   );`,
 ];
 
 async function migrate(db: Db): Promise<void> {

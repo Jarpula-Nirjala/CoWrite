@@ -177,7 +177,7 @@ function DeckPreview({ item, busy, onUse, onClose }: { item: GalleryItem; busy: 
     .sort((a, b) => (a.f.order < b.f.order ? -1 : 1));
   const [cur, setCur] = useState(0);
   const els = (sid: string): Obj<El>[] => objects.filter((o) => o.key.startsWith('el:') && o.fields.slide === sid).map((o) => ({ id: o.key.slice(3), key: o.key, f: o.fields as unknown as El }));
-  const theme = themeById(deck.theme);
+  const theme = themeById(deck.theme, deck.custom);
   const main = slides[cur];
   const width = Math.min(720, window.innerWidth - 80);
   return (

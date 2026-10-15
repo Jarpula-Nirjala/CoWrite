@@ -140,7 +140,7 @@ export function FeatureShowcase() {
 
   // Advances on its own, one card after another (resting only while the browser tab is hidden).
   useEffect(() => {
-    if (!inView || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (!inView || document.documentElement.hasAttribute('data-reduce-motion') || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const t = setTimeout(() => setI((n) => (n + 1) % CARDS.length), DWELL);
     return () => clearTimeout(t);
   }, [i, inView]);

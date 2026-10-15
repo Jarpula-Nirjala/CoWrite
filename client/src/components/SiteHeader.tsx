@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
-import { api, timeAgo, type Notification, type Prefs } from '../api.ts';
+import { useCallback, useEffect, useState, type CSSProperties } from 'react';
+import { api, timeAgo, type Notification, type Prefs, type ThemeId } from '../api.ts';
 import { APPS } from '../lib/apps.ts';
-import { APP_THEMES, localPrefs, savePrefs } from '../lib/prefs.ts';
+import { APP_THEMES, effectiveTheme, localPrefs, savePrefs } from '../lib/prefs.ts';
+import { ThemeIcon } from './ThemeIcon.tsx';
 import { useAuth } from '../auth.tsx';
 import { Link, navigate } from '../router.ts';
 import { Brand } from './Brand.tsx';
@@ -181,33 +182,45 @@ export function ThemeToggle() {
     window.addEventListener('cowrite:prefs', on);
     return () => window.removeEventListener('cowrite:prefs', on);
   }, []);
-  const cur = APP_THEMES.find((t) => t.id === prefs.theme) ?? APP_THEMES[0];
+  const cur = APP_THEMES.find((t) => t.id === prefs.theme) ?? APP_THEMES[1];
+  const shown = effectiveTheme(prefs.theme);
+  const pick = (id: ThemeId, close: () => void) => {
+    void savePrefs({ ...prefs, theme: id }, !!user);
+    close();
+  };
+  const group = (title: string, list: typeof APP_THEMES, close: () => void) => (
+    <>
+      <span className="menu-label">{title}</span>
+      <div className="theme-grid-menu">
+        {list.map((t) => (
+          <button
+            key={t.id}
+            role="menuitemradio"
+            aria-checked={t.id === prefs.theme}
+            className={`theme-option ${t.id === prefs.theme ? 'on' : ''}`}
+            style={{ '--sw-bg': t.bg, '--sw-fg': t.fg, '--sw-ac': t.accent } as CSSProperties}
+            onClick={() => pick(t.id, close)}
+            type="button"
+          >
+            <span className="theme-swatch">
+              <ThemeIcon name={t.icon} size={18} />
+            </span>
+            {t.name}
+            {t.id === prefs.theme && <span className="theme-check">✓</span>}
+          </button>
+        ))}
+      </div>
+    </>
+  );
   return (
-    <Dropdown
-      className="icon-button theme-toggle"
-      ariaLabel={`Colour theme: ${cur.name}`}
-      label={<span className="theme-dot" style={{ background: `linear-gradient(135deg, ${cur.bg} 50%, ${cur.accent} 50%)` }} />}
-    >
+    <Dropdown className="icon-button theme-toggle" ariaLabel={`Colour theme: ${cur.name}`} label={<ThemeIcon name={prefs.theme === 'auto' ? 'auto' : shown.icon} size={20} color={shown.dark ? '#f5c451' : '#e8a317'} />}>
       {(close) => (
-        <div className="theme-menu" role="menu">
-          <span className="menu-label">Colour theme</span>
-          {APP_THEMES.map((t) => (
-            <button
-              key={t.id}
-              role="menuitemradio"
-              aria-checked={t.id === prefs.theme}
-              className={`theme-option ${t.id === prefs.theme ? 'on' : ''}`}
-              onClick={() => {
-                void savePrefs({ ...prefs, theme: t.id }, !!user);
-                close();
-              }}
-              type="button"
-            >
-              <span className="theme-dot" style={{ background: `linear-gradient(135deg, ${t.bg} 50%, ${t.accent} 50%)` }} />
-              {t.name}
-              {t.id === prefs.theme && <span className="theme-check">✓</span>}
-            </button>
-          ))}
+        <div className="theme-menu wide" role="menu">
+          {group('Light themes', APP_THEMES.filter((t) => !t.dark), close)}
+          {group('Dark themes', APP_THEMES.filter((t) => t.dark), close)}
+          <Link className="theme-more" to="/account#appearance" onClick={close}>
+            Text size, spacing and accessibility →
+          </Link>
         </div>
       )}
     </Dropdown>

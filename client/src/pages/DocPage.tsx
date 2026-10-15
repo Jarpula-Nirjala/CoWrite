@@ -182,14 +182,15 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
 
   // New documents from a template or an import get their content on first open.
   useEffect(() => {
-    if (!client || !doc || !online || !roleCanEdit(role)) return;
+    // Wait until we know this is a text document: slides, boards and sheets take their own content.
+    if (!client || !doc || !online || !roleCanEdit(role) || (meta?.kind ?? 'doc') !== 'doc' || !meta) return;
     const initial = pendingContent.take(roomId);
     if (initial && doc.length === 0) {
       const ops = [...doc.insertTokens(0, initial.tokens), ...(initial.settings ? settingsOps(doc, initial.settings) : [])];
       client.edit(ops);
       bumpLocal();
     }
-  }, [client, doc, online, role, roomId]);
+  }, [client, doc, online, role, roomId, meta]);
 
   useEffect(() => {
     if (!client) return;

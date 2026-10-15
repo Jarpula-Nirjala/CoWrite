@@ -50,6 +50,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
   const [chatOpen, setChatOpen] = useState(false);
   const [follow, setFollow] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [seeded, setSeeded] = useState(0);
   const people = usePeople(roomId, share);
   const call = useCall(client);
   const online = client?.status === 'online';
@@ -73,11 +74,15 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
   // Templates: objects to create when a new document first opens.
   useEffect(() => {
     if (!client || !online || !roleCanEdit(role)) return;
+    // Only real content counts: a "settings" entry may already exist from the moment before the kind was known.
+    const hasContent = client.doc.objectsWith('').some((o) => o.key !== 'settings');
     const initial = pendingContent.take(roomId);
-    if (!initial?.objects?.length || client.doc.objectsWith('').length > 0) return;
+    if (!initial?.objects?.length || hasContent) return;
     const ops = initial.objects.flatMap((o) => client.doc.setFields(o.key, o.fields));
     if (initial.settings) ops.push(...client.doc.setFields('settings', initial.settings as Record<string, unknown>));
     client.edit(ops);
+    // Our own edit is not a remote change, so tell the editor to redraw.
+    setSeeded((n) => n + 1);
   }, [client, online, role, roomId]);
 
   const cursors: RemoteCursor[] = useMemo(() => (client ? ([...client.peers.values()] as unknown as RemoteCursor[]) : []), [client, s.tick]);
@@ -133,7 +138,7 @@ export function KindPage({ roomId, s }: { roomId: string; s: DocSession }) {
             <KindEditor
               kind={meta?.kind ?? 'doc'}
               client={client}
-              version={s.docVersion}
+              version={s.docVersion + seeded}
               props={{
                 roomId,
                 share,

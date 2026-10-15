@@ -382,7 +382,8 @@ export const SLIDE_THEMES: SlideTheme[] = [
   },
 ];
 
-export const themeById = (id: unknown) => SLIDE_THEMES.find((t) => t.id === id) ?? SLIDE_THEMES[0];
+/** A deck's theme: one of the built-in designs, or the custom one AI Smart Create designed for it. */
+export const themeById = (id: unknown, custom?: SlideTheme | null) => (id === 'custom' && custom ? custom : (SLIDE_THEMES.find((t) => t.id === id) ?? SLIDE_THEMES[0]));
 
 /** Decorative artwork (960×540 viewBox) drawn behind the slide content. */
 export function decoSvg(deco: Deco, c: string, isTitle: boolean): string {

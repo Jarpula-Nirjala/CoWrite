@@ -8,6 +8,7 @@ import { Drive } from './pages/Drive.tsx';
 import { Keep } from './pages/Keep.tsx';
 import { Meet } from './pages/Meet.tsx';
 import { Templates } from './pages/Templates.tsx';
+import { ConnectionsPage } from './pages/ConnectionsPage.tsx';
 import { Ask } from './pages/Ask.tsx';
 import { CalendarPage } from './pages/Calendar.tsx';
 import { Dashboard } from './pages/Dashboard.tsx';
@@ -79,6 +80,8 @@ function Routes() {
       return <Drive />;
     case '/meet':
       return <Meet />;
+    case '/connections':
+      return <ConnectionsPage />;
     default:
       return <NotFound />;
   }

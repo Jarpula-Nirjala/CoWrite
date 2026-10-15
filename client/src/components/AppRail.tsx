@@ -17,6 +17,7 @@ const PLACES = [
   { id: 'starred', to: '/documents?view=starred', label: 'Starred', icon: 'star' },
   { id: 'shared', to: '/documents?view=shared', label: 'Shared', icon: 'users' },
   { id: 'cloud', to: '/drive', label: 'Cloud', icon: 'folder' },
+  { id: 'connected', to: '/connections', label: 'Connected', icon: 'globe' },
   { id: 'recent', to: '/documents?view=recent', label: 'Recent', icon: 'clock' },
 ];
 
@@ -30,6 +31,7 @@ function activeId(path: string, search: string): string {
   if (path === '/templates') return 'templates';
   if (path === '/calendar') return 'calendar';
   if (path === '/drive') return 'cloud';
+  if (path === '/connections') return 'connected';
   if (path === '/documents') {
     const view = q.get('view');
     if (view === 'starred' || view === 'shared' || view === 'recent') return view;

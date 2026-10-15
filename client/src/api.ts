@@ -27,12 +27,39 @@ export interface Brand {
   deckTheme: string;
 }
 
-export type ThemeId = 'light' | 'dark' | 'sepia' | 'ocean' | 'forest' | 'rose' | 'midnight';
+export type ThemeId =
+  | 'auto'
+  | 'light'
+  | 'sepia'
+  | 'ocean'
+  | 'forest'
+  | 'rose'
+  | 'lavender'
+  | 'mint'
+  | 'sunset'
+  | 'slate'
+  | 'dark'
+  | 'midnight'
+  | 'coffee'
+  | 'nord'
+  | 'grape'
+  | 'contrast';
 
 export interface Prefs {
   theme: ThemeId;
   dyslexic: boolean;
   dailyGoal: number;
+  /** Interface text size. */
+  textSize?: 'sm' | 'md' | 'lg' | 'xl';
+  /** Extra line and letter spacing for easier reading. */
+  spacing?: 'normal' | 'relaxed';
+  /** Typeface for the interface (documents keep their own fonts). */
+  appFont?: 'default' | 'sans' | 'readable' | 'mono';
+  reduceMotion?: boolean;
+  underlineLinks?: boolean;
+  strongFocus?: boolean;
+  bigCursor?: boolean;
+  grayscale?: boolean;
 }
 
 export interface DocMeta {

@@ -80,7 +80,19 @@ export function CalendarPage() {
     // Everything visible in the grid, plus the next two months for "Upcoming".
     const from = ymd(new Date(month.getFullYear(), month.getMonth() - 1, 20));
     const to = ymd(new Date(month.getFullYear(), month.getMonth() + 3, 10));
-    api<{ events: CalEvent[] }>(`/events?from=${from}&to=${to}`).then((r) => setEvents(r.events), (e) => setError(errorText(e)));
+    const mine = api<{ events: CalEvent[] }>(`/events?from=${from}&to=${to}`).then((r) => r.events);
+    // Google Calendar events appear alongside (read-only) when Google is connected.
+    const google = api<{ events: { id: string; title: string; url: string; allDay: boolean; start: string; end: string; location: string }[] }>(`/integrations/google/calendar?from=${from}&to=${to}`).then(
+      (r) =>
+        r.events.map((g): CalEvent => {
+          const st = new Date(g.start);
+          const en = new Date(g.end);
+          const hm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+          return { id: `g:${g.id}`, title: `🗓 ${g.title}`, notes: g.url, day: g.allDay ? g.start.slice(0, 10) : ymd(st), start: g.allDay ? null : hm(st), end: g.allDay ? null : hm(en), color: 'teal', kind: 'meeting', remind: false };
+        }),
+      () => [] as CalEvent[],
+    );
+    Promise.all([mine, google]).then(([a, b]) => setEvents([...a, ...b].sort((x, y) => (x.day + (x.start ?? '')).localeCompare(y.day + (y.start ?? '')))), (e) => setError(errorText(e)));
   }, [month]);
 
   useEffect(() => {
@@ -233,7 +245,7 @@ export function CalendarPage() {
             <ul className="day-list">
               {day?.events.map((e) => (
                 <li key={e.id} className="day-event" style={{ '--c': EVENT_COLORS[e.color] ?? EVENT_COLORS.blue } as React.CSSProperties}>
-                  <button className="day-event-btn" onClick={() => setEditing(e)} type="button">
+                  <button className="day-event-btn" onClick={() => (e.id.startsWith('g:') ? window.open(e.notes, '_blank', 'noopener') : setEditing(e))} title={e.id.startsWith('g:') ? 'From Google Calendar: opens in Google' : undefined} type="button">
                     <span className="day-time">{e.start ? `${fmtTime(e.start)}${e.end ? ` – ${fmtTime(e.end)}` : ''}` : 'All day'}</span>
                     <strong>
                       {kindOf(e.kind).icon} {e.title}

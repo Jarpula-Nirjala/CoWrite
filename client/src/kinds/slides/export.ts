@@ -142,7 +142,7 @@ function drawText(g: CanvasRenderingContext2D, el: El, color: string, font: stri
 /** Draws one slide onto a canvas `scale` times 960×540. */
 export async function renderSlide(data: DeckData, index: number, resolve: (s: string) => Promise<string>, scale = 2): Promise<HTMLCanvasElement> {
   const slide = data.slides[index];
-  const theme = themeById(data.deck.theme);
+  const theme = themeById(data.deck.theme, data.deck.custom);
   const c = document.createElement('canvas');
   c.width = W * scale;
   c.height = H * scale;
@@ -245,7 +245,7 @@ export async function exportDeckPptx(title: string, data: DeckData, resolve: (s:
   const pres = new Ctor();
   pres.layout = 'LAYOUT_16x9';
   pres.title = title;
-  const theme = themeById(data.deck.theme);
+  const theme = themeById(data.deck.theme, data.deck.custom);
   const IN = 96; // slide units per inch (960 units = 10in)
   const pt = 0.75; // font px -> pt
   const SHAPES: Record<string, string> = { rect: 'rect', round: 'roundRect', ellipse: 'ellipse', triangle: 'triangle', arrow: 'rightArrow', line: 'line', star: 'star5', diamond: 'diamond' };

@@ -2,12 +2,14 @@ import crypto from 'node:crypto';
 import express, { type Request, type Response } from 'express';
 import { SESSION_TTL_MS, toPublic, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
-import { HttpError, SESSION_COOKIE, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
+import { HttpError, SESSION_COOKIE, currentUser, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
 import { cleanKey, inspectKey, keyCandidates, PROVIDER_NAMES } from './llm.ts';
-import { authorizeUrl, enabledProviders, fetchProfile, type Provider } from './oauth.ts';
+import { authorizeUrl, enabledProviders, exchangeCode, type Provider } from './oauth.ts';
+import { saveIntegration } from './routes-integrations.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
+const THEMES = ['auto', 'light', 'sepia', 'ocean', 'forest', 'rose', 'lavender', 'mint', 'sunset', 'slate', 'dark', 'midnight', 'coffee', 'nord', 'grape', 'contrast'] as const;
 
 export function authRoutes(ctx: AppCtx) {
   const r = express.Router();
@@ -60,10 +62,19 @@ export function authRoutes(ctx: AppCtx) {
   r.put('/me/prefs', async (req, res) => {
     const user = requireUser(res);
     const b = req.body ?? {};
+    const pick = <T extends string>(v: unknown, ok: readonly T[], d: T): T => (ok.includes(v as T) ? (v as T) : d);
     const prefs = {
-      theme: ['dark', 'sepia', 'ocean', 'forest', 'rose', 'midnight'].includes(b.theme) ? b.theme : 'light',
+      theme: pick(b.theme, THEMES, 'light'),
       dyslexic: b.dyslexic === true,
       dailyGoal: Math.max(0, Math.min(20_000, Math.round(Number(b.dailyGoal) || 0))),
+      textSize: pick(b.textSize, ['sm', 'md', 'lg', 'xl'] as const, 'md'),
+      spacing: pick(b.spacing, ['normal', 'relaxed'] as const, 'normal'),
+      appFont: pick(b.appFont, ['default', 'sans', 'readable', 'mono'] as const, 'default'),
+      reduceMotion: b.reduceMotion === true,
+      underlineLinks: b.underlineLinks === true,
+      strongFocus: b.strongFocus === true,
+      bigCursor: b.bigCursor === true,
+      grayscale: b.grayscale === true,
     };
     await ctx.db.query('update users set prefs = $2::jsonb where id = $1', [user.id, JSON.stringify(prefs)]);
     res.json({ prefs });
@@ -167,18 +178,25 @@ export function authRoutes(ctx: AppCtx) {
     const p = provider(req);
     const state = crypto.randomBytes(16).toString('base64url');
     const next = typeof req.query.next === 'string' && req.query.next.startsWith('/') && !req.query.next.startsWith('//') ? req.query.next : '/home';
-    res.cookie(STATE_COOKIE, `${state}|${next}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
-    res.redirect(authorizeUrl(p, redirectUri(req, p), state));
+    // "link" connects the account to the signed-in user so CoWrite can read Drive, Calendar or repositories.
+    const link = req.query.link === '1' && !!currentUser(res);
+    res.cookie(STATE_COOKIE, `${state}|${next}|${link ? 'link' : 'signin'}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
+    res.redirect(authorizeUrl(p, redirectUri(req, p), state, link));
   });
 
   r.get('/oauth/:provider/callback', async (req, res) => {
     const fail = (msg: string) => res.redirect(`/signin?error=${encodeURIComponent(msg)}`);
     try {
       const p = provider(req);
-      const [state, next] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
+      const [state, next, mode] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
       res.clearCookie(STATE_COOKIE, { path: '/' });
       if (!state || state !== req.query.state || typeof req.query.code !== 'string') return fail('Sign-in was cancelled or expired. Please try again.');
-      const profile = await fetchProfile(p, req.query.code, redirectUri(req, p));
+      const { profile, tokens } = await exchangeCode(p, req.query.code, redirectUri(req, p));
+      const me = currentUser(res);
+      if (mode === 'link' && me) {
+        await saveIntegration(ctx, me.id, p, tokens, { email: profile.email, name: profile.name, avatar: profile.avatar }, 'oauth');
+        return res.redirect(`${next || '/connections'}${(next || '').includes('?') ? '&' : '?'}connected=${p}`);
+      }
       const user = await auth.oauthUser(p, profile.id, profile.email, profile.name, profile.avatar);
       await startSession(req, res, user);
       res.redirect(next || '/home');

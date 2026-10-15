@@ -32,9 +32,17 @@ export interface Brand {
 
 /** Personal settings that follow the account across devices. */
 export interface Prefs {
-  theme: 'light' | 'dark' | 'sepia' | 'ocean' | 'forest' | 'rose' | 'midnight';
+  theme: string;
   dyslexic: boolean;
   dailyGoal: number;
+  textSize?: string;
+  spacing?: string;
+  appFont?: string;
+  reduceMotion?: boolean;
+  underlineLinks?: boolean;
+  strongFocus?: boolean;
+  bigCursor?: boolean;
+  grayscale?: boolean;
 }
 
 export interface PublicUser {

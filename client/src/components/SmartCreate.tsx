@@ -5,6 +5,7 @@ import { useAuth } from '../auth.tsx';
 import { fileToText } from '../lib/aiFiles.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { aiDeck, type AiOutline } from '../lib/proTemplates.ts';
+import { designedDeck, type DesignedDeck } from '../lib/designedDeck.ts';
 import type { DocSettings } from '../rich/settings.ts';
 import { Link } from '../router.ts';
 import { Icon } from './ui.tsx';
@@ -26,7 +27,10 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
   const [kind, setKind] = useState<'doc' | 'slides'>(initialKind);
   const [style, setStyle] = useState<'pro' | 'creative' | 'classic'>('pro');
   const [prompt, setPrompt] = useState('');
-  const [count, setCount] = useState(9);
+  // 0 = Auto: follow the slide list in the description.
+  const [count, setCount] = useState(0);
+  const [backdrop, setBackdrop] = useState<{ url: string; preview: string; tone: 'dark' | 'light' } | null>(null);
+  const bgRef = useRef<HTMLInputElement>(null);
   const [source, setSource] = useState<{ name: string; text: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,15 +51,36 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
     }
   };
 
+  /** A background picture for every slide: uploaded once, and its brightness decides the text colour. */
+  const pickBackdrop = async (f: File | undefined) => {
+    if (!f) return;
+    if (!f.type.startsWith('image/')) return setError('Choose an image (PNG or JPG) for the slide background.');
+    setError(null);
+    setBusy('Uploading your background…');
+    try {
+      const preview = URL.createObjectURL(f);
+      const tone = await brightness(preview);
+      const res = await fetch('/api/files', { method: 'POST', headers: { 'content-type': f.type, 'x-file-name': encodeURIComponent(f.name) }, body: f, credentials: 'same-origin' });
+      const j = (await res.json().catch(() => ({}))) as { url?: string; error?: string };
+      if (!res.ok || !j.url) throw new Error(j.error ?? 'Upload failed.');
+      setBackdrop({ url: j.url, preview, tone });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const go = async () => {
     setError(null);
     setBusy(kind === 'slides' ? 'Designing your slides…' : 'Writing your document…');
     try {
-      const r = await api<{ kind: 'doc'; title: string; theme: string; markdown: string } | { kind: 'slides'; deck: AiOutline }>('/ai/create', {
+      const r = await api<{ kind: 'doc'; title: string; theme: string; markdown: string } | { kind: 'slides'; designed?: boolean; deck: AiOutline & DesignedDeck }>('/ai/create', {
         method: 'POST',
-        body: { kind, style, prompt, slides: count, source: source?.text ?? '' },
+        body: { kind, style, prompt, slides: count, source: source?.text ?? '', backdrop: backdrop?.tone ?? null },
       });
-      if (r.kind === 'slides') await createAndOpen(r.deck.title, 'slides', aiDeck(r.deck));
+      if (r.kind === 'slides')
+        await createAndOpen(r.deck.title, 'slides', r.designed ? designedDeck(r.deck, { backgroundImage: backdrop?.url, backdrop: backdrop?.tone }) : aiDeck(r.deck, { cover: count !== 1 }));
       else {
         const settings: Partial<DocSettings> = { theme: r.theme as DocSettings['theme'], font: r.theme === 'luxe' || r.theme === 'paperback' ? 'georgia' : r.theme === 'executive' || r.theme === 'simple' || r.theme === 'modern' || r.theme === 'report' ? 'sans' : 'serif', pageNumbers: true };
         await createAndOpen(r.title, 'doc', { tokens: markdownToTokens(r.markdown), settings });
@@ -86,14 +111,22 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder={kind === 'slides' ? 'Describe your presentation: topic, audience and anything it must include…' : 'Describe your document: what it is for, who will read it and what it must cover…'}
+          placeholder={kind === 'slides' ? 'Describe your presentation, or paste a full brief: slide list, colours (hex), fonts, layouts and diagrams. It is followed exactly.' : 'Describe your document: what it is for, who will read it and what it must cover…'}
           rows={compact ? 2 : 3}
-          maxLength={4000}
+          maxLength={30_000}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !busy) void go();
           }}
           aria-label="What should the AI create?"
         />
+        {backdrop && kind === 'slides' && (
+          <span className="sc-file">
+            <img className="sc-bg-thumb" src={backdrop.preview} alt="" /> Background for every slide · {backdrop.tone === 'dark' ? 'light' : 'dark'} text
+            <button onClick={() => setBackdrop(null)} type="button" aria-label="Remove background">
+              ×
+            </button>
+          </span>
+        )}
         {source && (
           <span className="sc-file">
             📎 {source.name} <small>({Math.round(source.text.length / 1000)}k characters)</small>
@@ -107,6 +140,14 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
             <Icon name="upload" size={16} /> Upload document
           </button>
           <input ref={fileRef} type="file" hidden accept=".txt,.md,.docx,.pdf,.html,.htm,image/*" onChange={(e) => (void upload(e.target.files?.[0]), (e.target.value = ''))} />
+          {kind === 'slides' && (
+            <>
+              <button className="sc-tool" onClick={() => bgRef.current?.click()} disabled={!!busy} title="Use your own background or template picture on every slide" type="button">
+                <Icon name="crop" size={16} /> Background image
+              </button>
+              <input ref={bgRef} type="file" hidden accept="image/*" onChange={(e) => (void pickBackdrop(e.target.files?.[0]), (e.target.value = ''))} />
+            </>
+          )}
           <div className="sc-styles" role="radiogroup" aria-label="Style">
             {STYLES.map((s) => (
               <button key={s.id} role="radio" aria-checked={style === s.id} className={style === s.id ? 'on' : ''} title={s.hint} onClick={() => setStyle(s.id)} type="button">
@@ -115,15 +156,22 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
             ))}
           </div>
           {kind === 'slides' && (
-            <label className="sc-count">
+            <span className="sc-count" role="group" aria-label="Number of slides">
+              <button onClick={() => setCount(Math.max(0, count - 1))} disabled={count <= 0} aria-label="Fewer slides" type="button">
+                −
+              </button>
               <select value={count} onChange={(e) => setCount(Number(e.target.value))} aria-label="Number of slides">
-                {[6, 8, 9, 10, 12, 15].map((n) => (
+                <option value={0}>Auto slides</option>
+                {Array.from({ length: 30 }, (_, i) => i + 1).map((n) => (
                   <option key={n} value={n}>
-                    {n} slides
+                    {n} slide{n === 1 ? '' : 's'}
                   </option>
                 ))}
               </select>
-            </label>
+              <button onClick={() => setCount(Math.min(30, count + 1))} disabled={count >= 30} aria-label="More slides" type="button">
+                +
+              </button>
+            </span>
           )}
           <button className="btn btn-primary sc-go" disabled={!!busy || !user || (prompt.trim().length < 4 && !source)} onClick={() => void go()} type="button">
             {busy ? <span className="sc-spin" /> : <Icon name="sparkle" size={16} />} {busy ?? 'Generate'}
@@ -154,4 +202,20 @@ export function SmartCreate({ initialKind = 'slides', compact = false }: { initi
       {user && aiReady && <p className="muted small sc-powered">Powered by {aiName}. You can edit everything afterwards.</p>}
     </section>
   );
+}
+
+/** Whether a picture is mostly dark or light (sampled on a small canvas). */
+async function brightness(src: string): Promise<'dark' | 'light'> {
+  const im = new Image();
+  im.src = src;
+  await im.decode();
+  const c = document.createElement('canvas');
+  c.width = 32;
+  c.height = 18;
+  const g = c.getContext('2d')!;
+  g.drawImage(im, 0, 0, 32, 18);
+  const d = g.getImageData(0, 0, 32, 18).data;
+  let sum = 0;
+  for (let i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  return sum / (d.length / 4) < 140 ? 'dark' : 'light';
 }

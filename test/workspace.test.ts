@@ -138,6 +138,25 @@ describe('workspace apps', () => {
     assert.ok(b.documents.some((d: { title: string }) => d.title === 'Backed up'));
   });
 
+  it('connected accounts: status, token checks and owner-only setup', async () => {
+    const st = (await api('/integrations')).body;
+    assert.equal(st.owner, false);
+    assert.equal(st.google.connected, false);
+    assert.match(st.google.redirectUri, /\/api\/auth\/oauth\/google\/callback$/);
+    assert.equal((await api('/integrations/github/token', { method: 'POST', body: { token: 'not-a-token' } })).status, 400);
+    assert.equal((await api('/integrations/setup/google', { method: 'PUT', body: { clientId: 'x.apps.googleusercontent.com', clientSecret: 'secretsecret' } })).status, 403);
+    assert.equal((await api('/integrations/github/repos')).status, 400, 'needs a connection first');
+  });
+
+  it('saves the new appearance and accessibility settings', async () => {
+    const r = await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'nord', dyslexic: false, dailyGoal: 300, textSize: 'xl', spacing: 'relaxed', appFont: 'readable', reduceMotion: true, bigCursor: true, bogus: 1 } });
+    assert.equal(r.body.prefs.theme, 'nord');
+    assert.equal(r.body.prefs.textSize, 'xl');
+    assert.equal(r.body.prefs.reduceMotion, true);
+    assert.equal(r.body.prefs.bogus, undefined);
+    assert.equal((await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'neon' } })).body.prefs.theme, 'light');
+  });
+
   it('AI tools validate input before calling a model', async () => {
     assert.equal((await api('/ai/text', { method: 'POST', body: { task: 'spell', text: '' } })).status, 400);
     assert.equal((await api('/ai/create', { method: 'POST', body: { kind: 'slides', prompt: '' } })).status, 400);

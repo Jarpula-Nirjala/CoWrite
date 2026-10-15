@@ -1,3 +1,4 @@
+import { ConnectionsSection } from '../components/Connections.tsx';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, errorText, type User } from '../api.ts';
 import { useAuth } from '../auth.tsx';
@@ -24,7 +25,7 @@ type Msg = { ok: boolean; text: string } | null;
 import { AiKeySection, AppearanceSection, BrandKitSection } from './AccountExtras.tsx';
 
 export function Account() {
-  const { user, ready, setUser, signOut, providers } = useAuth();
+  const { user, ready, setUser, signOut } = useAuth();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
@@ -165,27 +166,7 @@ export function Account() {
           </button>
         </form>
 
-        <div className="panel">
-          <h2>Connected accounts</h2>
-          {(['google', 'github'] as const).map((p) => {
-            const connected = user[p];
-            const available = providers.providers.includes(p);
-            return (
-              <div key={p} className="row-between connected">
-                <span>
-                  <strong>{p === 'google' ? 'Google' : 'GitHub'}</strong>{' '}
-                  <span className="muted small">{connected ? 'Connected' : available ? 'Not connected' : 'Not available on this server'}</span>
-                </span>
-                {!connected && available && (
-                  <a className="btn btn-outline btn-sm" href={`/api/auth/oauth/${p}?next=/account`}>
-                    Connect
-                  </a>
-                )}
-              </div>
-            );
-          })}
-          <p className="muted small">Accounts connect automatically when they use the same verified email address.</p>
-        </div>
+        <ConnectionsSection />
 
         <div className="panel">
           <h2>Session</h2>
