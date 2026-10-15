@@ -59,7 +59,10 @@ describe('professional templates', () => {
       const gmail = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['gmail'])).searchParams.get('scope') ?? '';
       assert.ok(!plain.includes('gmail'));
       for (const sc of GOOGLE_EXTRAS.gmail) assert.ok(gmail.includes(sc));
-      assert.ok(gmail.includes('drive.readonly'));
+      // Extras are requested on their own (Google rejects drive.file together with youtube.readonly).
+      const yt = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['youtube'])).searchParams;
+      assert.ok(!(yt.get('scope') ?? '').includes('drive'));
+      assert.equal(yt.get('include_granted_scopes'), 'true');
     } finally {
       delete process.env.GOOGLE_CLIENT_ID;
       delete process.env.GOOGLE_CLIENT_SECRET;

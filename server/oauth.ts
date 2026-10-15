@@ -95,7 +95,10 @@ export async function saveOAuthClient(db: Db, vault: Vault, p: Provider, client:
 export function authorizeUrl(p: Provider, redirectUri: string, state: string, link = false, extras: string[] = []): string {
   const { id } = creds(p);
   if (p === 'google') {
-    const scope = link ? [LINK_SCOPES.google, ...extras.flatMap((x) => GOOGLE_EXTRAS[x] ?? [])].join(' ') : 'openid email profile';
+    // Google refuses some scopes in one request (drive.file with youtube.readonly), so an extra feature asks for
+    // only its own permission; include_granted_scopes adds it to what the person already granted.
+    const extra = extras.flatMap((x) => GOOGLE_EXTRAS[x] ?? []);
+    const scope = !link ? 'openid email profile' : extra.length ? ['openid', 'email', 'profile', ...extra].join(' ') : LINK_SCOPES.google;
     const q = new URLSearchParams({ client_id: id!, redirect_uri: redirectUri, response_type: 'code', scope, state, prompt: link ? 'consent' : 'select_account' });
     if (link) {
       q.set('access_type', 'offline');
