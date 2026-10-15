@@ -12,9 +12,14 @@ import { useSpeech } from '../editor/speech.ts';
 import { createAndOpen } from '../lib/create.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
+import { deleteFiles, getFile, putFile } from '../lib/fileStore.ts';
 
 /** A file attached to a message: text files travel as their text, images and PDFs as base64 for the model to read. */
 interface Att {
+  /** Key of the file's contents in IndexedDB. */
+  id?: string;
+  /** True once the contents are safely in IndexedDB, so the chat list need not carry them. */
+  stored?: boolean;
   name: string;
   mime: string;
   size: number;
@@ -36,6 +41,7 @@ interface Chat {
 }
 
 const STORE = 'cowrite:assistant';
+const KEEP = 30;
 const MAX_FILE = 15_000_000;
 const same = (s: string) => Promise.resolve(s);
 const toTokens = (md: string): Token[] => markdownToTokens(md).map((t, i) => ({ id: ['as', i + 1], ch: t.ch, attrs: (t.a ?? {}) as Token['attrs'] }));
@@ -55,14 +61,22 @@ function loadChats(): Chat[] {
   }
 }
 /** Chats are remembered in this browser; the raw bytes of images and PDFs are not (only their names and previews). */
+/**
+ * The chat list goes to localStorage; file contents live in IndexedDB (see lib/fileStore.ts) and are only
+ * referenced here by id. A file whose contents could not be stored keeps its text inline, as before.
+ */
 function saveChats(chats: Chat[]) {
   try {
-    const slim = chats.slice(0, 30).map((c) => ({ ...c, messages: c.messages.map((m) => (m.files ? { ...m, files: m.files.map(({ data: _d, ...f }) => f) } : m)) }));
+    const slim = chats.slice(0, KEEP).map((c) => ({ ...c, messages: c.messages.map((m) => (m.files ? { ...m, files: m.files.map(({ data: _d, text, ...f }) => (f.stored ? f : { ...f, text })) } : m)) }));
     localStorage.setItem(STORE, JSON.stringify(slim));
   } catch {
     // Storage full or blocked: chats simply are not remembered.
   }
+  // Chats that fell off the end take their stored files with them.
+  void deleteFiles(chats.slice(KEEP).flatMap(fileIds));
 }
+const fileIds = (c: Chat) => c.messages.flatMap((m) => (m.files ?? []).flatMap((f) => (f.id ? [f.id] : [])));
+const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 const readAs = (f: Blob, how: 'dataUrl' | 'text') =>
   new Promise<string>((ok, no) => {
@@ -93,19 +107,29 @@ async function toAttachment(f: File): Promise<Att> {
   if (/^image\/(png|jpeg|webp|gif)$/.test(f.type) || f.type === 'application/pdf' || lower.endsWith('.pdf')) {
     const url = await readAs(f, 'dataUrl');
     const mime = f.type || 'application/pdf';
-    return { name, mime, size: f.size, data: url.split(',')[1] ?? '', thumb: mime.startsWith('image/') ? await thumbnail(url).catch(() => undefined) : undefined };
+    return { id: newId(), name, mime, size: f.size, data: url.split(',')[1] ?? '', thumb: mime.startsWith('image/') ? await thumbnail(url).catch(() => undefined) : undefined };
   }
   if (lower.endsWith('.docx')) {
     const mammoth = await import('mammoth');
     const { value } = await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
-    return { name, mime: f.type, size: f.size, text: value };
+    return { id: newId(), name, mime: f.type, size: f.size, text: value };
   }
   if (lower.endsWith('.html') || lower.endsWith('.htm')) {
     const doc = new DOMParser().parseFromString(await readAs(f, 'text'), 'text/html');
-    return { name, mime: 'text/html', size: f.size, text: doc.body.innerText || doc.body.textContent || '' };
+    return { id: newId(), name, mime: 'text/html', size: f.size, text: doc.body.innerText || doc.body.textContent || '' };
   }
   if (/\.(doc|ppt|pptx|xls|xlsx|zip|exe)$/i.test(lower)) throw new Error(`${name}: upload PDFs, Word (.docx), images or text and code files.`);
-  return { name, mime: f.type || 'text/plain', size: f.size, text: await readAs(f, 'text') };
+  return { id: newId(), name, mime: f.type || 'text/plain', size: f.size, text: await readAs(f, 'text') };
+}
+
+/** What the server receives for one attachment: its text, or its bytes, read back from IndexedDB when needed. */
+async function forWire(f: Att): Promise<{ name: string; mime: string; text?: string; data?: string }> {
+  if (f.text !== undefined) return { name: f.name, mime: f.mime, text: f.text };
+  if (f.data) return { name: f.name, mime: f.mime, data: f.data };
+  const saved = f.id ? await getFile(f.id) : undefined;
+  if (saved?.text !== undefined) return { name: f.name, mime: f.mime, text: saved.text };
+  if (saved?.data) return { name: f.name, mime: f.mime, data: saved.data };
+  return { name: f.name, mime: 'text/plain', text: '(this file is no longer available in this browser; ask the person to attach it again)' };
 }
 
 const kb = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -203,7 +227,7 @@ export function Assistant() {
       const doc = r.documents[0];
       if (!doc) throw new Error('That document could not be read.');
       if (doc.encrypted) throw new Error('Encrypted documents cannot be sent to the AI.');
-      setFiles((fs) => [...fs, { name: `${doc.title || 'Untitled'} (CoWrite)`, mime: 'text/plain', size: doc.text.length, text: doc.text }].slice(0, 10));
+      setFiles((fs) => [...fs, { id: newId(), name: `${doc.title || 'Untitled'} (CoWrite)`, mime: 'text/plain', size: doc.text.length, text: doc.text }].slice(0, 10));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not attach that document.');
     }
@@ -226,7 +250,10 @@ export function Assistant() {
       setCur(id);
       history = [];
     }
-    const messages: Msg[] = [...history, { role: 'user', text: q || 'Please look at the attached file.', ...(attached.length ? { files: attached } : {}) }];
+    setBusy(true);
+    // Keep the files' contents in IndexedDB so follow-ups still have them after a reload.
+    const kept = await Promise.all(attached.map(async (f) => (f.stored || !f.id ? f : { ...f, stored: await putFile(f.id, { text: f.text, data: f.data }) })));
+    const messages: Msg[] = [...history, { role: 'user', text: q || 'Please look at the attached file.', ...(kept.length ? { files: kept } : {}) }];
     update(id, (c) => ({ ...c, at: Date.now(), messages: [...messages, { role: 'assistant', text: '' }] }));
     setBusy(true);
     const ctrl = new AbortController();
@@ -234,7 +261,8 @@ export function Assistant() {
     let answer = '';
     try {
       // Earlier images and PDFs are only in memory; after a reload they are sent by name.
-      const wire = messages.map((m) => ({ role: m.role, text: m.text, files: m.files?.map((f) => (f.text !== undefined ? { name: f.name, mime: f.mime, text: f.text } : f.data ? { name: f.name, mime: f.mime, data: f.data } : { name: f.name, mime: 'text/plain', text: '(this file is no longer available; ask the person to attach it again)' })) }));
+      // Files from earlier turns (or from before a reload) are read back from IndexedDB.
+      const wire = await Promise.all(messages.map(async (m) => ({ role: m.role, text: m.text, files: m.files ? await Promise.all(m.files.map(forWire)) : undefined })));
       const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: wire }), credentials: 'same-origin', signal: ctrl.signal });
       if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -296,6 +324,8 @@ export function Assistant() {
   };
 
   const remove = (id: string) => {
+    const gone = chats.find((c) => c.id === id);
+    if (gone) void deleteFiles(fileIds(gone));
     const next = chats.filter((c) => c.id !== id);
     setChats(next);
     saveChats(next);
