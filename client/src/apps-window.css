@@ -1605,37 +1605,71 @@
   height: 100%;
   min-height: 420px;
   background: var(--bg);
+  color: var(--text);
   font-family: -apple-system, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
   font-size: 14px;
 }
+.ghx h2,
+.ghx h3,
+.ghx .btn {
+  font-family: inherit;
+}
 .ghx-top {
   display: flex;
+  flex: none;
   align-items: center;
-  gap: 14px;
-  padding: 12px 18px;
+  gap: 12px;
+  padding: 10px 16px;
   background: #010409;
   color: #f0f6fc;
 }
+.ghx-menu,
+.ghx-bell {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3d444d;
+  border-radius: 6px;
+  background: none;
+  color: #f0f6fc;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.ghx-bell i {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4493f8;
+}
 .ghx-logo {
+  display: inline-grid;
   border: 0;
   background: none;
   color: #f0f6fc;
   cursor: pointer;
 }
 .ghx-crumb {
+  overflow: hidden;
   font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.ghx-crumb button {
-  border: 0;
-  background: none;
-  color: #f0f6fc;
-  font: inherit;
+.ghx-crumb span {
   font-weight: 400;
-  cursor: pointer;
+}
+.ghx-searchform {
+  display: flex;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 120px;
 }
 .ghx-search {
-  width: min(320px, 40%);
-  margin-left: auto;
+  width: min(340px, 100%);
   padding: 6px 10px;
   border: 1px solid #3d444d;
   border-radius: 6px;
@@ -1648,53 +1682,187 @@
   height: 30px;
   border-radius: 50%;
 }
-.ghx-home {
+.ghx-shell {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 24px;
-  padding: 20px;
+  flex: 1;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 0;
+}
+.ghx-collapsed .ghx-shell {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+.ghx-side {
+  border-right: 1px solid var(--border);
+}
+.ghx-side .ghx-newbtn {
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: #1f883d;
+  color: #fff;
+  white-space: nowrap;
+}
+.ghx-side nav button.on {
+  background: var(--bg-alt);
+  color: var(--text);
+  box-shadow: inset 3px 0 0 #fd8c73;
+}
+.ghx-collapsed .gm-lname,
+.ghx-collapsed .gm-count,
+.ghx-collapsed .ghx-newbtn span {
+  display: none;
+}
+.ghx-collapsed .ghx-side nav button {
+  justify-content: center;
+  padding: 0;
+  border-radius: 17px;
+}
+.ghx-main {
+  min-width: 0;
   overflow-y: auto;
 }
-.ghx-profile {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.ghx-pad {
+  padding: 16px 20px;
 }
-.ghx-profile img {
-  width: 100%;
-  max-width: 220px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
+.ghx-pad > h3 {
+  margin: 4px 0 8px;
 }
-.ghx-profile h2 {
-  margin: 8px 0 0;
-  font-family: inherit;
+
+/* home */
+.ghx-homegrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  padding: 16px 20px;
 }
-.ghx-profile p {
-  margin: 0;
-}
-.ghx-repos h3 {
+.ghx-homegrid h3 {
   margin: 0 0 10px;
-  font-family: inherit;
 }
-.ghx-count {
-  padding: 0 8px;
-  border-radius: 10px;
-  background: var(--bg-alt);
-  font-size: 0.8rem;
-}
-.ghx-repos ul,
-.ghx-list {
+.ghx-feed {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ghx-repos li {
-  padding: 16px 0;
+.ghx-feed li {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0;
   border-bottom: 1px solid var(--border);
 }
-.ghx-repos li p {
+.ghx-feed img {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.ghx-feed li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ghx-evdetail {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.ghx-card {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.ghx-me {
+  display: flex;
+  gap: 12px;
+}
+.ghx-me img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.ghx-me > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ghx-mini-list {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.ghx-mini-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+.ghx-mini-list img {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+
+/* lists of repositories */
+.ghx-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.ghx-toolbar input {
+  flex: 1;
+  min-width: 180px;
+}
+.ghx-toolbar input,
+.ghx-toolbar select,
+.ghx-branchsel,
+.ghx-form input,
+.ghx-form select,
+.ghx-commitbox input,
+.ghx-pathinput,
+.ghx-newbranch input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+.ghx-repolist {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ghx-repolist li {
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border);
+}
+.ghx-repolist p {
   margin: 6px 0;
+}
+.ghx-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.ghx-topic {
+  display: inline-block;
+  margin: 0 4px 4px 0;
+  padding: 1px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #0969da 12%, var(--surface));
+  color: #0969da;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 .ghx-link {
   padding: 0;
@@ -1704,22 +1872,31 @@
   font: inherit;
   font-size: 1.05rem;
   font-weight: 600;
+  text-align: left;
   text-decoration: none;
   cursor: pointer;
+}
+.ghx-link.small {
+  font-size: inherit;
 }
 .ghx-link:hover {
   text-decoration: underline;
 }
-:root[data-tone='dark'] .ghx-link {
+:root[data-tone='dark'] .ghx-link,
+:root[data-tone='dark'] .ghx-path button,
+:root[data-tone='dark'] .ghx-topic {
   color: #4493f8;
 }
 .ghx-badge {
+  display: inline-block;
+  margin-left: 4px;
   padding: 0 7px;
   border: 1px solid var(--border-strong, var(--border));
   border-radius: 12px;
   color: var(--muted);
   font-size: 0.72rem;
   font-weight: 500;
+  vertical-align: middle;
 }
 .ghx-lang {
   display: inline-block;
@@ -1727,9 +1904,60 @@
   height: 10px;
   border-radius: 50%;
 }
+
+/* new repository */
+.ghx-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 640px;
+}
+.ghx-form h2 {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.ghx-form > label,
+.ghx-two label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+}
+.ghx-form > label.check-row {
+  flex-direction: row;
+  align-items: center;
+  font-weight: 400;
+}
+.ghx-radio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+  border-block: 1px solid var(--border);
+}
+.ghx-radio label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ghx-radio small {
+  flex-basis: 100%;
+  padding-left: 24px;
+}
+.ghx-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.ghx-form > .btn {
+  align-self: flex-start;
+}
+
+/* one repository */
 .ghx-repo {
   padding: 16px 20px;
-  overflow-y: auto;
 }
 .ghx-repohead {
   display: flex;
@@ -1739,17 +1967,83 @@
   gap: 10px;
 }
 .ghx-repohead h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 0;
-  font-family: inherit;
   font-size: 1.25rem;
+  font-weight: 400;
+}
+.ghx-repohead h2 img {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+.ghx-repoactions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ghx-pillbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.ghx-pillbtn span {
+  padding: 0 6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  font-size: 0.75rem;
+}
+.ghx-pillbtn.on {
+  color: #9a6700;
+}
+.ghx-clone {
+  position: relative;
+}
+.ghx-clonebox {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 340px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.18);
+}
+.ghx-clonebox a {
+  color: var(--text);
+  text-decoration: none;
+}
+.ghx-clonebox a:hover {
+  color: #0969da;
+}
+.ghx-desc {
+  margin: 8px 0 0;
 }
 .ghx-tabs {
   display: flex;
   gap: 4px;
   margin: 12px 0 16px;
+  overflow-x: auto;
   border-bottom: 1px solid var(--border);
 }
 .ghx-tabs button {
+  flex: none;
   margin-bottom: -1px;
   padding: 8px 14px;
   border: 0;
@@ -1763,7 +2057,13 @@
   border-bottom-color: #fd8c73;
   font-weight: 600;
 }
+
+/* code */
 .ghx-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   margin-bottom: 10px;
 }
 .ghx-path button {
@@ -1773,21 +2073,40 @@
   font: inherit;
   cursor: pointer;
 }
-.ghx-branch {
-  margin-right: 10px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+.ghx-path .ghx-branchsel {
+  margin-right: 8px;
+}
+.ghx-branchsel {
+  margin-bottom: 8px;
   background: var(--bg-alt);
   font-size: 0.85rem;
+  font-weight: 600;
+}
+.ghx-path .ghx-addfile {
+  margin-left: auto;
+  color: var(--text);
+}
+.ghx-treebox {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ghx-lastcommit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-alt);
+}
+.ghx-lastcommit small {
+  margin-left: auto;
 }
 .ghx-tree {
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
 }
 .ghx-tree li {
   border-bottom: 1px solid var(--border);
@@ -1827,8 +2146,14 @@
   background: var(--bg-alt);
   font-weight: 600;
 }
+.ghx-diff .ghx-filebar {
+  cursor: pointer;
+}
 .ghx-filebar .row-actions {
   margin-left: auto;
+}
+.ghx-danger {
+  color: #cf222e !important;
 }
 .ghx-md {
   padding: 16px 24px;
@@ -1851,6 +2176,10 @@
   background: var(--surface);
   font: 12px/1.6 ui-monospace, 'Cascadia Code', Consolas, monospace;
 }
+.ghx-src > div {
+  padding-right: 12px;
+  white-space: pre;
+}
 .ghx-src .ln {
   display: inline-block;
   width: 48px;
@@ -1859,14 +2188,92 @@
   text-align: right;
   user-select: none;
 }
+.ghx-src .plus {
+  background: color-mix(in srgb, #2da44e 18%, var(--surface));
+}
+.ghx-src .minus {
+  background: color-mix(in srgb, #cf222e 16%, var(--surface));
+}
+.ghx-src .hunk {
+  background: color-mix(in srgb, #0969da 12%, var(--surface));
+  color: var(--muted);
+}
+.ghx-diff .ghx-src > div {
+  padding-left: 12px;
+}
+.ghx-add {
+  color: #1a7f37;
+  font-weight: 600;
+}
+.ghx-del {
+  color: #cf222e;
+  font-weight: 600;
+}
+.ghx-imgview {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: repeating-conic-gradient(var(--bg-alt) 0 25%, var(--surface) 0 50%) 0 0 / 20px 20px;
+}
+.ghx-imgview img {
+  max-width: 100%;
+}
+
+/* editor */
+.ghx-editor {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.ghx-pathinput {
+  flex: 1;
+  min-width: 200px;
+  font-weight: 400;
+}
+.ghx-code-edit {
+  display: block;
+  width: 100%;
+  min-height: 340px;
+  padding: 12px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: 13px/1.6 ui-monospace, 'Cascadia Code', Consolas, monospace;
+  tab-size: 2;
+  resize: vertical;
+}
+.ghx-code-edit:focus {
+  outline: none;
+}
+.ghx-commitbox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--bg-alt);
+}
+.ghx-commitbox .row-actions {
+  justify-content: flex-end;
+}
+
+/* issues, pull requests, commits */
 .ghx-issuebar {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
 }
 .ghx-green {
   border-color: #1f883d !important;
   background: #1f883d !important;
+  color: #fff !important;
+}
+.ghx-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 .ghx-list li {
   display: flex;
@@ -1880,11 +2287,24 @@
   border-top: 1px solid var(--border);
   border-radius: 6px 6px 0 0;
 }
+.ghx-list li:last-child {
+  border-radius: 0 0 6px 6px;
+}
+.ghx-list li:only-child {
+  border-radius: 6px;
+}
 .ghx-list li > div {
   display: flex;
   flex: 1;
   flex-direction: column;
+  gap: 2px;
   min-width: 0;
+}
+.ghx-list li.ghx-unread {
+  background: color-mix(in srgb, #0969da 6%, var(--surface));
+}
+.ghx-list li.ghx-unread .ghx-link {
+  font-weight: 700;
 }
 .ghx-state {
   color: #1a7f37;
@@ -1903,17 +2323,29 @@
   text-shadow: 0 0 2px rgb(0 0 0 / 0.6);
 }
 .ghx-mini {
+  flex: none;
   width: 22px;
   height: 22px;
   border-radius: 50%;
 }
 .ghx-sha {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-alt);
+  color: var(--text);
   font-family: ui-monospace, Consolas, monospace;
   font-size: 0.8rem;
+  cursor: pointer;
+}
+.ghx-commitmsg {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  font: inherit;
+  color: var(--muted);
 }
 .ghx-issue h2 {
   margin: 8px 0;
-  font-family: inherit;
   font-weight: 400;
 }
 .ghx-pill {
@@ -1924,6 +2356,9 @@
   font-size: 0.85rem;
 }
 .ghx-pill.closed {
+  background: #cf222e;
+}
+.ghx-pill.merged {
   background: #8250df;
 }
 .ghx-comment {
@@ -1958,12 +2393,60 @@
   color: var(--text);
   font: inherit;
 }
-.ghx-gists {
-  padding: 16px 20px;
-  overflow-y: auto;
+.ghx-end {
+  justify-content: flex-end;
 }
-@media (max-width: 760px) {
-  .ghx-home {
+.ghx-mergebox {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid #1f883d;
+  border-radius: 6px;
+  background: color-mix(in srgb, #1f883d 8%, var(--surface));
+}
+.ghx-mergebox.bad {
+  border-color: #9a6700;
+  background: color-mix(in srgb, #d4a72c 12%, var(--surface));
+}
+.ghx-newbranch {
+  margin-bottom: 12px;
+}
+.ghx-newbranch input {
+  flex: 1;
+}
+.ghx-release .ghx-md {
+  padding: 12px 16px;
+}
+.ghx-assets {
+  margin: 0;
+  padding: 10px 16px;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+.ghx-assets li {
+  padding: 4px 0;
+}
+@media (max-width: 860px) {
+  .ghx-homegrid {
+    grid-template-columns: 1fr;
+  }
+  .ghx-shell {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
+  .ghx .gm-lname,
+  .ghx .gm-count,
+  .ghx .ghx-newbtn span {
+    display: none;
+  }
+  .ghx .ghx-side nav button {
+    justify-content: center;
+    padding: 0;
+  }
+  .ghx-two {
     grid-template-columns: 1fr;
   }
 }

@@ -27,10 +27,10 @@ export interface OAuthTokens {
   scope: string;
 }
 
-/** Scopes for linking: read Drive and Calendar, create files in Drive; read repositories and write gists. */
+/** Scopes for linking: read Drive and Calendar, create files in Drive; full use of repositories and notifications. */
 export const LINK_SCOPES: Record<Provider, string> = {
   google: 'openid email profile https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/calendar.readonly',
-  github: 'read:user user:email repo gist',
+  github: 'read:user user:email repo notifications',
 };
 
 /** Extra Google permissions, asked for only when someone switches the feature on. */

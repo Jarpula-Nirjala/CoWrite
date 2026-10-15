@@ -20,10 +20,10 @@ import { Icon, Spinner } from '../components/ui.tsx';
 import { createAndOpen } from '../lib/create.ts';
 import { navigate, useSearch } from '../router.ts';
 
-type Tab = 'drive' | 'calendar' | 'gmail' | 'youtube' | 'tasks' | 'repos' | 'gists' | 'send';
+type Tab = 'drive' | 'calendar' | 'gmail' | 'youtube' | 'tasks' | 'repos' | 'send';
 type Feature = GoogleFeature;
 
-/** Open Google Drive files, Google Calendar, GitHub repositories and gists inside CoWrite, and send documents back. */
+/** Open Google Drive files, Google Calendar, and your GitHub inside CoWrite, and send documents back. */
 export function ConnectionsPage() {
   const { user, ready } = useAuth();
   const { data, reload } = useIntegrations();
@@ -52,8 +52,7 @@ export function ConnectionsPage() {
     { id: 'calendar', label: 'Calendar', on: g, logo: 'calendar', win: 'calendar' },
     { id: 'youtube', label: 'YouTube', on: g, logo: 'youtube', win: 'youtube' },
     { id: 'tasks', label: 'Tasks', on: g, logo: 'tasks', win: 'tasks' },
-    { id: 'repos', label: 'GitHub repositories', on: gh, logo: 'github', win: 'github' },
-    { id: 'gists', label: 'GitHub gists', on: gh, logo: 'github' },
+    { id: 'repos', label: 'GitHub', on: gh, logo: 'github', win: 'github' },
     { id: 'send', label: 'Send a document', on: g || gh, logo: null },
   ];
   return (
@@ -64,7 +63,7 @@ export function ConnectionsPage() {
           <div>
             <p className="kicker">Connected apps</p>
             <h1>Your Google and GitHub, inside CoWrite</h1>
-            <p className="muted">Open Google Docs, Drive files and Calendar events, browse repositories and gists, and send your documents back.</p>
+            <p className="muted">Open Google Docs, Drive files and Calendar events, work in your GitHub repositories, and send your documents back.</p>
           </div>
         </header>
         {just && <div className="alert success">✓ {just === 'google' ? 'Google' : 'GitHub'} is connected.</div>}
@@ -90,7 +89,7 @@ export function ConnectionsPage() {
             )}
             {['drive', 'calendar', 'gmail', 'youtube', 'tasks'].includes(tab) && !g ? (
               <NotConnected name="Google" onDone={reload} />
-            ) : (tab === 'repos' || tab === 'gists') && !gh ? (
+            ) : tab === 'repos' && !gh ? (
               <NotConnected name="GitHub" onDone={reload} />
             ) : tab === 'drive' ? (
               <div className="app-embed">
@@ -116,8 +115,7 @@ export function ConnectionsPage() {
               <div className="app-embed">
                 <GitHubApp />
               </div>
-            ) : tab === 'gists' ? (
-              <GistsTab />
+
             ) : (
               <SendTab google={g} github={gh} features={data.google.features} />
             )}
@@ -441,55 +439,6 @@ export function ReposTab() {
   );
 }
 
-function GistsTab() {
-  const [gists, setGists] = useState<{ id: string; title: string; public: boolean; updatedAt: string; url: string; files: string[] }[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  useEffect(() => {
-    api<{ gists: NonNullable<typeof gists> }>('/integrations/github/gists').then((r) => setGists(r.gists), (e) => (setGists([]), setError(errorText(e))));
-  }, []);
-  const open = async (id: string) => {
-    setBusy(id);
-    try {
-      const r = await api<{ title: string; text: string }>(`/integrations/github/gist/${id}`);
-      await importText(r.title, r.text);
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(null);
-    }
-  };
-  return (
-    <section>
-      {error && <p className="error-text">{error}</p>}
-      {!gists ? (
-        <Spinner />
-      ) : !gists.length ? (
-        <p className="muted">No gists yet. Send a document from the “Send a document” tab to create one.</p>
-      ) : (
-        <div className="repo-grid">
-          {gists.map((g) => (
-            <div key={g.id} className="repo-card">
-              <b>
-                {g.public ? '🌐' : '🔒'} {g.title}
-              </b>
-              <small className="muted">{g.files.join(', ')}</small>
-              <small className="muted">updated {timeAgo(Date.parse(g.updatedAt))}</small>
-              <span className="row-actions">
-                <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => void open(g.id)} type="button">
-                  {busy === g.id ? 'Opening…' : 'Open in CoWrite'}
-                </button>
-                <a className="btn btn-text btn-sm" href={g.url} target="_blank" rel="noreferrer">
-                  View ↗
-                </a>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 function SendTab({ google, github, features }: { google: boolean; github: boolean; features: Partial<Record<Feature, boolean>> }) {
   const [to, setTo] = useState('');
   const [note, setNote] = useState('');
@@ -515,13 +464,13 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
     );
     if (github) api<{ repos: { fullName: string }[] }>('/integrations/github/repos').then((r) => (setRepos(r.repos), setRepo(r.repos[0]?.fullName ?? '')), () => {});
   }, [github]);
-  const send = async (where: 'google' | 'gist' | 'github' | 'gmail' | 'sheets') => {
+  const send = async (where: 'google' | 'github' | 'gmail' | 'sheets') => {
     setBusy(true);
     setError(null);
     setResult(null);
     try {
       const target = where === 'sheets' ? sheet : doc;
-      const body = where === 'github' ? { repo, path } : where === 'gist' ? { public: false } : where === 'gmail' ? { to, note } : {};
+      const body = where === 'github' ? { repo, path } : where === 'gmail' ? { to, note } : {};
       const r = await api<{ url?: string; updated?: boolean; sentTo?: string[] }>(`/docs/${target}/send/${where}`, { method: 'POST', body });
       const text =
         where === 'gmail'
@@ -530,9 +479,7 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
             ? 'Saved to Google Sheets.'
             : where === 'google'
               ? 'Saved as a Google Doc.'
-              : where === 'gist'
-                ? 'Saved as a private gist.'
-                : r.updated
+              : r.updated
                   ? 'Updated the file on GitHub.'
                   : 'Added the file to GitHub.';
       setResult({ url: r.url ?? '', text });
@@ -609,15 +556,7 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
             </a>
           )}
         </div>
-        <div className="send-card">
-          <GitHubLogo size={28} />
-          <b>Save as a GitHub gist</b>
-          <small className="muted">A private gist with the document as Markdown.</small>
-          <button className="btn btn-primary btn-sm" disabled={!github || !doc || busy} onClick={() => void send('gist')} type="button">
-            {github ? 'Create gist' : 'Connect GitHub first'}
-          </button>
-        </div>
-        <div className="send-card">
+<div className="send-card">
           <GitHubLogo size={28} />
           <b>Commit to a repository</b>
           <select className="input" value={repo} onChange={(e) => setRepo(e.target.value)} disabled={!github}>

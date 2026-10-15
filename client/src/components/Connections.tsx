@@ -53,14 +53,14 @@ export function ConnectionsSection() {
   const [dialog, setDialog] = useState<null | 'github' | 'google-setup' | 'github-setup'>(null);
   const connectError = new URLSearchParams(location.search).get('connect_error');
   const disconnect = async (p: 'google' | 'github') => {
-    if (!confirm(`Disconnect ${p === 'google' ? 'Google' : 'GitHub'}? CoWrite will stop reading your ${p === 'google' ? 'Drive and Calendar' : 'repositories and gists'}.`)) return;
+    if (!confirm(`Disconnect ${p === 'google' ? 'Google' : 'GitHub'}? CoWrite will stop reading your ${p === 'google' ? 'Drive and Calendar' : 'repositories'}.`)) return;
     await api(`/integrations/${p}`, { method: 'DELETE' }).catch(() => {});
     void reload();
   };
   return (
     <div className="panel connections" id="connected">
       <h2>Connected accounts</h2>
-      <p className="muted small">Connect Google and GitHub to open your Drive files, Google Docs, Calendar events, repositories and gists inside CoWrite, and to send your documents back to them.</p>
+      <p className="muted small">Connect Google and GitHub to open your Drive files, Google Docs, Calendar events and repositories inside CoWrite, and to send your documents back to them.</p>
       {error && <p className="error-text">{error}</p>}
       {connectError && <div className="alert">{connectError}</div>}
       {data?.owner && data.google.source === 'settings' && !data.google.connected && (
@@ -87,7 +87,7 @@ export function ConnectionsSection() {
           <ServiceRow
             logo={<GitHubLogo />}
             name="GitHub"
-            features="Repositories · Markdown files · Gists"
+            features="Repositories · Code · Issues · Pull requests · Notifications"
             s={data.github}
             onConnect={() => setDialog('github')}
             onDisconnect={() => void disconnect('github')}
@@ -169,10 +169,10 @@ function GitHubConnect({ status, owner, onClose, onDone, onSetup }: { status: Se
         )}
         <ol className="connect-steps">
           <li>
-            <a className="btn btn-outline btn-sm" href="https://github.com/settings/tokens/new?description=CoWrite&scopes=repo,gist,read:user" target="_blank" rel="noreferrer">
+            <a className="btn btn-outline btn-sm" href="https://github.com/settings/tokens/new?description=CoWrite&scopes=repo,read:user,notifications" target="_blank" rel="noreferrer">
               <GitHubLogo size={16} /> Create a token on GitHub ↗
             </a>{' '}
-            <span className="muted small">(opens GitHub with the right boxes ticked: repo, gist, read:user)</span>
+            <span className="muted small">(opens GitHub with the right boxes ticked: repo, read:user, notifications)</span>
           </li>
           <li>Pick an expiry (for example 90 days), scroll down and press <b>Generate token</b>.</li>
           <li>

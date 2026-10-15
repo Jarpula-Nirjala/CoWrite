@@ -233,26 +233,6 @@ export function integrationRoutes(ctx: AppCtx) {
     res.json({ name: f.name, text, url: f.html_url });
   });
 
-  r.get('/integrations/github/gists', limiter, async (_req, res) => {
-    const user = requireUser(res);
-    const t = await token(user.id, 'github');
-    const gists = await call<{ id: string; description: string | null; public: boolean; updated_at: string; html_url: string; files: Record<string, { filename: string; language: string | null }> }[]>(
-      'github',
-      t,
-      'https://api.github.com/gists?per_page=100',
-    );
-    res.json({ gists: gists.map((g) => ({ id: g.id, title: g.description || Object.keys(g.files)[0] || 'Untitled gist', public: g.public, updatedAt: g.updated_at, url: g.html_url, files: Object.keys(g.files) })) });
-  });
-
-  r.get('/integrations/github/gist/:id', limiter, async (req, res) => {
-    const user = requireUser(res);
-    const t = await token(user.id, 'github');
-    const g = await call<{ description: string | null; files: Record<string, { filename: string; content: string; language: string | null }> }>('github', t, `https://api.github.com/gists/${encodeURIComponent(String(req.params.id))}`);
-    const files = Object.values(g.files);
-    const md = files.map((f) => (/\.(md|markdown|txt)$/i.test(f.filename) || !f.language ? f.content : `## ${f.filename}\n\`\`\`${(f.language ?? '').toLowerCase()}\n${f.content}\n\`\`\``)).join('\n\n');
-    res.json({ title: g.description || files[0]?.filename || 'Gist', text: md });
-  });
-
   // ------------------------------------------------------------------ Google
 
   const DOC = 'application/vnd.google-apps.document';
@@ -325,18 +305,6 @@ export function integrationRoutes(ctx: AppCtx) {
     return toMarkdown(room.doc.tokens());
   }
   const fileName = (title: string) => `${title.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').slice(0, 60) || 'document'}.md`;
-
-  r.post('/docs/:id/send/gist', rateLimit(20, 10 * 60_000), async (req, res) => {
-    const a = await docAccess(ctx, req, res, 'viewer', { registered: true });
-    const t = await token(a.user!.id, 'github');
-    const title = a.doc?.title ?? 'Document';
-    const g = await call<{ html_url: string }>('github', t, 'https://api.github.com/gists', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ description: title, public: req.body?.public === true, files: { [fileName(title)]: { content: (await markdownOf(a.docId)) || ' ' } } }),
-    });
-    res.json({ url: g.html_url });
-  });
 
   r.post('/docs/:id/send/github', rateLimit(20, 10 * 60_000), async (req, res) => {
     const a = await docAccess(ctx, req, res, 'viewer', { registered: true });
@@ -938,7 +906,7 @@ export function integrationRoutes(ctx: AppCtx) {
     drive: { base: 'https://www.googleapis.com/drive/v3', slot: 'google', allow: /^(files|about|drives)(\/|$)/ },
     calendar: { base: 'https://www.googleapis.com/calendar/v3', slot: 'google', allow: /^(calendars|users\/me\/calendarList|colors)(\/|$)/ },
     tasks: { base: 'https://tasks.googleapis.com/tasks/v1', slot: 'google', allow: /^(users\/@me\/lists|lists)(\/|$)/ },
-    github: { base: 'https://api.github.com', slot: 'github', allow: /^(user|users|repos|gists|search|notifications|orgs)(\/|$)/ },
+    github: { base: 'https://api.github.com', slot: 'github', allow: /^(user|users|repos|search|notifications|orgs)(\/|$)/ },
   };
   const proxyLimit = rateLimit(600, 60_000);
   r.all('/apps/:svc/*rest', proxyLimit, async (req, res) => {
