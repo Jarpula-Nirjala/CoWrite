@@ -185,11 +185,22 @@ export function authRoutes(ctx: AppCtx) {
   });
 
   r.get('/oauth/:provider/callback', async (req, res) => {
-    const fail = (msg: string) => res.redirect(`/signin?error=${encodeURIComponent(msg)}`);
+    const [, linkNext, linkMode] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
+    // Linking errors go back to Account settings with an explanation; sign-in errors go to the sign-in page.
+    const fail = (msg: string) =>
+      linkMode === 'link' && currentUser(res)
+        ? res.redirect(`/account?connect_error=${encodeURIComponent(msg)}#connected`)
+        : res.redirect(`/signin?error=${encodeURIComponent(msg)}`);
     try {
       const p = provider(req);
-      const [state, next, mode] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
+      const [state, next, mode] = [(readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|')[0], linkNext, linkMode];
       res.clearCookie(STATE_COOKIE, { path: '/' });
+      if (req.query.error === 'access_denied')
+        return fail(
+          p === 'google'
+            ? 'Google refused access. While your Google app is in Testing, only its test users can connect: add this Gmail address under Google Auth Platform → Audience → Test users, then try again.'
+            : 'GitHub access was refused or cancelled.',
+        );
       if (!state || state !== req.query.state || typeof req.query.code !== 'string') return fail('Sign-in was cancelled or expired. Please try again.');
       const { profile, tokens } = await exchangeCode(p, req.query.code, redirectUri(req, p));
       const me = currentUser(res);

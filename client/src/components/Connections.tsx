@@ -48,6 +48,7 @@ export const GitHubLogo = ({ size = 22 }: { size?: number }) => (
 export function ConnectionsSection() {
   const { data, error, reload } = useIntegrations();
   const [dialog, setDialog] = useState<null | 'github' | 'google-setup' | 'github-setup'>(null);
+  const connectError = new URLSearchParams(location.search).get('connect_error');
   const disconnect = async (p: 'google' | 'github') => {
     if (!confirm(`Disconnect ${p === 'google' ? 'Google' : 'GitHub'}? CoWrite will stop reading your ${p === 'google' ? 'Drive and Calendar' : 'repositories and gists'}.`)) return;
     await api(`/integrations/${p}`, { method: 'DELETE' }).catch(() => {});
@@ -58,6 +59,16 @@ export function ConnectionsSection() {
       <h2>Connected accounts</h2>
       <p className="muted small">Connect Google and GitHub to open your Drive files, Google Docs, Calendar events, repositories and gists inside CoWrite, and to send your documents back to them.</p>
       {error && <p className="error-text">{error}</p>}
+      {connectError && <div className="alert">{connectError}</div>}
+      {data?.owner && data.google.source === 'settings' && !data.google.connected && (
+        <div className="alert info-alert">
+          <b>Google says “Access blocked … only developer-approved testers”?</b> Your Google app is in <b>Testing</b>. Open{' '}
+          <a href="https://console.cloud.google.com/auth/audience" target="_blank" rel="noreferrer">
+            Google Auth Platform → Audience ↗
+          </a>
+          , press <b>+ Add users</b> under <b>Test users</b>, add the Gmail address you sign in to Google with, and save. Then press Connect Google again (it can take a minute to apply).
+        </div>
+      )}
       {!data ? (
         <p className="muted">Loading…</p>
       ) : (

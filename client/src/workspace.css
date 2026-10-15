@@ -1824,3 +1824,8 @@ button.repo-card:hover {
   border-radius: 4px;
   object-fit: cover;
 }
+.alert.info-alert {
+  border-color: color-mix(in srgb, #1a73e8 35%, var(--border));
+  background: color-mix(in srgb, #1a73e8 8%, var(--surface));
+  color: var(--text);
+}
