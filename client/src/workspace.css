@@ -919,7 +919,7 @@
 }
 
 /* ============================================================== Assistant */
-.assistant {
+.assistant-page > .assistant {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   height: calc(100vh - 64px);
@@ -1159,7 +1159,7 @@
   text-align: center;
 }
 @media (max-width: 760px) {
-  .assistant {
+  .assistant-page > .assistant {
     grid-template-columns: 1fr;
   }
   .as-side {
@@ -1939,4 +1939,368 @@ button.repo-card:hover {
 .as-send.as-stop {
   background: var(--text);
   color: var(--bg);
+}
+
+/* ------------------------------------------- assistant: files, actions, tools */
+.as-main {
+  position: relative;
+}
+.as-find {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+}
+.as-find input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  outline: none;
+}
+.as-side li > button:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.as-li-actions {
+  display: none;
+  padding-right: 6px;
+}
+.as-side li:hover .as-li-actions,
+.as-side li.on .as-li-actions {
+  display: inline-flex;
+}
+.as-li-actions button {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.as-li-actions button:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+.as-rename {
+  flex: 1;
+  min-width: 0;
+  margin: 2px 4px;
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+}
+.as-none {
+  padding: 8px 12px;
+}
+.as-chatbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px clamp(16px, 3vw, 32px);
+  border-bottom: 1px solid var(--border);
+}
+.as-chatbar b {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.as-chatbar span {
+  display: inline-flex;
+  gap: 2px;
+}
+.as-icbtn {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-2, var(--muted));
+  cursor: pointer;
+}
+.as-icbtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.as-icbtn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.as-icbtn.live {
+  background: #d93025;
+  color: #fff;
+  animation: as-pulse 1.4s infinite;
+}
+@keyframes as-pulse {
+  50% {
+    box-shadow: 0 0 0 6px rgb(217 48 37 / 0.2);
+  }
+}
+.as-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.as-msg.user .as-col {
+  align-items: flex-end;
+}
+.as-msg.user .as-bubble {
+  max-width: 85%;
+}
+.as-msg.editing .as-bubble {
+  outline: 2px solid var(--accent);
+}
+.as-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.as-thumb {
+  max-width: 220px;
+  max-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  object-fit: cover;
+}
+.as-filechip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 260px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  font-size: 0.85rem;
+}
+.as-filechip > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.as-filechip b {
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.as-filechip small {
+  color: var(--muted);
+}
+.as-filechip.img img {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.as-filechip button {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+  color: var(--text);
+  cursor: pointer;
+}
+.as-actions {
+  align-items: center;
+  gap: 2px;
+}
+.as-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--text-2, var(--muted));
+}
+.as-actions button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.as-user-actions {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.as-msg.user:hover .as-user-actions {
+  opacity: 1;
+}
+.as-bubble pre {
+  position: relative;
+}
+.as-codecopy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-2, var(--muted));
+  font: 0.75rem system-ui, sans-serif;
+  cursor: pointer;
+}
+.as-input {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 8px 8px 8px;
+}
+.as-pending {
+  margin: 4px 8px 0;
+}
+.as-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+.as-input textarea {
+  padding: 10px 4px;
+  max-height: 220px;
+}
+.as-editing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 10px 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.as-editing button {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.as-plus {
+  position: relative;
+}
+.as-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.16);
+}
+.as-menu button {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  column-gap: 12px;
+  padding: 9px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+.as-menu button small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.as-menu button:hover {
+  background: var(--bg-alt);
+}
+.as-drop {
+  position: absolute;
+  inset: 12px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+  color: var(--accent);
+  pointer-events: none;
+}
+.as-drop span {
+  color: var(--muted);
+}
+.as-picker {
+  width: min(520px, 92vw);
+}
+.as-picker h3 {
+  margin: 0;
+}
+.as-picker ul {
+  max-height: 50vh;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.as-picker li button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.as-picker li button:hover:not(:disabled) {
+  background: var(--bg-alt);
+}
+.as-picker li button span {
+  display: flex;
+  flex-direction: column;
+}
+@media (max-width: 760px) {
+  .assistant-page > .assistant {
+    grid-template-columns: 1fr;
+  }
+  .as-side {
+    display: none;
+  }
+}
+/* In the column layout the answer bubble must size to its text, not stretch. */
+.as-msg.assistant .as-bubble {
+  flex: none;
 }

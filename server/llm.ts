@@ -2,6 +2,15 @@ import Anthropic from '@anthropic-ai/sdk';
 import { betaJSONSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/beta/json-schema';
 import { HttpError } from './http.ts';
 
+/** An image or PDF attached to a prompt. */
+export interface LlmFile {
+  name: string;
+  mime: string;
+  data: Buffer;
+}
+
+const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+
 /** The few things CoWrite asks of a language model, whichever provider answers. */
 export interface Llm {
   readonly name: string;
@@ -9,8 +18,8 @@ export interface Llm {
   /** Who pays: 'user' when the person's own key is used. */
   readonly source: 'user' | 'server';
   text(system: string, prompt: string, maxTokens?: number): Promise<string>;
-  /** Streams the answer as text fragments. */
-  stream(system: string, prompt: string, maxTokens?: number): AsyncIterable<string>;
+  /** Streams the answer as text fragments; `files` are images or PDFs the model reads alongside the prompt. */
+  stream(system: string, prompt: string, maxTokens?: number, files?: LlmFile[]): AsyncIterable<string>;
   json<T>(system: string, prompt: string, schema: Record<string, unknown> & { type: 'object' }, maxTokens?: number): Promise<T>;
   /** Reads an image (or a PDF, where the provider supports it) and answers about it. */
   image(data: Buffer, mime: string, ask: string, maxTokens?: number): Promise<string>;
@@ -62,7 +71,12 @@ export class ClaudeLlm implements Llm {
     }
   }
 
-  async *stream(system: string, prompt: string, maxTokens = 16000): AsyncIterable<string> {
+  async *stream(system: string, prompt: string, maxTokens = 16000, files: LlmFile[] = []): AsyncIterable<string> {
+    const blocks = files.map((f) =>
+      f.mime === 'application/pdf'
+        ? ({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.data.toString('base64') }, title: f.name } as const)
+        : ({ type: 'image', source: { type: 'base64', media_type: (IMAGE_TYPES.includes(f.mime) ? f.mime : 'image/png') as 'image/png', data: f.data.toString('base64') } } as const),
+    );
     try {
       const stream = this.client.beta.messages.stream({
         model: CLAUDE_MODEL,
@@ -71,7 +85,7 @@ export class ClaudeLlm implements Llm {
         betas: BETAS,
         fallbacks: 'default',
         system,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [{ role: 'user', content: blocks.length ? [...blocks, { type: 'text', text: prompt }] : prompt }],
       });
       for await (const event of stream) {
         if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') yield event.delta.text;
@@ -273,8 +287,9 @@ export class GeminiLlm implements Llm {
     return GeminiLlm.textOf((await res.json()) as GeminiResponse).trim();
   }
 
-  async *stream(system: string, prompt: string, maxTokens = 16000): AsyncIterable<string> {
-    const res = await this.call(GEMINI_MODEL, 'streamGenerateContent?alt=sse', this.request(system, [{ text: prompt }], maxTokens));
+  async *stream(system: string, prompt: string, maxTokens = 16000, files: LlmFile[] = []): AsyncIterable<string> {
+    const parts: GeminiPart[] = [...files.map((f) => ({ inlineData: { mimeType: f.mime, data: f.data.toString('base64') } })), { text: prompt }];
+    const res = await this.call(GEMINI_MODEL, 'streamGenerateContent?alt=sse', this.request(system, parts, maxTokens));
     const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
     try {
@@ -510,8 +525,10 @@ export class CompatLlm implements Llm {
     return (((await res.json()) as ChatReply).choices?.[0]?.message?.content ?? '').trim();
   }
 
-  async *stream(system: string, prompt: string, maxTokens = 8000): AsyncIterable<string> {
-    const res = await this.call({ model: await this.model(), max_tokens: Math.min(maxTokens, 8000), stream: true, messages: this.messages(system, prompt) });
+  async *stream(system: string, prompt: string, maxTokens = 8000, files: LlmFile[] = []): AsyncIterable<string> {
+    if (files.some((f) => f.mime === 'application/pdf')) throw new HttpError(400, `${this.name} cannot read PDFs. Connect a free Gemini key in Account → AI to chat about PDFs.`);
+    const user = files.length ? [{ type: 'text', text: prompt }, ...files.map((f) => ({ type: 'image_url', image_url: { url: `data:${f.mime};base64,${f.data.toString('base64')}` } }))] : prompt;
+    const res = await this.call({ model: await this.model(files.length > 0), max_tokens: Math.min(maxTokens, 8000), stream: true, messages: this.messages(system, user) });
     const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
     let buf = '';
     for (;;) {

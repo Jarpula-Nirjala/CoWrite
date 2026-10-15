@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import express from 'express';
 import type { AppCtx } from './context.ts';
 import { HttpError, rateLimit, requireUser, str } from './http.ts';
+import type { LlmFile } from './llm.ts';
 
 /** Slide themes the AI may pick from, by style. */
 export const DECK_STYLES: Record<string, string[]> = {
@@ -304,10 +305,34 @@ Design rules:
   // ------------------------------------------------------------ assistant
 
   /** Chat with the assistant; the answer streams back as plain text. */
-  r.post('/ai/chat', rateLimit(60, 10 * 60_000), async (req, res) => {
+  r.post('/ai/chat', rateLimit(60, 10 * 60_000), express.json({ limit: '30mb' }), async (req, res) => {
     const user = requireUser(res);
-    const raw = Array.isArray(req.body?.messages) ? (req.body.messages as { role?: unknown; text?: unknown }[]) : [];
-    const messages = raw.slice(-20).map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', text: str(m.text, 12_000) })).filter((m) => m.text.trim());
+    type InFile = { name?: unknown; mime?: unknown; text?: unknown; data?: unknown };
+    const raw = Array.isArray(req.body?.messages) ? (req.body.messages as { role?: unknown; text?: unknown; files?: unknown }[]) : [];
+    const recent = raw.slice(-20);
+    // Attachments: text files arrive as their text; images and PDFs as base64, read by the model itself.
+    const binaries: LlmFile[] = [];
+    let budget = 20_000_000;
+    const messages = recent
+      .map((m) => {
+        const files = Array.isArray(m.files) ? (m.files as InFile[]).slice(0, 10) : [];
+        const texts: string[] = [];
+        for (const f of files) {
+          const name = str(f.name, 200) || 'file';
+          const mime = str(f.mime, 100);
+          if (typeof f.text === 'string') texts.push(`<file name="${name.replace(/"/g, "'")}">\n${str(f.text, 120_000)}\n</file>`);
+          else if (typeof f.data === 'string' && (mime === 'application/pdf' || /^image\/(png|jpeg|webp|gif)$/.test(mime)) && binaries.length < 10) {
+            const data = Buffer.from(f.data, 'base64');
+            if (data.length > budget) throw new HttpError(413, 'Attachments are too large (20 MB in total at most).');
+            budget -= data.length;
+            binaries.push({ name, mime, data });
+            texts.push(`[Attached: ${name}]`);
+          }
+        }
+        const text = str(m.text, 12_000);
+        return { role: m.role === 'assistant' ? 'assistant' : 'user', text: texts.length ? `${texts.join('\n')}\n\n${text}` : text };
+      })
+      .filter((m) => m.text.trim());
     if (!messages.length || messages[messages.length - 1].role !== 'user') throw new HttpError(400, 'Ask something first.');
     const ai = await aiFor(user.id);
     const history = messages
@@ -322,7 +347,7 @@ Design rules:
     let gone = false;
     res.on('close', () => (gone = true));
     try {
-      for await (const part of ai.llm.stream(system, prompt, 8000)) {
+      for await (const part of ai.llm.stream(system, prompt, 8000, binaries)) {
         if (gone) break;
         res.write(part);
       }
