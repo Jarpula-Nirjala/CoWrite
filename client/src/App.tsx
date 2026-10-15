@@ -24,6 +24,7 @@ import { Profile } from './pages/Profile.tsx';
 import { PublicDoc } from './pages/PublicPage.tsx';
 import { usePath } from './router.ts';
 import { AppRail, railHidden } from './components/AppRail.tsx';
+import { WindowsProvider } from './components/Windows.tsx';
 
 function Routes() {
   const path = usePath().replace(/\/+$/, '') || '/';
@@ -95,8 +96,10 @@ function Rail() {
 export function App() {
   return (
     <AuthProvider>
-      <Rail />
-      <Routes />
+      <WindowsProvider>
+        <Rail />
+        <Routes />
+      </WindowsProvider>
     </AuthProvider>
   );
 }

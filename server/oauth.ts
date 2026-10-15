@@ -34,8 +34,14 @@ export const LINK_SCOPES: Record<Provider, string> = {
 };
 
 /** Extra Google permissions, asked for only when someone switches the feature on. */
+/**
+ * Features Google will not grant alongside Drive ("cannot be requested together"), even incrementally:
+ * they get a connection of their own, stored under their own name.
+ */
+export const SEPARATE_EXTRAS = new Set(['youtube']);
+
 export const GOOGLE_EXTRAS: Record<string, string[]> = {
-  gmail: ['https://www.googleapis.com/auth/gmail.readonly', 'https://www.googleapis.com/auth/gmail.send'],
+  gmail: ['https://www.googleapis.com/auth/gmail.modify', 'https://www.googleapis.com/auth/gmail.send'],
   youtube: ['https://www.googleapis.com/auth/youtube.readonly'],
   sheets: ['https://www.googleapis.com/auth/spreadsheets'],
   tasks: ['https://www.googleapis.com/auth/tasks'],
@@ -102,7 +108,7 @@ export function authorizeUrl(p: Provider, redirectUri: string, state: string, li
     const q = new URLSearchParams({ client_id: id!, redirect_uri: redirectUri, response_type: 'code', scope, state, prompt: link ? 'consent' : 'select_account' });
     if (link) {
       q.set('access_type', 'offline');
-      q.set('include_granted_scopes', 'true');
+      if (!extras.some((x) => SEPARATE_EXTRAS.has(x))) q.set('include_granted_scopes', 'true');
     }
     return `https://accounts.google.com/o/oauth2/v2/auth?${q}`;
   }

@@ -1,6 +1,8 @@
 import { useEffect } from 'react';
 import { Link, navigate, usePath, useSearch } from '../router.ts';
 import { Icon } from './ui.tsx';
+import { AppLogo } from './AppLogo.tsx';
+import { useWindows, WINDOW_APPS } from './Windows.tsx';
 
 const MAIN = [
   { id: 'home', to: '/home', label: 'Home', icon: 'home' },
@@ -43,6 +45,7 @@ function activeId(path: string, search: string): string {
 
 /** WPS-style left rail of apps and places, on every page, with a Back button. */
 export function AppRail() {
+  const windows = useWindows();
   const path = usePath();
   const search = useSearch();
   const active = activeId(path, search);
@@ -68,6 +71,13 @@ export function AppRail() {
           <Icon name={a.icon} size={19} />
           <span>{a.label}</span>
         </Link>
+      ))}
+      <hr />
+      {(['gmail', 'youtube'] as const).map((k) => (
+        <button key={k} className="rail-item" onClick={() => windows.open(k)} title={`Open ${WINDOW_APPS[k].title} in a window`} type="button">
+          <AppLogo name={WINDOW_APPS[k].logo} size={20} />
+          <span>{WINDOW_APPS[k].title}</span>
+        </button>
       ))}
       <hr />
       {PLACES.map((a) => (

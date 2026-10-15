@@ -59,10 +59,12 @@ describe('professional templates', () => {
       const gmail = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['gmail'])).searchParams.get('scope') ?? '';
       assert.ok(!plain.includes('gmail'));
       for (const sc of GOOGLE_EXTRAS.gmail) assert.ok(gmail.includes(sc));
-      // Extras are requested on their own (Google rejects drive.file together with youtube.readonly).
+      // Extras are requested on their own and added to earlier grants…
+      assert.equal(new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['gmail'])).searchParams.get('include_granted_scopes'), 'true');
+      // …except YouTube, which Google will not combine with Drive at all: it gets a connection of its own.
       const yt = new URL(authorizeUrl('google', 'http://localhost/cb', 's', true, ['youtube'])).searchParams;
       assert.ok(!(yt.get('scope') ?? '').includes('drive'));
-      assert.equal(yt.get('include_granted_scopes'), 'true');
+      assert.equal(yt.get('include_granted_scopes'), null);
     } finally {
       delete process.env.GOOGLE_CLIENT_ID;
       delete process.env.GOOGLE_CLIENT_SECRET;
@@ -165,11 +167,12 @@ describe('workspace apps', () => {
     assert.equal((await api('/integrations/github/token', { method: 'POST', body: { token: 'not-a-token' } })).status, 400);
     assert.equal((await api('/integrations/setup/google', { method: 'PUT', body: { clientId: 'x.apps.googleusercontent.com', clientSecret: 'secretsecret' } })).status, 403);
     assert.equal((await api('/integrations/github/repos')).status, 400, 'needs a connection first');
-    for (const path of ['/integrations/google/gmail', '/integrations/google/youtube', '/integrations/google/tasks', '/integrations/google/files']) {
+    for (const path of ['/integrations/google/gmail', '/gmail/threads', '/integrations/google/tasks', '/integrations/google/files']) {
       const r = await api(path);
       assert.equal(r.status, 400, path);
       assert.match(r.body.error, /Connect your Google account/);
     }
+    assert.match((await api('/integrations/google/youtube')).body.error, /Allow YouTube/);
     assert.deepEqual(st.google.features, {});
   });
 

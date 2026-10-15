@@ -23,7 +23,10 @@ export const isOwner = (email: string) =>
     .includes(email.toLowerCase());
 
 /** Stores a linked account's tokens, sealed with the vault key. */
-export async function saveIntegration(ctx: AppCtx, userId: string, p: Provider, t: OAuthTokens, account: Record<string, unknown>, via: 'oauth' | 'token') {
+/** A stored connection: GitHub, Google, or Google features kept apart (YouTube). */
+export type Slot = Provider | 'youtube';
+
+export async function saveIntegration(ctx: AppCtx, userId: string, p: Slot, t: OAuthTokens, account: Record<string, unknown>, via: 'oauth' | 'token') {
   await ctx.db.query(
     `insert into integrations (user_id, provider, access_token, refresh_token, expires_at, scope, account, via, created_at)
      values ($1, $2, $3, $4, $5, $6, $7::jsonb, $8, $9)
@@ -40,15 +43,15 @@ export function integrationRoutes(ctx: AppCtx) {
   const { db, vault } = ctx;
   const limiter = rateLimit(120, 60_000);
 
-  const row = async (userId: string, p: Provider) => (await db.query<Row>('select * from integrations where user_id = $1 and provider = $2', [userId, p]))[0] ?? null;
+  const row = async (userId: string, p: Slot) => (await db.query<Row>('select * from integrations where user_id = $1 and provider = $2', [userId, p]))[0] ?? null;
 
   /** A usable access token, refreshing Google's when it has expired. */
-  async function token(userId: string, p: Provider): Promise<string> {
+  async function token(userId: string, p: Slot): Promise<string> {
     const it = await row(userId, p);
-    if (!it) throw new HttpError(400, `Connect your ${p === 'google' ? 'Google' : 'GitHub'} account first (Account → Connected accounts).`);
+    if (!it) throw new HttpError(400, p === 'youtube' ? 'Allow YouTube first (Connected → YouTube).' : `Connect your ${p === 'google' ? 'Google' : 'GitHub'} account first (Account → Connected accounts).`);
     const access = await vault.open(it.access_token);
     if (!access) throw new HttpError(400, 'The saved connection could not be read. Please connect again.');
-    if (p === 'google' && it.expires_at && it.expires_at < Date.now() + 60_000) {
+    if (p !== 'github' && it.expires_at && it.expires_at < Date.now() + 60_000) {
       const refresh = it.refresh_token ? await vault.open(it.refresh_token) : null;
       if (!refresh) throw new HttpError(400, 'Your Google connection has expired. Connect Google again.');
       try {
@@ -87,7 +90,8 @@ export function integrationRoutes(ctx: AppCtx) {
 
   r.get('/integrations', async (req, res) => {
     const user = requireUser(res);
-    const rows = await db.query<Row & { provider: Provider; created_at: number }>('select * from integrations where user_id = $1', [user.id]);
+    const rows = await db.query<Row & { provider: Slot; created_at: number }>('select * from integrations where user_id = $1', [user.id]);
+    const youtube = rows.some((x) => x.provider === 'youtube');
     const by = (p: Provider) => rows.find((x) => x.provider === p);
     const out = (p: Provider) => {
       const it = by(p);
@@ -102,7 +106,7 @@ export function integrationRoutes(ctx: AppCtx) {
         redirectUri: `${publicUrl(req)}/api/auth/oauth/${p}/callback`,
         // Which optional Google features this connection has permission for.
         picker: p === 'google' && !!pickerConfig(),
-        features: p === 'google' && it ? Object.fromEntries(Object.entries(GOOGLE_EXTRAS).map(([k, scopes]) => [k, scopes.every((sc) => it.scope.includes(sc))])) : {},
+        features: p === 'google' && it ? { ...Object.fromEntries(Object.entries(GOOGLE_EXTRAS).map(([k, scopes]) => [k, scopes.every((sc) => it.scope.includes(sc))])), youtube } : {},
         scopes: LINK_SCOPES[p],
       };
     };
@@ -111,7 +115,9 @@ export function integrationRoutes(ctx: AppCtx) {
 
   r.delete('/integrations/:p', async (req, res) => {
     const user = requireUser(res);
-    await db.query('delete from integrations where user_id = $1 and provider = $2', [user.id, String(req.params.p)]);
+    const p = String(req.params.p);
+    // Disconnecting Google also removes the YouTube connection made with it.
+    await db.query('delete from integrations where user_id = $1 and (provider = $2 or ($2 = \'google\' and provider = \'youtube\'))', [user.id, p]);
     res.json({ ok: true });
   });
 
@@ -448,10 +454,33 @@ export function integrationRoutes(ctx: AppCtx) {
 
   r.get('/integrations/google/youtube', limiter, async (req, res) => {
     const user = requireUser(res);
-    const t = await token(user.id, 'google');
+    const t = await token(user.id, 'youtube');
     const q = str(req.query.q, 200).trim();
+    const feed = str(req.query.feed, 20);
+    const Y = 'https://www.googleapis.com/youtube/v3';
     if (q) {
-      const out = await call<{ items: YtItem[] }>('google', t, `https://www.googleapis.com/youtube/v3/search?${new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '18', q, safeSearch: 'moderate' })}`);
+      const out = await call<{ items: YtItem[] }>('google', t, `${Y}/search?${new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '24', q, safeSearch: 'moderate' })}`);
+      res.json({ videos: ytOut(out.items) });
+      return;
+    }
+    if (feed === 'trending') {
+      const out = await call<{ items: YtItem[] }>('google', t, `${Y}/videos?part=snippet&chart=mostPopular&maxResults=24&regionCode=${encodeURIComponent(str(req.query.region, 2) || 'IN')}`);
+      res.json({ videos: ytOut(out.items) });
+      return;
+    }
+    if (feed === 'liked') {
+      const out = await call<{ items: YtItem[] }>('google', t, `${Y}/videos?part=snippet&myRating=like&maxResults=24`);
+      res.json({ videos: ytOut(out.items) });
+      return;
+    }
+    if (feed === 'subs') {
+      const subs = await call<{ items: { snippet: { title: string; resourceId: { channelId: string }; thumbnails: { default?: { url: string } } } }[] }>('google', t, `${Y}/subscriptions?part=snippet&mine=true&maxResults=50&order=relevance`);
+      res.json({ channels: subs.items.map((c) => ({ id: c.snippet.resourceId.channelId, title: c.snippet.title, thumb: c.snippet.thumbnails.default?.url ?? '' })) });
+      return;
+    }
+    const channel = str(req.query.channel, 64);
+    if (channel) {
+      const out = await call<{ items: YtItem[] }>('google', t, `${Y}/search?${new URLSearchParams({ part: 'snippet', type: 'video', maxResults: '24', channelId: channel, order: 'date' })}`);
       res.json({ videos: ytOut(out.items) });
       return;
     }
@@ -653,6 +682,212 @@ export function integrationRoutes(ctx: AppCtx) {
     const cfg = pickerConfig();
     if (!cfg) throw new HttpError(400, 'The Google file picker needs an API key: the site owner can add it in Account → Connected accounts.');
     res.json({ token: await token(user.id, 'google'), ...cfg });
+  });
+
+
+  // ------------------------------------------------- Gmail client (mail app)
+
+  type GPart = { partId?: string; mimeType: string; filename?: string; headers?: { name: string; value: string }[]; body?: { data?: string; attachmentId?: string; size?: number }; parts?: GPart[] };
+  type GMessage = { id: string; threadId: string; labelIds?: string[]; snippet: string; internalDate: string; payload: GPart };
+  const G = 'https://gmail.googleapis.com/gmail/v1/users/me';
+  const hdr = (h: { name: string; value: string }[] | undefined, n: string) => h?.find((x) => x.name.toLowerCase() === n)?.value ?? '';
+  const decode = (d: string) => Buffer.from(d.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+
+  /** Runs async jobs a few at a time (Gmail allows limited parallel requests). */
+  async function pool<T, R>(items: T[], n: number, fn: (x: T) => Promise<R>): Promise<R[]> {
+    const out: R[] = new Array(items.length);
+    let next = 0;
+    await Promise.all(
+      Array.from({ length: Math.min(n, items.length) }, async () => {
+        while (next < items.length) {
+          const i = next++;
+          out[i] = await fn(items[i]);
+        }
+      }),
+    );
+    return out;
+  }
+
+  r.get('/gmail/labels', limiter, async (_req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const list = await call<{ labels: { id: string; name: string; type: string }[] }>('google', t, `${G}/labels`);
+    const wanted = list.labels.filter((l) => l.type === 'user' || ['INBOX', 'STARRED', 'IMPORTANT', 'SENT', 'DRAFT', 'SPAM', 'TRASH'].includes(l.id));
+    const full = await pool(wanted, 6, (l) => call<{ id: string; name: string; type: string; messagesUnread?: number; threadsUnread?: number; messagesTotal?: number; color?: { backgroundColor?: string } }>('google', t, `${G}/labels/${encodeURIComponent(l.id)}`));
+    const prof = await call<{ emailAddress: string; messagesTotal: number }>('google', t, `${G}/profile`);
+    res.json({
+      email: prof.emailAddress,
+      labels: full.map((l) => ({ id: l.id, name: l.name, system: l.type === 'system', unread: l.id === 'DRAFT' ? (l.messagesTotal ?? 0) : (l.threadsUnread ?? 0), color: l.color?.backgroundColor ?? null })),
+    });
+  });
+
+  r.get('/gmail/threads', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const label = str(req.query.label, 100);
+    const q = str(req.query.q, 300);
+    const params = new URLSearchParams({ maxResults: '40' });
+    if (label && label !== 'ALL') params.set('labelIds', label);
+    if (q) params.set('q', q);
+    if (req.query.page) params.set('pageToken', str(req.query.page, 200));
+    if (label === 'SPAM' || label === 'TRASH') params.set('includeSpamTrash', 'true');
+    const list = await call<{ threads?: { id: string }[]; nextPageToken?: string; resultSizeEstimate?: number }>('google', t, `${G}/threads?${params}`);
+    const threads = await pool(list.threads ?? [], 10, (th) =>
+      call<{ id: string; messages: GMessage[] }>('google', t, `${G}/threads/${th.id}?format=metadata&metadataHeaders=From&metadataHeaders=To&metadataHeaders=Subject&metadataHeaders=Date`),
+    );
+    res.json({
+      next: list.nextPageToken ?? null,
+      estimate: list.resultSizeEstimate ?? 0,
+      threads: threads.map((th) => {
+        const msgs = th.messages ?? [];
+        const last = msgs[msgs.length - 1];
+        const labels = new Set(msgs.flatMap((m) => m.labelIds ?? []));
+        const people = [...new Set(msgs.map((m) => hdr(m.payload.headers, 'from').replace(/<.*>/, '').replace(/"/g, '').trim()))];
+        return {
+          id: th.id,
+          subject: hdr(msgs[0]?.payload.headers, 'subject') || '(no subject)',
+          from: label === 'SENT' ? `To: ${hdr(last?.payload.headers, 'to').replace(/<.*?>/g, '').replace(/"/g, '').trim()}` : people.slice(-3).join(', '),
+          snippet: last?.snippet ?? '',
+          date: Number(last?.internalDate ?? 0),
+          count: msgs.length,
+          unread: labels.has('UNREAD'),
+          starred: labels.has('STARRED'),
+          important: labels.has('IMPORTANT'),
+          attachment: msgs.some((m) => (m.payload.parts ?? []).some((p) => !!p.filename)),
+          labels: [...labels].filter((l) => !['UNREAD', 'STARRED', 'IMPORTANT', 'INBOX', 'SENT', 'CATEGORY_PERSONAL', 'CATEGORY_UPDATES', 'CATEGORY_PROMOTIONS', 'CATEGORY_SOCIAL', 'CATEGORY_FORUMS'].includes(l)),
+        };
+      }),
+    });
+  });
+
+  r.get('/gmail/thread/:id', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const th = await call<{ id: string; messages: GMessage[] }>('google', t, `${G}/threads/${encodeURIComponent(String(req.params.id))}?format=full`);
+    const messages = await Promise.all(
+      th.messages.map(async (m) => {
+        let html = '';
+        let text = '';
+        const attachments: { id: string; name: string; mime: string; size: number }[] = [];
+        const inline: { cid: string; id: string; mime: string }[] = [];
+        const walk = (p: GPart) => {
+          if (p.mimeType === 'text/html' && p.body?.data && !html) html = decode(p.body.data).toString('utf8');
+          else if (p.mimeType === 'text/plain' && p.body?.data && !text) text = decode(p.body.data).toString('utf8');
+          const cid = hdr(p.headers, 'content-id').replace(/[<>]/g, '');
+          if (p.body?.attachmentId) {
+            if (cid && p.mimeType.startsWith('image/')) inline.push({ cid, id: p.body.attachmentId, mime: p.mimeType });
+            if (p.filename) attachments.push({ id: p.body.attachmentId, name: p.filename, mime: p.mimeType, size: p.body.size ?? 0 });
+          }
+          p.parts?.forEach(walk);
+        };
+        walk(m.payload);
+        // Pictures embedded in the email are fetched here and inlined, so they show without cookies.
+        let budget = 8_000_000;
+        for (const im of inline.slice(0, 12)) {
+          if (!html.includes(`cid:${im.cid}`)) continue;
+          const a = await call<{ data: string; size: number }>('google', t, `${G}/messages/${m.id}/attachments/${im.id}`).catch(() => null);
+          if (!a || a.size > budget) continue;
+          budget -= a.size;
+          html = html.split(`cid:${im.cid}`).join(`data:${im.mime};base64,${decode(a.data).toString('base64')}`);
+        }
+        const h = m.payload.headers;
+        return {
+          id: m.id,
+          from: hdr(h, 'from'),
+          to: hdr(h, 'to'),
+          cc: hdr(h, 'cc'),
+          subject: hdr(h, 'subject'),
+          date: Number(m.internalDate),
+          messageId: hdr(h, 'message-id'),
+          references: hdr(h, 'references'),
+          snippet: m.snippet,
+          labels: m.labelIds ?? [],
+          html,
+          text,
+          attachments,
+        };
+      }),
+    );
+    res.json({ id: th.id, subject: messages[0]?.subject || '(no subject)', messages });
+  });
+
+  r.get('/gmail/attachment/:msg/:att', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const a = await call<{ data: string }>('google', t, `${G}/messages/${encodeURIComponent(String(req.params.msg))}/attachments/${encodeURIComponent(String(req.params.att))}`);
+    const name = str(req.query.name, 200) || 'attachment';
+    const mime = /^[\w.+-]+\/[\w.+-]+$/.test(String(req.query.mime)) ? String(req.query.mime) : 'application/octet-stream';
+    res.setHeader('Content-Type', mime);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(name)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(decode(a.data));
+  });
+
+  r.post('/gmail/thread/:id/modify', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const ids = (v: unknown) => (Array.isArray(v) ? v.map((x) => str(x, 100)).filter(Boolean).slice(0, 10) : []);
+    const id = encodeURIComponent(String(req.params.id));
+    const action = str(req.body?.action, 20);
+    if (action === 'trash' || action === 'untrash') await call('google', t, `${G}/threads/${id}/${action}`, { method: 'POST' });
+    else
+      await call('google', t, `${G}/threads/${id}/modify`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ addLabelIds: ids(req.body?.add), removeLabelIds: ids(req.body?.remove) }),
+      });
+    res.json({ ok: true });
+  });
+
+  /** Builds an RFC 2822 email (with attachments) for sending or saving as a draft. */
+  function buildMime(b: Record<string, unknown>, from: string): string {
+    const clean = (v: unknown, n = 2000) => str(v, n).replace(/[\r\n]+/g, ' ').trim();
+    const to = clean(b.to);
+    const subject = clean(b.subject, 500);
+    const html = str(b.html, 2_000_000);
+    const atts = Array.isArray(b.attachments) ? (b.attachments as { name?: unknown; mime?: unknown; data?: unknown }[]).slice(0, 10) : [];
+    const head = [
+      `From: ${from}`,
+      `To: ${to}`,
+      ...(clean(b.cc) ? [`Cc: ${clean(b.cc)}`] : []),
+      ...(clean(b.bcc) ? [`Bcc: ${clean(b.bcc)}`] : []),
+      `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+      ...(clean(b.inReplyTo) ? [`In-Reply-To: ${clean(b.inReplyTo)}`, `References: ${[clean(b.references), clean(b.inReplyTo)].filter(Boolean).join(' ')}`] : []),
+      'MIME-Version: 1.0',
+    ];
+    const htmlPart = ['Content-Type: text/html; charset=UTF-8', 'Content-Transfer-Encoding: base64', '', Buffer.from(html).toString('base64').replace(/.{76}/g, '$&\r\n')].join('\r\n');
+    if (!atts.length) return [...head, htmlPart].join('\r\n');
+    const boundary = `cw${Date.now().toString(36)}`;
+    const parts = atts.map((a) => {
+      const name = clean(a.name, 200).replace(/"/g, '') || 'file';
+      return [
+        `--${boundary}`,
+        `Content-Type: ${/^[\w.+-]+\/[\w.+-]+$/.test(String(a.mime)) ? String(a.mime) : 'application/octet-stream'}; name="${name}"`,
+        `Content-Disposition: attachment; filename="${name}"`,
+        'Content-Transfer-Encoding: base64',
+        '',
+        str(a.data, 15_000_000).replace(/.{76}/g, '$&\r\n'),
+      ].join('\r\n');
+    });
+    return [...head, `Content-Type: multipart/mixed; boundary="${boundary}"`, '', `--${boundary}`, htmlPart, ...parts, `--${boundary}--`].join('\r\n');
+  }
+
+  const sendLimit = express.json({ limit: '20mb' });
+  r.post('/gmail/send', rateLimit(30, 10 * 60_000), sendLimit, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    if (!str(b.to, 2000).trim()) throw new HttpError(400, 'Add at least one recipient.');
+    const prof = await call<{ emailAddress: string }>('google', t, `${G}/profile`);
+    const raw = Buffer.from(buildMime(b, prof.emailAddress)).toString('base64url');
+    const threadId = str(b.threadId, 100);
+    const draft = b.draft === true;
+    const out = await call<{ id: string }>('google', t, draft ? `${G}/drafts` : `${G}/messages/send`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(draft ? { message: { raw, ...(threadId ? { threadId } : {}) } } : { raw, ...(threadId ? { threadId } : {}) }),
+    });
+    res.json({ id: out.id, draft });
   });
 
   return r;

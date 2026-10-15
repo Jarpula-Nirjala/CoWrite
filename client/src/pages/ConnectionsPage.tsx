@@ -1,12 +1,15 @@
 import { ContactInput } from '../components/ContactInput.tsx';
-import { pickFromDrive } from '../lib/google.ts';
+import { allowUrl, pickFromDrive, type GoogleFeature } from '../lib/google.ts';
 import { aiDeck } from '../lib/proTemplates.ts';
 import { useEffect, useState } from 'react';
-import { EMBED } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { api, errorText, timeAgo, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { ConnectionsSection, GitHubLogo, GoogleLogo, useIntegrations } from '../components/Connections.tsx';
+import { AppLogo, type AppLogoName } from '../components/AppLogo.tsx';
+import { GmailApp } from '../components/GmailApp.tsx';
+import { YouTubeApp } from '../components/YouTubeApp.tsx';
+import { useWindows, type WindowApp } from '../components/Windows.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Spinner } from '../components/ui.tsx';
@@ -14,15 +17,13 @@ import { createAndOpen } from '../lib/create.ts';
 import { navigate, useSearch } from '../router.ts';
 
 type Tab = 'drive' | 'calendar' | 'gmail' | 'youtube' | 'tasks' | 'repos' | 'gists' | 'send';
-type Feature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts';
-
-/** Asks Google for one more permission (the ones already given are kept). */
-export const allowUrl = (f: Feature, tab: string) => `/api/auth/oauth/google?link=1&add=${f}&next=${encodeURIComponent(`/connections?tab=${tab}`)}`;
+type Feature = GoogleFeature;
 
 /** Open Google Drive files, Google Calendar, GitHub repositories and gists inside CoWrite, and send documents back. */
 export function ConnectionsPage() {
   const { user, ready } = useAuth();
   const { data, reload } = useIntegrations();
+  const windows = useWindows();
   const search = useSearch();
   const [tab, setTab] = useState<Tab>('drive');
   const just = new URLSearchParams(search).get('connected');
@@ -41,14 +42,14 @@ export function ConnectionsPage() {
   if (!ready || !user || !data) return <Spinner />;
   const g = data.google.connected;
   const gh = data.github.connected;
-  const tabs: { id: Tab; label: string; on: boolean; logo: 'g' | 'gh' | null }[] = [
-    { id: 'drive', label: 'Google Drive', on: g, logo: 'g' },
-    { id: 'calendar', label: 'Google Calendar', on: g, logo: 'g' },
-    { id: 'gmail', label: 'Gmail', on: g, logo: 'g' },
-    { id: 'youtube', label: 'YouTube', on: g, logo: 'g' },
-    { id: 'tasks', label: 'Google Tasks', on: g, logo: 'g' },
-    { id: 'repos', label: 'GitHub repositories', on: gh, logo: 'gh' },
-    { id: 'gists', label: 'GitHub gists', on: gh, logo: 'gh' },
+  const tabs: { id: Tab; label: string; on: boolean; logo: AppLogoName | null; win?: WindowApp }[] = [
+    { id: 'gmail', label: 'Gmail', on: g, logo: 'gmail', win: 'gmail' },
+    { id: 'drive', label: 'Drive', on: g, logo: 'drive', win: 'drive' },
+    { id: 'calendar', label: 'Calendar', on: g, logo: 'calendar', win: 'calendar' },
+    { id: 'youtube', label: 'YouTube', on: g, logo: 'youtube', win: 'youtube' },
+    { id: 'tasks', label: 'Tasks', on: g, logo: 'tasks', win: 'tasks' },
+    { id: 'repos', label: 'GitHub repositories', on: gh, logo: 'github', win: 'github' },
+    { id: 'gists', label: 'GitHub gists', on: gh, logo: 'github' },
     { id: 'send', label: 'Send a document', on: g || gh, logo: null },
   ];
   return (
@@ -70,11 +71,19 @@ export function ConnectionsPage() {
             <nav className="tpl-tabs">
               {tabs.map((t) => (
                 <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} type="button">
-                  {t.logo === 'g' ? <GoogleLogo size={16} /> : t.logo === 'gh' ? <GitHubLogo size={16} /> : <Icon name="share" size={15} />} {t.label}
+                  {t.logo ? <AppLogo name={t.logo} size={18} /> : <Icon name="share" size={15} />} {t.label}
                   {!t.on && <span className="muted small"> · not connected</span>}
                 </button>
               ))}
             </nav>
+            {tabs.find((t) => t.id === tab)?.win && (
+              <div className="win-open-row">
+                <button className="btn btn-outline btn-sm" onClick={() => windows.open(tabs.find((t) => t.id === tab)!.win!)} type="button">
+                  ⧉ Open in a window
+                </button>
+                <span className="muted small">Floating windows stay open while you move around CoWrite; drag, resize, minimise or maximise them.</span>
+              </div>
+            )}
             {['drive', 'calendar', 'gmail', 'youtube', 'tasks'].includes(tab) && !g ? (
               <NotConnected name="Google" onDone={reload} />
             ) : (tab === 'repos' || tab === 'gists') && !gh ? (
@@ -84,9 +93,13 @@ export function ConnectionsPage() {
             ) : tab === 'calendar' ? (
               <CalendarTab />
             ) : tab === 'gmail' ? (
-              data.google.features.gmail ? <GmailTab /> : <Allow f="gmail" tab="gmail" what="read your inbox to bring emails into CoWrite, and send documents from your Gmail" />
+              <div className="app-embed">
+                <GmailApp />
+              </div>
             ) : tab === 'youtube' ? (
-              data.google.features.youtube ? <YouTubeTab /> : <Allow f="youtube" tab="youtube" what="search YouTube and list your own videos, so you can put them in documents" />
+              <div className="app-embed">
+                <YouTubeApp />
+              </div>
             ) : tab === 'tasks' ? (
               data.google.features.tasks ? <TasksTab /> : <Allow f="tasks" tab="tasks" what="see, tick off and add your Google Tasks" />
             ) : tab === 'repos' ? (
@@ -258,7 +271,7 @@ function DriveTab({ sheets, picker }: { sheets: boolean; picker: boolean }) {
   );
 }
 
-function CalendarTab() {
+export function CalendarTab() {
   const today = new Date();
   const iso = (d: Date) => d.toISOString().slice(0, 10);
   const [events, setEvents] = useState<{ id: string; title: string; url: string; allDay: boolean; start: string; end: string; location: string }[] | null>(null);
@@ -323,7 +336,7 @@ function CalendarTab() {
   );
 }
 
-function ReposTab() {
+export function ReposTab() {
   const [repos, setRepos] = useState<{ fullName: string; name: string; private: boolean; description: string; updatedAt: string; url: string; language: string | null }[] | null>(null);
   const [repo, setRepo] = useState<string | null>(null);
   const [path, setPath] = useState('');
@@ -638,152 +651,13 @@ function Allow({ f, tab, what }: { f: Feature; tab: string; what: string }) {
   );
 }
 
-function GmailTab() {
-  const [q, setQ] = useState('');
-  const [mails, setMails] = useState<{ id: string; subject: string; from: string; snippet: string; date: number }[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const load = (query = q) => {
-    setMails(null);
-    setError(null);
-    api<{ messages: NonNullable<typeof mails> }>(`/integrations/google/gmail?q=${encodeURIComponent(query)}`).then((r) => setMails(r.messages), (e) => (setMails([]), setError(errorText(e))));
-  };
-  useEffect(() => load(''), []);
-  const open = async (id: string) => {
-    setBusy(id);
-    try {
-      const m = await api<{ subject: string; from: string; to: string; date: number; text: string }>(`/integrations/google/gmail/${id}`);
-      await importText(m.subject, `# ${m.subject}\n**From:** ${m.from}  \n**To:** ${m.to}  \n**Date:** ${new Date(m.date).toLocaleString()}\n\n---\n\n${m.text}`);
-    } catch (e) {
-      setError(errorText(e));
-      setBusy(null);
-    }
-  };
-  return (
-    <section>
-      <form
-        className="tool-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          load();
-        }}
-      >
-        <label className="tpl-search">
-          <Icon name="search" size={16} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search mail, e.g. from:boss subject:report" aria-label="Search Gmail" />
-        </label>
-        <span className="muted small">Open an email as a document for notes, reply drafts or minutes. To email a document, use “Send a document”.</span>
-      </form>
-      {error && <p className="error-text">{error}</p>}
-      {!mails ? (
-        <Spinner />
-      ) : !mails.length ? (
-        <p className="muted">No emails found.</p>
-      ) : (
-        <ul className="mail-list">
-          {mails.map((m) => (
-            <li key={m.id}>
-              <span className="mail-text">
-                <b>{m.subject}</b>
-                <small className="muted">
-                  {m.from.replace(/<.*>/, '').trim()} · {timeAgo(m.date)}
-                </small>
-                <small className="mail-snippet">{m.snippet}</small>
-              </span>
-              <button className="btn btn-outline btn-sm" disabled={!!busy} onClick={() => void open(m.id)} type="button">
-                {busy === m.id ? 'Opening…' : 'Open in CoWrite'}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function YouTubeTab() {
-  const [q, setQ] = useState('');
-  const [videos, setVideos] = useState<{ id: string; title: string; channel: string; published: string; thumb: string }[] | null>(null);
-  const [mine, setMine] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
-  const load = (query: string) => {
-    setVideos(null);
-    setError(null);
-    setMine(!query);
-    api<{ videos: NonNullable<typeof videos>; noChannel?: boolean }>(`/integrations/google/youtube?q=${encodeURIComponent(query)}`).then(
-      (r) => {
-        setVideos(r.videos);
-        if (r.noChannel) setError('You have no YouTube channel yet. Search for any video above.');
-      },
-      (e) => (setVideos([]), setError(errorText(e))),
-    );
-  };
-  useEffect(() => load(''), []);
-  const toDoc = async (v: { id: string; title: string; channel: string }) => {
-    await createAndOpen(v.title, 'doc', {
-      tokens: [
-        ...markdownToTokens(`# ${v.title}\n*${v.channel}* · https://www.youtube.com/watch?v=${v.id}`),
-        { ch: EMBED, a: { atom: 'embed', src: `https://www.youtube-nocookie.com/embed/${v.id}`, kind: 'YouTube', ratio: 56.25, url: `https://www.youtube.com/watch?v=${v.id}` } },
-        { ch: '\n' },
-        ...markdownToTokens('## Notes\n- '),
-      ],
-      settings: { theme: 'simple', font: 'sans' },
-    });
-  };
-  const copy = (id: string) => void navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${id}`).then(() => (setCopied(id), setTimeout(() => setCopied(null), 1500)));
-  return (
-    <section>
-      <form
-        className="tool-row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          load(q.trim());
-        }}
-      >
-        <label className="tpl-search">
-          <Icon name="search" size={16} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search YouTube" aria-label="Search YouTube" />
-        </label>
-        <span className="muted small">{mine ? 'Your uploads' : 'Search results'} · “Take notes” puts the video in a new document above your notes.</span>
-      </form>
-      {error && <p className="muted">{error}</p>}
-      {!videos ? (
-        <Spinner />
-      ) : (
-        <div className="yt-grid">
-          {videos.map((v) => (
-            <article key={v.id} className="yt-card">
-              <a href={`https://www.youtube.com/watch?v=${v.id}`} target="_blank" rel="noreferrer">
-                <img src={v.thumb} alt="" loading="lazy" />
-              </a>
-              <b>{v.title}</b>
-              <small className="muted">
-                {v.channel} · {new Date(v.published).toLocaleDateString()}
-              </small>
-              <span className="row-actions">
-                <button className="btn btn-primary btn-sm" onClick={() => void toDoc(v)} type="button">
-                  Take notes
-                </button>
-                <button className="btn btn-text btn-sm" onClick={() => copy(v.id)} type="button">
-                  {copied === v.id ? '✓ Copied' : 'Copy link'}
-                </button>
-              </span>
-            </article>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
 interface TaskList {
   id: string;
   title: string;
   tasks: { id: string; title: string; notes: string; due: string | null; done: boolean }[];
 }
 
-function TasksTab() {
+export function TasksTab() {
   const [lists, setLists] = useState<TaskList[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -844,4 +718,12 @@ function TasksTab() {
       </div>
     </section>
   );
+}
+
+/** Drive in a floating window: works out which extras are switched on by itself. */
+export function DriveWindow() {
+  const { data } = useIntegrations();
+  if (!data) return <Spinner />;
+  if (!data.google.connected) return <NotConnected name="Google" onDone={() => {}} />;
+  return <DriveTab sheets={!!data.google.features.sheets} picker={!!data.google.picker} />;
 }

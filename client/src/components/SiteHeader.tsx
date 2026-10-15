@@ -3,6 +3,8 @@ import { api, timeAgo, type Notification, type Prefs, type ThemeId } from '../ap
 import { APPS } from '../lib/apps.ts';
 import { APP_THEMES, effectiveTheme, localPrefs, savePrefs } from '../lib/prefs.ts';
 import { ThemeIcon } from './ThemeIcon.tsx';
+import { AppLogo } from './AppLogo.tsx';
+import { useWindows, WINDOW_APPS, type WindowApp } from './Windows.tsx';
 import { useAuth } from '../auth.tsx';
 import { Link, navigate } from '../router.ts';
 import { Brand } from './Brand.tsx';
@@ -18,9 +20,23 @@ const SECTIONS = [
 
 /** The nine-dot app launcher. */
 export function AppLauncher() {
+  const windows = useWindows();
   return (
     <Dropdown className="icon-button app-launcher" ariaLabel="CoWrite apps" label={<Icon name="grid" size={20} />}>
       {(close) => (
+        <div className="launcher-wrap">
+          <p className="launcher-h">Your Google &amp; GitHub</p>
+          <div className="launcher" role="menu">
+            {(Object.keys(WINDOW_APPS) as WindowApp[]).map((k) => (
+              <button key={k} role="menuitem" className="launcher-app" onClick={() => (close(), windows.open(k))} title={`Open ${WINDOW_APPS[k].title} in a window`} type="button">
+                <span className="launcher-icon">
+                  <AppLogo name={WINDOW_APPS[k].logo} size={30} />
+                </span>
+                <span>{WINDOW_APPS[k].title.replace('Google ', '')}</span>
+              </button>
+            ))}
+          </div>
+          <p className="launcher-h">CoWrite</p>
         <div className="launcher" role="menu">
           {APPS.map((a) => (
             <Link key={a.id} role="menuitem" className="launcher-app" to={a.to} onClick={close} title={a.blurb}>
@@ -30,6 +46,7 @@ export function AppLauncher() {
               <span>{a.name}</span>
             </Link>
           ))}
+        </div>
         </div>
       )}
     </Dropdown>

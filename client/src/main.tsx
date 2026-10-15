@@ -19,6 +19,7 @@ import './calendar.css';
 import './themes.css';
 import './layout.css';
 import './a11y.css';
+import './apps-window.css';
 
 applyPrefs(localPrefs());
 createRoot(document.getElementById('root')!).render(<App />);

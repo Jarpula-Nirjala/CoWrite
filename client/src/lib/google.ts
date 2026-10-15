@@ -1,5 +1,10 @@
 import { api, ApiError } from '../api.ts';
 
+export type GoogleFeature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts';
+
+/** Asks Google for one more permission (Google keeps the ones already given), then returns to a Connected tab. */
+export const allowUrl = (f: GoogleFeature, tab: string) => `/api/auth/oauth/google?link=1&add=${f}&next=${encodeURIComponent(`/connections?tab=${tab}`)}`;
+
 /** Uploads a Word or PowerPoint file to the person's Google Drive as a Google Doc or Slides deck; returns its link. */
 export async function saveToGoogle(file: Blob, name: string, as: 'docs' | 'slides'): Promise<string> {
   const res = await fetch(`/api/integrations/google/upload?${new URLSearchParams({ as, name })}`, { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' }, credentials: 'same-origin' });

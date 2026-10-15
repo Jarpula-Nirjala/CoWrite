@@ -5,7 +5,7 @@ import type { AppCtx } from './context.ts';
 import { HttpError, SESSION_COOKIE, currentUser, publicUrl, rateLimit, readCookie, requireUser } from './http.ts';
 import { mailEnabled, sendMail } from './mail.ts';
 import { cleanKey, inspectKey, keyCandidates, PROVIDER_NAMES } from './llm.ts';
-import { authorizeUrl, enabledProviders, exchangeCode, GOOGLE_EXTRAS, type Provider } from './oauth.ts';
+import { authorizeUrl, enabledProviders, exchangeCode, GOOGLE_EXTRAS, SEPARATE_EXTRAS, type Provider } from './oauth.ts';
 import { saveIntegration } from './routes-integrations.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
@@ -180,15 +180,18 @@ export function authRoutes(ctx: AppCtx) {
     const next = typeof req.query.next === 'string' && req.query.next.startsWith('/') && !req.query.next.startsWith('//') ? req.query.next : '/home';
     // "link" connects the account to the signed-in user so CoWrite can read Drive, Calendar or repositories.
     const link = req.query.link === '1' && !!currentUser(res);
-    res.cookie(STATE_COOKIE, `${state}|${next}|${link ? 'link' : 'signin'}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
     const extras = String(req.query.add ?? '')
       .split(',')
-      .filter((x) => x in GOOGLE_EXTRAS);
+      .filter((x) => x in GOOGLE_EXTRAS)
+      .slice(0, 1);
+    // Where the tokens are kept: YouTube has a Google connection of its own.
+    const slot = extras.find((x) => SEPARATE_EXTRAS.has(x)) ?? p;
+    res.cookie(STATE_COOKIE, `${state}|${next}|${link ? 'link' : 'signin'}|${slot}`, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: 10 * 60_000, path: '/' });
     res.redirect(authorizeUrl(p, redirectUri(req, p), state, link, extras));
   });
 
   r.get('/oauth/:provider/callback', async (req, res) => {
-    const [, linkNext, linkMode] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
+    const [, linkNext, linkMode, linkSlot] = (readCookie(req.headers.cookie, STATE_COOKIE) ?? '').split('|');
     // Linking errors go back to Account settings with an explanation; sign-in errors go to the sign-in page.
     const fail = (msg: string) =>
       linkMode === 'link' && currentUser(res)
@@ -208,8 +211,9 @@ export function authRoutes(ctx: AppCtx) {
       const { profile, tokens } = await exchangeCode(p, req.query.code, redirectUri(req, p));
       const me = currentUser(res);
       if (mode === 'link' && me) {
-        await saveIntegration(ctx, me.id, p, tokens, { email: profile.email, name: profile.name, avatar: profile.avatar }, 'oauth');
-        return res.redirect(`${next || '/connections'}${(next || '').includes('?') ? '&' : '?'}connected=${p}`);
+        const slot = linkSlot === 'youtube' && p === 'google' ? 'youtube' : p;
+        await saveIntegration(ctx, me.id, slot, tokens, { email: profile.email, name: profile.name, avatar: profile.avatar }, 'oauth');
+        return res.redirect(`${next || '/connections'}${(next || '').includes('?') ? '&' : '?'}connected=${slot}`);
       }
       const user = await auth.oauthUser(p, profile.id, profile.email, profile.name, profile.avatar);
       await startSession(req, res, user);
