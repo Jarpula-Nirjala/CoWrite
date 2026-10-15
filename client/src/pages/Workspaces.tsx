@@ -1,3 +1,4 @@
+import { ContactInput } from '../components/ContactInput.tsx';
 import { useEffect, useState } from 'react';
 import { api, errorText, timeAgo, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
@@ -144,7 +145,7 @@ export function Workspaces() {
                       }, 'Added. They will get a notification.');
                     }}
                   >
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="teammate@email.com" required aria-label="Email" />
+                    <ContactInput type="email" value={email} onValue={setEmail} placeholder="teammate@email.com" required aria-label="Email" />
                     <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Role">
                       <option value="editor">Can edit</option>
                       <option value="viewer">Can view</option>

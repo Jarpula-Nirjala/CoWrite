@@ -40,9 +40,17 @@ export const GOOGLE_EXTRAS: Record<string, string[]> = {
   sheets: ['https://www.googleapis.com/auth/spreadsheets'],
   tasks: ['https://www.googleapis.com/auth/tasks'],
   calendar: ['https://www.googleapis.com/auth/calendar.events'],
+  contacts: ['https://www.googleapis.com/auth/contacts.readonly', 'https://www.googleapis.com/auth/contacts.other.readonly'],
 };
 
-const saved: Partial<Record<Provider, { id: string; secret: string }>> = {};
+const saved: Partial<Record<Provider, { id: string; secret: string; pickerKey?: string }>> = {};
+
+/** Browser API key and app id for the Google file picker (the app id is the project number in the client id). */
+export function pickerConfig(): { apiKey: string; appId: string } | null {
+  const apiKey = process.env.GOOGLE_PICKER_KEY || saved.google?.pickerKey;
+  const id = creds('google').id;
+  return apiKey && id ? { apiKey, appId: id.split('-')[0] } : null;
+}
 const env = (p: Provider) => (p === 'google' ? { id: process.env.GOOGLE_CLIENT_ID, secret: process.env.GOOGLE_CLIENT_SECRET } : { id: process.env.GITHUB_CLIENT_ID, secret: process.env.GITHUB_CLIENT_SECRET });
 const creds = (p: Provider) => {
   const e = env(p);
@@ -66,7 +74,7 @@ export async function loadOAuthClients(db: Db, vault: Vault): Promise<void> {
     const plain = await vault.open(r.value);
     if (!plain) continue;
     try {
-      saved[r.name.slice(6) as Provider] = JSON.parse(plain) as { id: string; secret: string };
+      saved[r.name.slice(6) as Provider] = JSON.parse(plain) as { id: string; secret: string; pickerKey?: string };
     } catch {
       // ignore a damaged entry
     }
@@ -74,7 +82,7 @@ export async function loadOAuthClients(db: Db, vault: Vault): Promise<void> {
 }
 
 /** Saves (or with null, removes) an OAuth client entered by the site owner. */
-export async function saveOAuthClient(db: Db, vault: Vault, p: Provider, client: { id: string; secret: string } | null): Promise<void> {
+export async function saveOAuthClient(db: Db, vault: Vault, p: Provider, client: { id: string; secret: string; pickerKey?: string } | null): Promise<void> {
   if (!client) {
     await db.query('delete from server_secrets where name = $1', [`oauth:${p}`]);
     delete saved[p];
@@ -160,3 +168,6 @@ export async function refreshGoogle(refresh: string): Promise<{ access: string; 
   );
   return { access: t.access_token, expiresAt: Date.now() + t.expires_in * 1000 };
 }
+
+/** The OAuth client the owner saved, if any (to update just one part of it). */
+export const savedClient = (p: Provider) => saved[p] ?? null;

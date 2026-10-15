@@ -1927,3 +1927,10 @@ button.repo-card:hover {
   font-size: 0.8rem;
   white-space: nowrap;
 }
+
+.picker-form {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border-strong, var(--border));
+  border-radius: 12px;
+}

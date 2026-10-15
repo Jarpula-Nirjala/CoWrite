@@ -238,7 +238,7 @@ const face = (stack: string) => stack.split(',')[0].replace(/['"]/g, '').trim();
 type Pptx = any;
 
 /** Editable PowerPoint file: native text, shapes and pictures on a rendered background. */
-export async function exportDeckPptx(title: string, data: DeckData, resolve: (s: string) => Promise<string>) {
+export async function exportDeckPptx(title: string, data: DeckData, resolve: (s: string) => Promise<string>, opts: { blob?: boolean } = {}): Promise<Blob | void> {
   // The package's CommonJS/ESM default export differs between bundlers.
   const mod = (await import('pptxgenjs')) as unknown as { default: unknown };
   const Ctor = ((mod.default as { default?: unknown }).default ?? mod.default) as new () => Pptx;
@@ -324,5 +324,6 @@ export async function exportDeckPptx(title: string, data: DeckData, resolve: (s:
     }
     if (slide.f.notes) s.addNotes(slide.f.notes);
   }
+  if (opts.blob) return (await (pres as unknown as { write(o: { outputType: 'blob' }): Promise<Blob> }).write({ outputType: 'blob' })) as Blob;
   await pres.writeFile({ fileName: `${safeName(title)}.pptx` });
 }

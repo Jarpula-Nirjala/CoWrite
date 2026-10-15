@@ -1,3 +1,6 @@
+import { ContactInput } from '../components/ContactInput.tsx';
+import { pickFromDrive } from '../lib/google.ts';
+import { aiDeck } from '../lib/proTemplates.ts';
 import { useEffect, useState } from 'react';
 import { EMBED } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
@@ -11,7 +14,7 @@ import { createAndOpen } from '../lib/create.ts';
 import { navigate, useSearch } from '../router.ts';
 
 type Tab = 'drive' | 'calendar' | 'gmail' | 'youtube' | 'tasks' | 'repos' | 'gists' | 'send';
-type Feature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar';
+type Feature = 'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts';
 
 /** Asks Google for one more permission (the ones already given are kept). */
 export const allowUrl = (f: Feature, tab: string) => `/api/auth/oauth/google?link=1&add=${f}&next=${encodeURIComponent(`/connections?tab=${tab}`)}`;
@@ -77,7 +80,7 @@ export function ConnectionsPage() {
             ) : (tab === 'repos' || tab === 'gists') && !gh ? (
               <NotConnected name="GitHub" onDone={reload} />
             ) : tab === 'drive' ? (
-              <DriveTab sheets={!!data.google.features.sheets} />
+              <DriveTab sheets={!!data.google.features.sheets} picker={!!data.google.picker} />
             ) : tab === 'calendar' ? (
               <CalendarTab />
             ) : tab === 'gmail' ? (
@@ -131,7 +134,7 @@ function csvToMarkdown(csv: string): string {
 
 const KIND_ICON: Record<string, string> = { doc: '📄', sheet: '📊', slides: '📽️', pdf: '📕', text: '📃' };
 
-function DriveTab({ sheets }: { sheets: boolean }) {
+function DriveTab({ sheets, picker }: { sheets: boolean; picker: boolean }) {
   const [q, setQ] = useState('');
   const [files, setFiles] = useState<{ id: string; name: string; kind: string; modified: string; url: string; owner: string }[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -154,6 +157,20 @@ function DriveTab({ sheets }: { sheets: boolean }) {
         await createAndOpen(r.title, 'sheet', { tokens: [], objects });
         return;
       }
+      if (kind === 'slides') {
+        // The presentation's words, laid out on a CoWrite design.
+        const r = await api<{ title: string; slides: { title: string; bullets: string[]; notes: string }[] }>(`/integrations/google/slides/${id}`);
+        const [first, ...rest] = r.slides;
+        const outline = {
+          title: first?.title || r.title,
+          subtitle: first?.bullets.join(' · ') ?? '',
+          theme: 'growth',
+          cover: 'office',
+          slides: rest.map((s) => ({ layout: s.bullets.length ? 'title-content' : 'section', title: s.title, bullets: s.bullets, notes: s.notes, photo: 'office' })),
+        };
+        await createAndOpen(r.title, 'slides', aiDeck(outline, { cover: true }));
+        return;
+      }
       const r = await api<{ name: string; text: string }>(`/integrations/google/file/${id}`);
       await importText(r.name, r.text, kind === 'sheet');
     } catch (e) {
@@ -174,6 +191,23 @@ function DriveTab({ sheets }: { sheets: boolean }) {
           <Icon name="search" size={16} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your Drive" aria-label="Search Drive" />
         </label>
+        {picker && (
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={() =>
+              void pickFromDrive().then(
+                (docs) => {
+                  const d = docs[0];
+                  if (d) void open(d.id, d.mimeType.includes('spreadsheet') ? 'sheet' : d.mimeType.includes('presentation') ? 'slides' : d.mimeType.includes('document') ? 'doc' : 'text');
+                },
+                (e) => setError(errorText(e)),
+              )
+            }
+            type="button"
+          >
+            <GoogleLogo size={14} /> Choose with Google Picker
+          </button>
+        )}
         <span className="muted small">
           Google Docs, Sheets, Slides and text files, newest first.{' '}
           {!sheets && <a href={allowUrl('sheets', 'drive')}>Allow Google Sheets to open sheets as real spreadsheets →</a>}
@@ -511,7 +545,12 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
           <small className="muted">Sends the document, formatted, from your own Gmail.</small>
           {features.gmail ? (
             <>
-              <input className="input" value={to} onChange={(e) => setTo(e.target.value)} placeholder="name@example.com, …" aria-label="Recipients" />
+              <ContactInput className="input" value={to} onValue={setTo} placeholder="name@example.com, … (type a name)" aria-label="Recipients" />
+              {!features.contacts && (
+                <a className="small" href={allowUrl('contacts', 'send')}>
+                  Suggest my Google contacts
+                </a>
+              )}
               <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="A short note (optional)" aria-label="Note" />
               <button className="btn btn-primary btn-sm" disabled={!doc || !to.trim() || busy} onClick={() => void send('gmail')} type="button">
                 Send email
@@ -583,7 +622,7 @@ function SendTab({ google, github, features }: { google: boolean; github: boolea
 }
 
 function Allow({ f, tab, what }: { f: Feature; tab: string; what: string }) {
-  const name = { gmail: 'Gmail', youtube: 'YouTube', sheets: 'Google Sheets', tasks: 'Google Tasks', calendar: 'Google Calendar' }[f];
+  const name = { gmail: 'Gmail', youtube: 'YouTube', sheets: 'Google Sheets', tasks: 'Google Tasks', calendar: 'Google Calendar', contacts: 'Google Contacts' }[f];
   return (
     <div className="keep-empty allow-card">
       <span>

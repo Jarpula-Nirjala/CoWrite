@@ -3,7 +3,7 @@ import { marked } from 'marked';
 import { toMarkdown } from '../shared/rich.ts';
 import { docAccess, type AppCtx } from './context.ts';
 import { HttpError, publicUrl, rateLimit, requireUser, str } from './http.ts';
-import { clientSource, enabledProviders, GOOGLE_EXTRAS, LINK_SCOPES, refreshGoogle, saveOAuthClient, type OAuthTokens, type Provider } from './oauth.ts';
+import { clientSource, enabledProviders, GOOGLE_EXTRAS, LINK_SCOPES, pickerConfig, refreshGoogle, saveOAuthClient, savedClient, type OAuthTokens, type Provider } from './oauth.ts';
 
 interface Row {
   access_token: string;
@@ -101,6 +101,7 @@ export function integrationRoutes(ctx: AppCtx) {
         since: it?.created_at ?? null,
         redirectUri: `${publicUrl(req)}/api/auth/oauth/${p}/callback`,
         // Which optional Google features this connection has permission for.
+        picker: p === 'google' && !!pickerConfig(),
         features: p === 'google' && it ? Object.fromEntries(Object.entries(GOOGLE_EXTRAS).map(([k, scopes]) => [k, scopes.every((sc) => it.scope.includes(sc))])) : {},
         scopes: LINK_SCOPES[p],
       };
@@ -127,9 +128,18 @@ export function integrationRoutes(ctx: AppCtx) {
     }
     const id = str(req.body?.clientId, 300).trim();
     const secret = str(req.body?.clientSecret, 300).trim();
+    const pickerKey = str(req.body?.pickerKey, 200).trim();
+    // Only the picker key: keep the saved client and add the key.
+    if (!id && !secret && pickerKey) {
+      const current = savedClient(p);
+      if (!current) throw new HttpError(400, 'Save the client ID and secret first.');
+      await saveOAuthClient(db, vault, p, { ...current, pickerKey });
+      res.json({ ok: true });
+      return;
+    }
     if (id.length < 8 || secret.length < 8) throw new HttpError(400, 'Paste both the client ID and the client secret.');
     if (p === 'google' && !id.endsWith('.apps.googleusercontent.com')) throw new HttpError(400, 'A Google client ID ends with “.apps.googleusercontent.com”.');
-    await saveOAuthClient(db, vault, p, { id, secret });
+    await saveOAuthClient(db, vault, p, { id, secret, ...(pickerKey || savedClient(p)?.pickerKey ? { pickerKey: pickerKey || savedClient(p)?.pickerKey } : {}) });
     res.json({ ok: true });
   });
 
@@ -557,6 +567,92 @@ export function integrationRoutes(ctx: AppCtx) {
       body: JSON.stringify({ summary: e.title, description: `${e.notes ? `${e.notes}\n\n` : ''}Added from CoWrite`, ...body }),
     });
     res.json({ url: out.htmlLink });
+  });
+
+
+  // ------------------------------------------- Google Docs and Slides files
+
+  /** A Word or PowerPoint file from the browser, saved to Drive as a Google Doc or Slides deck (formatting kept). */
+  r.post('/integrations/google/upload', rateLimit(20, 10 * 60_000), express.raw({ type: () => true, limit: '25mb' }), async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const data = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (data.length < 100) throw new HttpError(400, 'The file is empty.');
+    const slides = req.query.as === 'slides';
+    const name = str(req.query.name, 200) || (slides ? 'CoWrite presentation' : 'CoWrite document');
+    const source = slides ? 'application/vnd.openxmlformats-officedocument.presentationml.presentation' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const target = slides ? 'application/vnd.google-apps.presentation' : 'application/vnd.google-apps.document';
+    const boundary = `cowrite${Date.now()}`;
+    const body = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, mimeType: target })}\r\n--${boundary}\r\nContent-Type: ${source}\r\n\r\n`),
+      data,
+      Buffer.from(`\r\n--${boundary}--`),
+    ]);
+    const out = await call<{ webViewLink: string }>('google', t, 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+      method: 'POST',
+      headers: { 'content-type': `multipart/related; boundary=${boundary}` },
+      body,
+    });
+    res.json({ url: out.webViewLink });
+  });
+
+  /** A Google Slides presentation's text, slide by slide, for opening it as a CoWrite deck. */
+  r.get('/integrations/google/slides/:id', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    type Text = { text?: { textElements?: { textRun?: { content?: string } }[] } };
+    type Element = { shape?: Text & { placeholder?: { type?: string } }; table?: unknown };
+    const deck = await call<{ title: string; slides?: { pageElements?: Element[]; slideProperties?: { notesPage?: { pageElements?: Element[] } } }[] }>(
+      'google',
+      t,
+      `https://slides.googleapis.com/v1/presentations/${encodeURIComponent(String(req.params.id))}`,
+    );
+    const textOf = (e: Element) => (e.shape?.text?.textElements ?? []).map((x) => x.textRun?.content ?? '').join('').trim();
+    const slides = (deck.slides ?? []).map((s) => {
+      const els = (s.pageElements ?? []).filter((e) => e.shape?.text);
+      const titleEl = els.find((e) => /TITLE/.test(e.shape?.placeholder?.type ?? '')) ?? els[0];
+      const title = titleEl ? textOf(titleEl) : '';
+      const bullets = els
+        .filter((e) => e !== titleEl)
+        .flatMap((e) => textOf(e).split('\n'))
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 8);
+      const notes = (s.slideProperties?.notesPage?.pageElements ?? []).map(textOf).filter(Boolean).join(' ').slice(0, 1000);
+      return { title: title.split('\n')[0] || 'Slide', bullets, notes };
+    });
+    res.json({ title: deck.title, slides });
+  });
+
+  // ----------------------------------------------------------------- People
+
+  r.get('/integrations/google/contacts', limiter, async (req, res) => {
+    const user = requireUser(res);
+    const t = await token(user.id, 'google');
+    const q = str(req.query.q, 100).trim();
+    if (q.length < 2) {
+      res.json({ contacts: [] });
+      return;
+    }
+    type Person = { person?: { names?: { displayName: string }[]; emailAddresses?: { value: string }[]; photos?: { url: string }[] } };
+    const search = (path: string) =>
+      call<{ results?: Person[] }>('google', t, `https://people.googleapis.com/v1/${path}?${new URLSearchParams({ query: q, readMask: 'names,emailAddresses,photos', pageSize: '10' })}`).catch(() => ({ results: [] as Person[] }));
+    const [own, other] = await Promise.all([search('people:searchContacts'), search('otherContacts:search')]);
+    const seen = new Set<string>();
+    const contacts = [...(own.results ?? []), ...(other.results ?? [])]
+      .flatMap((r) => (r.person?.emailAddresses ?? []).map((e) => ({ name: r.person?.names?.[0]?.displayName ?? e.value, email: e.value, photo: r.person?.photos?.[0]?.url ?? null })))
+      .filter((c) => !seen.has(c.email.toLowerCase()) && seen.add(c.email.toLowerCase()))
+      .slice(0, 10);
+    res.json({ contacts });
+  });
+
+  // ----------------------------------------------------------------- Picker
+
+  r.get('/integrations/google/picker', limiter, async (_req, res) => {
+    const user = requireUser(res);
+    const cfg = pickerConfig();
+    if (!cfg) throw new HttpError(400, 'The Google file picker needs an API key: the site owner can add it in Account → Connected accounts.');
+    res.json({ token: await token(user.id, 'google'), ...cfg });
   });
 
   return r;

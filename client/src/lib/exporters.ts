@@ -55,7 +55,7 @@ const listMarker = (b: Extract<RichBlock, { type: 'text' }>, n: number) => (b.ki
 
 // ------------------------------------------------------------------- DOCX
 
-export async function exportDocx(title: string, tokens: Token[], resolve: Resolve) {
+export async function exportDocx(title: string, tokens: Token[], resolve: Resolve, opts: { blob?: boolean } = {}): Promise<Blob | void> {
   const d = await import('docx');
   const runOf = (p: InlinePart) =>
     new d.TextRun({
@@ -181,7 +181,9 @@ export async function exportDocx(title: string, tokens: Token[], resolve: Resolv
     styles: { default: { document: { run: { font: 'Times New Roman', size: 24 } } } },
     sections: [{ children: children.length ? children : [new d.Paragraph('')] }],
   });
-  download(await d.Packer.toBlob(file), `${safeFileName(title)}.docx`);
+  const blob = await d.Packer.toBlob(file);
+  if (opts.blob) return blob;
+  download(blob, `${safeFileName(title)}.docx`);
 }
 
 // -------------------------------------------------------------------- PDF

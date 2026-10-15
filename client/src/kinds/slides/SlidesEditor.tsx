@@ -1,3 +1,4 @@
+import { saveToGoogle } from '../../lib/google.ts';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent } from 'react';
 import type { Attrs } from '../../../../shared/crdt.ts';
 import { Dropdown, Icon } from '../../components/ui.tsx';
@@ -431,10 +432,15 @@ export default function SlidesEditor(p: KindProps) {
   // ------------------------------------------------------------ export
 
   const data: DeckData = { slides, els: allEls, deck };
-  const runExport = async (what: 'pptx' | 'pdf' | 'png') => {
-    setBusy(what === 'pptx' ? 'Building PowerPoint file…' : what === 'pdf' ? 'Building PDF…' : 'Rendering slide…');
+  const runExport = async (what: 'pptx' | 'pdf' | 'png' | 'gslides') => {
+    setBusy(what === 'pptx' ? 'Building PowerPoint file…' : what === 'gslides' ? 'Saving to Google Slides…' : what === 'pdf' ? 'Building PDF…' : 'Rendering slide…');
     try {
-      if (what === 'pptx') await exportDeckPptx(p.title, data, p.resolve);
+      if (what === 'gslides') {
+        const blob = (await exportDeckPptx(p.title, data, p.resolve, { blob: true })) as Blob;
+        const url = await saveToGoogle(blob, p.title, 'slides');
+        p.flash('Saved to Google Slides. Opening it in a new tab…');
+        window.open(url, '_blank', 'noopener');
+      } else if (what === 'pptx') await exportDeckPptx(p.title, data, p.resolve);
       else if (what === 'pdf') await exportDeckPdf(p.title, data, p.resolve);
       else await exportSlidePng(p.title, data, Math.max(0, curIndex), p.resolve);
     } catch (e) {
@@ -802,7 +808,7 @@ function ShapeIcon({ shape, color }: { shape: NonNullable<El['shape']>; color: s
   }
 }
 
-function ExportMenu({ run }: { run(what: 'pptx' | 'pdf' | 'png'): void }) {
+function ExportMenu({ run }: { run(what: 'pptx' | 'pdf' | 'png' | 'gslides'): void }) {
   return (
     <Dropdown label={<><Icon name="download" size={15} /> Export</>} className="tb-btn wide">
       {(close) => (
@@ -815,6 +821,9 @@ function ExportMenu({ run }: { run(what: 'pptx' | 'pdf' | 'png'): void }) {
           </button>
           <button className="menu-item" onClick={() => (close(), run('png'))} type="button">
             This slide as PNG
+          </button>
+          <button className="menu-item" onClick={() => (close(), run('gslides'))} type="button">
+            Save to Google Slides
           </button>
         </div>
       )}

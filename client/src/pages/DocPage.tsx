@@ -33,6 +33,7 @@ import { useDocSession, type DocSession } from '../editor/useDocSession.ts';
 import { useFiles } from '../editor/useFiles.ts';
 import { KindPage } from '../kinds/KindPage.tsx';
 import { exportDocx, exportMarkdown, exportPdf, exportText } from '../lib/exporters.ts';
+import { saveToGoogle } from '../lib/google.ts';
 import { pendingContent, type InitialContent } from '../lib/templates.ts';
 import { countWords } from '../lib/text.ts';
 import { setBlock } from '../rich/commands.ts';
@@ -712,8 +713,14 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
 
   // ------------------------------------------------------------ commands
 
-  const exportAs = async (kind: 'pdf' | 'docx' | 'md' | 'txt' | 'print') => {
+  const exportAs = async (kind: 'pdf' | 'docx' | 'md' | 'txt' | 'print' | 'gdocs') => {
     try {
+      if (kind === 'gdocs') {
+        flash('Saving to Google Docs…');
+        const blob = (await exportDocx(title, tokens, resolve, { blob: true })) as Blob;
+        window.open(await saveToGoogle(blob, title, 'docs'), '_blank', 'noopener');
+        return;
+      }
       if (kind === 'pdf') await exportPdf(title, tokens, resolve, { header: settings.header, footer: settings.footer, pageNumbers: settings.pageNumbers });
       else if (kind === 'docx') await exportDocx(title, tokens, resolve);
       else if (kind === 'md') exportMarkdown(title, tokens);
@@ -779,6 +786,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
     { id: 'docx', group: 'Export', label: 'Download as Word (.docx)', run: () => void exportAs('docx') },
     { id: 'md', group: 'Export', label: 'Download as Markdown', run: () => void exportAs('md') },
     { id: 'txt', group: 'Export', label: 'Download as plain text', run: () => void exportAs('txt') },
+    { id: 'gdocs', group: 'Export', label: 'Save to Google Docs', run: () => void exportAs('gdocs') },
     { id: 'ai-continue', group: 'AI', label: 'AI: continue writing', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('continue')) },
     { id: 'ai-summary', group: 'AI', label: 'AI: summarize document', disabled: !editorCtx.aiEnabled || !canEdit, run: () => (setPanel('ai'), void runAi('summarize')) },
     { id: 'offline', group: 'Network', label: manualOffline ? 'Reconnect' : 'Go offline (simulate)', run: () => toggleOffline(!manualOffline) },
@@ -1163,6 +1171,7 @@ function DocEditor({ roomId, s }: { roomId: string; s: DocSession }) {
                         ['docx', 'Word document (.docx)'],
                         ['md', 'Markdown (.md)'],
                         ['txt', 'Plain text (.txt)'],
+                        ['gdocs', 'Save to Google Docs'],
                       ] as const
                     ).map(([k, label]) => (
                       <button

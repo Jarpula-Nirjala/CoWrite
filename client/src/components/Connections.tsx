@@ -12,7 +12,9 @@ export interface ServiceStatus {
   account: { login?: string; name?: string; email?: string; avatar?: string | null; url?: string } | null;
   redirectUri: string;
   scopes: string;
-  features: Partial<Record<'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar', boolean>>;
+  features: Partial<Record<'gmail' | 'youtube' | 'sheets' | 'tasks' | 'calendar' | 'contacts', boolean>>;
+  /** Whether the Google file picker is set up (Google only). */
+  picker?: boolean;
 }
 export interface Integrations {
   owner: boolean;
@@ -93,6 +95,7 @@ export function ConnectionsSection() {
           <p className="muted small">
             Signing in: once Google or GitHub sign-in is switched on for this site, “Continue with Google/GitHub” logs you straight into this same account, because it uses the same verified email address.
           </p>
+          {data.owner && data.google.configured && !data.google.picker && <PickerKeyForm onSaved={reload} />}
           {(data.google.connected || data.github.connected) && (
             <Link className="btn btn-primary btn-sm" to="/connections">
               Open your Google and GitHub files →
@@ -311,5 +314,51 @@ function SetupDialog({ p, data, onClose, onSaved }: { p: 'google' | 'github'; da
         )}
       </div>
     </Modal>
+  );
+}
+
+/** Site owner: the browser API key the Google file picker needs. */
+function PickerKeyForm({ onSaved }: { onSaved(): void }) {
+  const [open, setOpen] = useState(false);
+  const [key, setKey] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const save = async () => {
+    setError(null);
+    try {
+      await api('/integrations/setup/google', { method: 'PUT', body: { pickerKey: key.trim() } });
+      onSaved();
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+  if (!open)
+    return (
+      <p className="muted small">
+        Optional: <button className="link-btn inline" onClick={() => setOpen(true)} type="button">switch on Google’s own file picker</button> (needs one API key).
+      </p>
+    );
+  return (
+    <div className="picker-form">
+      <ol className="connect-steps">
+        <li>
+          In{' '}
+          <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noreferrer">
+            APIs &amp; Services → Credentials ↗
+          </a>{' '}
+          (same CoWrite project) press <b>+ Create credentials → API key</b>.
+        </li>
+        <li>
+          Edit the key: under <b>API restrictions</b> choose <b>Google Picker API</b>; under <b>Website restrictions</b> add <code>{location.origin}/*</code> (and your live site). Save.
+        </li>
+        <li>Copy the key and paste it here:</li>
+      </ol>
+      <div className="chat-ask">
+        <input value={key} onChange={(e) => setKey(e.target.value)} placeholder="AIza…" aria-label="Picker API key" />
+        <button className="btn btn-primary btn-sm" disabled={key.trim().length < 20} onClick={() => void save()} type="button">
+          Save
+        </button>
+      </div>
+      {error && <p className="error-text">{error}</p>}
+    </div>
   );
 }
