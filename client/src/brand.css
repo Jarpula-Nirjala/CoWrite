@@ -1,0 +1,226 @@
+/* ------------------------------------------------------------- wordmark
+   The CoWrite logo is live text: each letter blends from the theme's text colour into its accent, so it is
+   dark ink on light themes and white on dark ones, and it animates letter by letter. */
+.brand {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  line-height: 1;
+  color: var(--text);
+  text-decoration: none;
+}
+.brand:hover {
+  text-decoration: none;
+}
+.brand-word {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+  font-size: 2.15rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1;
+  white-space: nowrap;
+}
+.bl {
+  position: relative;
+  display: inline-block;
+  color: color-mix(in srgb, var(--accent) calc(var(--i) * 14%), var(--text));
+  animation: bl-in 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.25) both;
+  animation-delay: calc(var(--i) * 75ms);
+}
+/* The capital letters carry a touch more of the theme's accent. */
+.bl:first-child,
+.bl:nth-child(3) {
+  color: color-mix(in srgb, var(--accent) calc(var(--i) * 14% + 22%), var(--text));
+}
+@keyframes bl-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.6em) rotate(-10deg) scale(0.85);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0.07em) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* On hover the letters ripple like a wave. The wave moves `translate`, so it never replays the entrance. */
+.brand:hover .bl,
+.brand:focus-visible .bl {
+  animation: bl-in 0.7s cubic-bezier(0.2, 0.9, 0.25, 1.25) both, bl-wave 0.75s ease-in-out;
+  animation-delay: calc(var(--i) * 75ms), calc(var(--i) * 55ms);
+}
+@keyframes bl-wave {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  40% {
+    translate: 0 -0.2em;
+  }
+}
+
+/* The dot of the "i" is a little light bulb that switches on after the letters land, then glows softly. */
+.brand-bulb {
+  position: absolute;
+  top: 0.06em;
+  left: 50%;
+  width: 0.24em;
+  height: 0.24em;
+  margin-left: -0.12em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffbe8 0%, #ffd84d 45%, #f2a900 100%);
+  box-shadow: 0 0 0.18em 0.04em rgb(255 196 40 / 0.55);
+  animation: bulb-on 0.55s ease-out both, bulb-glow 3.4s ease-in-out infinite;
+  animation-delay: 0.75s, 1.4s;
+}
+@keyframes bulb-on {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.45);
+    box-shadow: 0 0 0.6em 0.2em rgb(255 210 70 / 0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes bulb-glow {
+  50% {
+    box-shadow: 0 0 0.42em 0.12em rgb(255 200 60 / 0.75);
+  }
+}
+.brand:hover .brand-bulb {
+  box-shadow: 0 0 0.6em 0.22em rgb(255 210 70 / 0.9);
+}
+
+/* A paper plane takes off from the end of the word. */
+.brand-plane {
+  width: 0.95em;
+  height: 0.58em;
+  margin: 0 0 0.42em 0.06em;
+  overflow: visible;
+  animation: plane-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: 0.6s;
+}
+.brand-wing {
+  fill: color-mix(in srgb, var(--accent) 80%, #9b6cff);
+}
+.brand-fold {
+  fill: color-mix(in srgb, var(--accent) 70%, #000);
+}
+:root[data-tone='dark'] .brand-fold {
+  fill: color-mix(in srgb, var(--accent) 60%, #fff);
+}
+.brand-trail {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 70%, transparent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-dasharray: 2.5 3;
+  animation: trail-in 0.9s ease-out both;
+  animation-delay: 0.7s;
+}
+@keyframes plane-in {
+  0% {
+    opacity: 0;
+    transform: translate(-1.4em, 0.7em) rotate(-18deg) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes trail-in {
+  from {
+    opacity: 0;
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+  }
+}
+.brand:hover .brand-plane {
+  animation: plane-in 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both, plane-fly 0.9s ease-in-out;
+  animation-delay: 0.6s, 0.15s;
+}
+@keyframes plane-fly {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  45% {
+    translate: 0.4em -0.3em;
+    rotate: -10deg;
+  }
+}
+
+/* Sizes by place. */
+.site-header .brand-word {
+  font-size: 2.05rem;
+}
+.site-footer .brand-word {
+  font-size: 2.35rem;
+}
+.auth-side .brand-word {
+  font-size: 2.5rem;
+}
+.auth-side .brand {
+  padding: 12px 18px 10px;
+}
+@media (max-width: 640px) {
+  .site-header .brand-word {
+    font-size: 1.7rem;
+  }
+}
+
+/* The "C" monogram for the editor header. */
+.brand-mono {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--accent) 80%, #fff), color-mix(in srgb, var(--accent) 80%, #000));
+  color: #fff;
+  font: 800 23px/1 'Playfair Display', Georgia, serif;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent);
+  transition: transform 0.2s;
+}
+:root[data-tone='dark'] .brand-mono {
+  color: var(--bg);
+}
+.brand-mono span {
+  margin-top: -2px;
+}
+.brand-mono .brand-bulb {
+  top: 4px;
+  left: auto;
+  right: 4px;
+  width: 7px;
+  height: 7px;
+  margin: 0;
+}
+.brand-compact:hover .brand-mono {
+  transform: rotate(-6deg) scale(1.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand *,
+  .brand {
+    animation: none !important;
+    transition: none !important;
+  }
+}

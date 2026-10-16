@@ -9,7 +9,7 @@ import { authorizeUrl, enabledProviders, exchangeCode, GOOGLE_EXTRAS, SEPARATE_E
 import { saveIntegration } from './routes-integrations.ts';
 
 const STATE_COOKIE = 'cowrite_oauth';
-const THEMES = ['auto', 'light', 'sepia', 'ocean', 'forest', 'rose', 'lavender', 'mint', 'sunset', 'slate', 'dark', 'midnight', 'coffee', 'nord', 'grape', 'contrast'] as const;
+const THEMES = ['auto', 'light', 'sepia', 'ocean', 'forest', 'rose', 'lavender', 'mint', 'sunset', 'slate', 'dark', 'midnight', 'grape'] as const;
 
 export function authRoutes(ctx: AppCtx) {
   const r = express.Router();

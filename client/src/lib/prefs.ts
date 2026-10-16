@@ -11,7 +11,7 @@ export interface AppTheme {
   icon: ThemeIconName;
 }
 
-export type ThemeIconName = 'auto' | 'sun' | 'book' | 'wave' | 'tree' | 'flower' | 'sprig' | 'leaf' | 'sunset' | 'cloud' | 'moon' | 'stars' | 'cup' | 'snow' | 'gem' | 'contrast';
+export type ThemeIconName = 'auto' | 'sun' | 'book' | 'wave' | 'tree' | 'flower' | 'sprig' | 'leaf' | 'sunset' | 'cloud' | 'moon' | 'stars' | 'gem';
 
 /** Colour themes: name, swatch colours (background, accent), whether the theme is dark, and its icon. */
 export const APP_THEMES: AppTheme[] = [
@@ -27,12 +27,11 @@ export const APP_THEMES: AppTheme[] = [
   { id: 'slate', name: 'Slate', bg: '#f3f5f8', accent: '#3d5a80', fg: '#1b2430', dark: false, icon: 'cloud' },
   { id: 'dark', name: 'Dark', bg: '#1f242c', accent: '#8fb0ea', fg: '#e7e9ee', dark: true, icon: 'moon' },
   { id: 'midnight', name: 'Midnight', bg: '#111a2e', accent: '#c7a6ff', fg: '#e6e9f5', dark: true, icon: 'stars' },
-  { id: 'coffee', name: 'Coffee', bg: '#2a211c', accent: '#e0a96d', fg: '#f1e6da', dark: true, icon: 'cup' },
-  { id: 'nord', name: 'Nord', bg: '#2e3440', accent: '#88c0d0', fg: '#eceff4', dark: true, icon: 'snow' },
   { id: 'grape', name: 'Amethyst', bg: '#221a2e', accent: '#e08cf0', fg: '#f1e8f7', dark: true, icon: 'gem' },
-  { id: 'contrast', name: 'High contrast', bg: '#000000', accent: '#ffd400', fg: '#ffffff', dark: true, icon: 'contrast' },
 ];
 export const THEME_IDS = APP_THEMES.map((t) => t.id);
+/** Themes that were removed; anyone who had one sees Dark instead. */
+const RETIRED: Record<string, ThemeId> = { coffee: 'dark', nord: 'dark', contrast: 'dark' };
 
 export const DEFAULT_PREFS: Prefs = {
   theme: 'light',
@@ -61,7 +60,7 @@ const darkQuery = typeof window !== 'undefined' && window.matchMedia ? window.ma
 
 /** The theme actually shown: "Match my device" resolves to Classic white or Dark. */
 export function effectiveTheme(id: ThemeId): AppTheme {
-  const want = id === 'auto' ? (darkQuery?.matches ? 'dark' : 'light') : id;
+  const want = id === 'auto' ? (darkQuery?.matches ? 'dark' : 'light') : (RETIRED[id] ?? id);
   return APP_THEMES.find((t) => t.id === want) ?? APP_THEMES[1];
 }
 

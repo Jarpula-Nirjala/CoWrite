@@ -40,10 +40,7 @@ export type ThemeId =
   | 'slate'
   | 'dark'
   | 'midnight'
-  | 'coffee'
-  | 'nord'
-  | 'grape'
-  | 'contrast';
+  | 'grape';
 
 export interface Prefs {
   theme: ThemeId;

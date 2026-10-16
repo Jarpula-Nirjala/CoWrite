@@ -213,30 +213,6 @@ textarea {
   margin: 0 auto;
   padding: 0 24px;
 }
-.brand {
-  display: inline-flex;
-  align-items: center;
-  flex: none;
-  line-height: 0;
-}
-.brand img {
-  display: block;
-  height: 50px;
-  width: auto;
-}
-.auth-side .brand img {
-  height: 64px;
-}
-.site-footer .brand img {
-  height: 56px;
-}
-.brand-compact img {
-  height: 36px;
-  border-radius: 6px;
-}
-.brand:hover {
-  text-decoration: none;
-}
 .site-nav {
   display: flex;
   gap: 1.6rem;
@@ -1556,9 +1532,6 @@ textarea {
 @media (max-width: 640px) {
   body {
     font-size: 17px;
-  }
-  .site-header .brand img {
-    height: 42px;
   }
   .container,
   .header-inner {

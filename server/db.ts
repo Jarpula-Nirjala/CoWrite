@@ -397,6 +397,8 @@ const MIGRATIONS: string[] = [
      created_at double precision not null
    );
    create index assistant_files_user on assistant_files (user_id);`,
+  // 7: the Coffee, Nord and High contrast themes were removed; their users move to Dark.
+  `update users set prefs = jsonb_set(prefs, '{theme}', '"dark"') where prefs ->> 'theme' in ('coffee', 'nord', 'contrast');`,
 ];
 
 async function migrate(db: Db): Promise<void> {

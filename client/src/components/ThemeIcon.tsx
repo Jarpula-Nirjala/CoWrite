@@ -39,15 +39,7 @@ const PATHS: Record<ThemeIconName, ReactElement> = {
       <path d="M17.5 3v4M15.5 5h4M20 10v3M18.5 11.5h3" />
     </>
   ),
-  cup: <path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Zm12 1.5h1.5a2.5 2.5 0 0 1 0 5H16M3 22h15M8 3c-1 1 1 2 0 3.5M12 3c-1 1 1 2 0 3.5" />,
-  snow: <path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7M9.5 3.5 12 6l2.5-2.5M9.5 20.5 12 18l2.5 2.5M3 10.5 6.4 9.8 5.6 6.5M21 13.5l-3.4.7.8 3.3M3 13.5l3.4.7-.8 3.3M21 10.5l-3.4-.7.8-3.3" />,
   gem: <path d="M6 3h12l4 6-10 12L2 9Zm-4 6h20M9 3l3 18 3-18M6 3l3 6 3-6 3 6 3-6" />,
-  contrast: (
-    <>
-      <rect x="3" y="3" width="18" height="18" rx="4" />
-      <path d="M12 3h5a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4h-5Z" fill="currentColor" stroke="none" />
-    </>
-  ),
 };
 
 export function ThemeIcon({ name, size = 18, color }: { name: ThemeIconName; size?: number; color?: string }) {

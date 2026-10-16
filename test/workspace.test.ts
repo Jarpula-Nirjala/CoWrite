@@ -186,8 +186,9 @@ describe('workspace apps', () => {
   });
 
   it('saves the new appearance and accessibility settings', async () => {
-    const r = await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'nord', dyslexic: false, dailyGoal: 300, textSize: 'xl', spacing: 'relaxed', appFont: 'readable', reduceMotion: true, bigCursor: true, bogus: 1 } });
-    assert.equal(r.body.prefs.theme, 'nord');
+    const r = await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'grape', dyslexic: false, dailyGoal: 300, textSize: 'xl', spacing: 'relaxed', appFont: 'readable', reduceMotion: true, bigCursor: true, bogus: 1 } });
+    assert.equal(r.body.prefs.theme, 'grape');
+    assert.equal((await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'nord' } })).body.prefs.theme, 'light', 'removed themes are no longer accepted');
     assert.equal(r.body.prefs.textSize, 'xl');
     assert.equal(r.body.prefs.reduceMotion, true);
     assert.equal(r.body.prefs.bogus, undefined);

@@ -55,38 +55,6 @@
 }
 
 /* ------------------------------------------------------------- dark themes */
-:root[data-theme='coffee'] {
-  --bg: #1f1814;
-  --bg-alt: #2a211c;
-  --surface: #30261f;
-  --text: #f1e6da;
-  --text-2: #dccbb9;
-  --muted: #a99482;
-  --border: #4a3a2f;
-  --border-strong: #634e40;
-  --accent: #e0a96d;
-  --accent-hover: #ecbe8b;
-  --accent-soft: #4a3624;
-  --gold: #e0a96d;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.45), 0 8px 24px rgb(0 0 0 / 0.4);
-  color-scheme: dark;
-}
-:root[data-theme='nord'] {
-  --bg: #2b303b;
-  --bg-alt: #323846;
-  --surface: #3b4252;
-  --text: #eceff4;
-  --text-2: #d8dee9;
-  --muted: #a3acbd;
-  --border: #4c566a;
-  --border-strong: #5e6a82;
-  --accent: #88c0d0;
-  --accent-hover: #a3d0dc;
-  --accent-soft: #3a4d5c;
-  --gold: #ebcb8b;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 8px 24px rgb(0 0 0 / 0.3);
-  color-scheme: dark;
-}
 :root[data-theme='grape'] {
   --bg: #1a1424;
   --bg-alt: #221a2e;
@@ -103,35 +71,8 @@
   --shadow: 0 1px 2px rgb(0 0 0 / 0.45), 0 8px 24px rgb(0 0 0 / 0.4);
   color-scheme: dark;
 }
-:root[data-theme='contrast'] {
-  --bg: #000000;
-  --bg-alt: #0b0b0b;
-  --surface: #000000;
-  --text: #ffffff;
-  --text-2: #ffffff;
-  --muted: #e6e6e6;
-  --border: #ffffff;
-  --border-strong: #ffffff;
-  --accent: #ffd400;
-  --accent-hover: #ffe55c;
-  --accent-soft: #332b00;
-  --gold: #ffd400;
-  --shadow: none;
-  color-scheme: dark;
-}
-:root[data-theme='contrast'] .btn-primary,
-:root[data-theme='grape'] .btn-primary,
-:root[data-theme='coffee'] .btn-primary,
-:root[data-theme='nord'] .btn-primary {
+:root[data-theme='grape'] .btn-primary {
   color: #111;
-}
-:root[data-theme='contrast'] a:not(.btn) {
-  color: #ffd400;
-  text-decoration: underline;
-}
-:root[data-theme='contrast'] .panel,
-:root[data-theme='contrast'] .site-header {
-  border-color: #fff;
 }
 
 /* Headers pick up the theme background. */
@@ -139,18 +80,12 @@
 :root[data-theme='mint'] .site-header,
 :root[data-theme='sunset'] .site-header,
 :root[data-theme='slate'] .site-header,
-:root[data-theme='coffee'] .site-header,
-:root[data-theme='nord'] .site-header,
 :root[data-theme='grape'] .site-header,
-:root[data-theme='contrast'] .site-header,
 :root[data-theme='lavender'] .doc-header,
 :root[data-theme='mint'] .doc-header,
 :root[data-theme='sunset'] .doc-header,
 :root[data-theme='slate'] .doc-header,
-:root[data-theme='coffee'] .doc-header,
-:root[data-theme='nord'] .doc-header,
-:root[data-theme='grape'] .doc-header,
-:root[data-theme='contrast'] .doc-header {
+:root[data-theme='grape'] .doc-header {
   background: color-mix(in srgb, var(--bg) 95%, transparent);
 }
 
