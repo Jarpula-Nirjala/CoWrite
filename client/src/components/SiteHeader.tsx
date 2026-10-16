@@ -7,7 +7,7 @@ import { ProductIcon } from './ProductIcon.tsx';
 import { AppLogo } from './AppLogo.tsx';
 import { useWindows, WINDOW_APPS, type WindowApp } from './Windows.tsx';
 import { useAuth } from '../auth.tsx';
-import { Link, navigate } from '../router.ts';
+import { Link, navigate, usePath } from '../router.ts';
 import { Brand } from './Brand.tsx';
 import { Avatar, Dropdown, Icon } from './ui.tsx';
 
@@ -245,9 +245,42 @@ export function ThemeToggle() {
   );
 }
 
+/**
+ * Where the reader is, for highlighting the header: '/' at the top of the home page, '/#features' and so on
+ * while a home-page section is in view, and null on every other page (the dashboard included).
+ */
+function useHere(): string | null {
+  const path = usePath();
+  const [section, setSection] = useState<string | null>(null);
+  useEffect(() => {
+    if (path !== '/') return;
+    const ids = SECTIONS.map((x) => x.to.slice(2));
+    const pick = () => {
+      // The last section whose top has passed a third of the way down the screen.
+      let current: string | null = null;
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top < window.innerHeight / 3) current = id;
+      }
+      setSection(current);
+    };
+    pick();
+    window.addEventListener('scroll', pick, { passive: true });
+    const late = setInterval(pick, 500);
+    setTimeout(() => clearInterval(late), 3000);
+    return () => {
+      window.removeEventListener('scroll', pick);
+      clearInterval(late);
+    };
+  }, [path]);
+  if (path !== '/') return null;
+  return section ? `/#${section}` : '/';
+}
+
 export function SiteHeader() {
   const { user, ready } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const here = useHere();
 
   return (
     <header className="site-header">
@@ -259,11 +292,11 @@ export function SiteHeader() {
           <span />
         </button>
         <nav className={`site-nav ${menuOpen ? 'open' : ''}`} aria-label="Main">
-          <Link to={user ? '/home' : '/'} onClick={() => setMenuOpen(false)} className="nav-home">
+          <Link to="/" onClick={() => setMenuOpen(false)} className={`nav-home ${here === '/' ? 'on' : ''}`} aria-current={here === '/' ? 'page' : undefined}>
             <Icon name="home" size={16} /> Home
           </Link>
           {SECTIONS.map((s) => (
-            <Link key={s.to} to={s.to} onClick={() => setMenuOpen(false)}>
+            <Link key={s.to} to={s.to} onClick={() => setMenuOpen(false)} className={here === s.to ? 'on' : ''} aria-current={here === s.to ? 'location' : undefined}>
               <Icon name={s.icon} size={15} /> {s.label}
             </Link>
           ))}

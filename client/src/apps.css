@@ -27,9 +27,12 @@
 .site-nav a svg {
   opacity: 0.75;
 }
-.site-nav a.nav-home {
+.site-nav a.nav-home,
+.site-nav a.on {
   padding: 4px 10px;
   border-radius: 999px;
+}
+.site-nav a.on {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 700;

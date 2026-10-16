@@ -9,7 +9,7 @@ import { ROOM_RE, parseClientMsg, type ChatMessage, type PeerInfo } from '../sha
 import { DELETED_CODE, FORBIDDEN_CODE } from '../shared/sync-client.ts';
 import { AiHub } from './ai.ts';
 import { Vault } from './secrets.ts';
-import { Auth, AuthError, type User } from './auth.ts';
+import { Auth, AuthError, SESSION_TTL_MS, type User } from './auth.ts';
 import type { AppCtx } from './context.ts';
 import { openDb } from './db.ts';
 import { Docs, newId } from './docs.ts';
@@ -209,7 +209,11 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use((req, res, next) => (((req.path === '/files' || req.path === '/gmail/send' || req.path === '/apps-upload/drive' || req.path === '/ai/chat' || req.path === '/assistant/files') && req.method === 'POST') || (req.path.startsWith('/assistant/chats/') && req.method === 'PUT') ? next() : express.json({ limit: '600kb' })(req, res, next)));
   api.use(async (req, res, next) => {
     try {
-      res.locals.user = await auth.userForToken(readCookie(req.headers.cookie, SESSION_COOKIE));
+      const token = readCookie(req.headers.cookie, SESSION_COOKIE);
+      const session = await auth.sessionForToken(token);
+      res.locals.user = session?.user ?? null;
+      // A renewed session gets a fresh 30-day cookie too.
+      if (session?.renewed && token) res.cookie(SESSION_COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: SESSION_TTL_MS, path: '/' });
       next();
     } catch (err) {
       next(err);

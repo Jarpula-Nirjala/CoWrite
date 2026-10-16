@@ -136,6 +136,7 @@ const ICONS: Record<string, string> = {
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
   crop: 'M6 2v14h14M2 6h14v14',
   home: 'M3 11l9-8 9 8M5 9.5V20h5v-6h4v6h5V9.5',
+  dashboard: 'M4 4h7v8H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 14h7v6H4z',
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7.5h.01',
   grid: 'M5 5h.01M12 5h.01M19 5h.01M5 12h.01M12 12h.01M19 12h.01M5 19h.01M12 19h.01M19 19h.01',
   mail: 'M3 6h18v12H3zM3 7l9 6 9-6',

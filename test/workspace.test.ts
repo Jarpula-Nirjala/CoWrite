@@ -195,6 +195,27 @@ describe('workspace apps', () => {
     assert.equal((await api('/auth/me/prefs', { method: 'PUT', body: { theme: 'neon' } })).body.prefs.theme, 'light');
   });
 
+  it('an active session renews itself, so people who keep using CoWrite stay signed in', async () => {
+    const DAY = 86_400_000;
+    const expiry = async () => (await server.ctx.db.query<{ expires_at: number }>("select s.expires_at from sessions s join users u on u.id = s.user_id where u.email = 'ws@example.com'"))[0].expires_at;
+    // A fresh session is not touched on every request.
+    const fresh = await fetch(`http://localhost:${server.port}/api/auth/me`, { headers: { cookie } });
+    assert.equal(fresh.headers.get('set-cookie'), null);
+    // Pretend it was made 25 days ago: 5 days left.
+    await server.ctx.db.query("update sessions set expires_at = $1 where user_id = (select id from users where email = 'ws@example.com')", [Date.now() + 5 * DAY]);
+    const used = await fetch(`http://localhost:${server.port}/api/auth/me`, { headers: { cookie } });
+    assert.equal(used.status, 200);
+    assert.ok(((await used.json()) as any).user, 'still signed in');
+    assert.match(used.headers.get('set-cookie') ?? '', /Max-Age=2592000/, 'cookie refreshed for 30 days');
+    assert.ok((await expiry()) > Date.now() + 29 * DAY, 'session extended to 30 days');
+    // An expired session is not revived.
+    await server.ctx.db.query("update sessions set expires_at = $1 where user_id = (select id from users where email = 'ws@example.com')", [Date.now() - 1000]);
+    const gone = await fetch(`http://localhost:${server.port}/api/auth/me`, { headers: { cookie } });
+    assert.equal(((await gone.json()) as any).user, null);
+    // Restore the session for the remaining tests.
+    await server.ctx.db.query("update sessions set expires_at = $1 where user_id = (select id from users where email = 'ws@example.com')", [Date.now() + 30 * DAY]);
+  });
+
   it('AI tools validate input before calling a model', async () => {
     assert.equal((await api('/ai/text', { method: 'POST', body: { task: 'spell', text: '' } })).status, 400);
     assert.equal((await api('/ai/create', { method: 'POST', body: { kind: 'slides', prompt: '' } })).status, 400);

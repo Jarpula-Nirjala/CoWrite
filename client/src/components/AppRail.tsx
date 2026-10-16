@@ -5,7 +5,7 @@ import { AppLogo } from './AppLogo.tsx';
 import { useWindows, WINDOW_APPS } from './Windows.tsx';
 
 const MAIN = [
-  { id: 'home', to: '/home', label: 'Home', icon: 'home' },
+  { id: 'home', to: '/home', label: 'Dashboard', icon: 'dashboard' },
   { id: 'ai', to: '/ai', label: 'AI', icon: 'sparkle' },
   { id: 'docs', to: '/documents?kind=doc', label: 'Docs', icon: 'file' },
   { id: 'slides', to: '/documents?kind=slides', label: 'Slides', icon: 'play' },

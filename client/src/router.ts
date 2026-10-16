@@ -3,14 +3,22 @@ import { createElement, useEffect, useState, type AnchorHTMLAttributes, type Mou
 const EVENT = 'cowrite:navigate';
 
 function scrollToHash(hash: string): void {
-  // Wait for the new route to render before looking for the target.
-  requestAnimationFrame(() =>
-    requestAnimationFrame(() => {
-      const el = hash ? document.getElementById(hash.slice(1)) : null;
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.scrollTo(0, 0);
-    }),
-  );
+  if (!hash) {
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+    return;
+  }
+  // The page may still be loading (pages load on demand): keep looking for the target for a moment,
+  // then scroll once it is there and again after images above it have settled.
+  const id = decodeURIComponent(hash.slice(1));
+  const started = Date.now();
+  const tryScroll = () => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setTimeout(() => el.getBoundingClientRect().top > 120 && el.scrollIntoView({ block: 'start' }), 700);
+    } else if (Date.now() - started < 4000) setTimeout(tryScroll, 60);
+  };
+  requestAnimationFrame(tryScroll);
 }
 
 export function navigate(to: string, { replace = false } = {}): void {

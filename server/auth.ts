@@ -65,6 +65,8 @@ export interface PublicUser {
 }
 
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+/** How often an active session's 30 days are started again. */
+export const SESSION_RENEW_AFTER_MS = 24 * 60 * 60 * 1000;
 const RESET_TTL_MS = 60 * 60 * 1000;
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 const USERNAME_RE = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
@@ -290,6 +292,25 @@ export class Auth {
       [tokenHash(token), Date.now()],
     );
     return u ?? null;
+  }
+
+  /**
+   * Like userForToken, and keeps an active session alive: once a day of use, its 30 days start again, so
+   * people who keep using CoWrite stay signed in and only an unused session runs out. Returns whether the
+   * session was renewed (the caller then refreshes the browser cookie).
+   */
+  async sessionForToken(token: string | undefined): Promise<{ user: User; renewed: boolean } | null> {
+    if (!token) return null;
+    const now = Date.now();
+    const [row] = await this.db.query<User & { session_expires_at: number }>(
+      'select u.*, s.expires_at as session_expires_at from sessions s join users u on u.id = s.user_id where s.token_hash = $1 and s.expires_at > $2',
+      [tokenHash(token), now],
+    );
+    if (!row) return null;
+    const { session_expires_at: expires, ...user } = row;
+    if (expires - now > SESSION_TTL_MS - SESSION_RENEW_AFTER_MS) return { user: user as User, renewed: false };
+    await this.db.query('update sessions set expires_at = $2 where token_hash = $1', [tokenHash(token), now + SESSION_TTL_MS]);
+    return { user: user as User, renewed: true };
   }
 
   async endSession(token: string | undefined): Promise<void> {
