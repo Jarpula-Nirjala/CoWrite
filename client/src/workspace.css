@@ -2304,3 +2304,6 @@ button.repo-card:hover {
 .as-msg.assistant .as-bubble {
   flex: none;
 }
+.as-files {
+  align-items: flex-start;
+}

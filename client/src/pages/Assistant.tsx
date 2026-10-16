@@ -2,30 +2,30 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as ic from '@mdi/js';
 import type { Token } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
-import { api, timeAgo, type DocMeta } from '../api.ts';
+import { api, errorText, timeAgo, type DocMeta } from '../api.ts';
 import { useAuth } from '../auth.tsx';
 import { Glyph } from '../components/Glyph.tsx';
 import { FileTypeIcon, MIcon } from '../components/MIcon.tsx';
 import { KIND_PRODUCT, ProductIcon } from '../components/ProductIcon.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
+import { Spinner } from '../components/ui.tsx';
 import { useSpeech } from '../editor/speech.ts';
 import { createAndOpen } from '../lib/create.ts';
+import { deleteFiles, getFile } from '../lib/fileStore.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
-import { deleteFiles, getFile, putFile } from '../lib/fileStore.ts';
 
-/** A file attached to a message: text files travel as their text, images and PDFs as base64 for the model to read. */
+/**
+ * A file attached to a message. Its contents are stored with the person's account on the server (see
+ * server/routes-assistant.ts) and referenced by id, so they follow the person to any browser or computer.
+ */
 interface Att {
-  /** Key of the file's contents in IndexedDB. */
+  /** Server id of the stored file; missing only for files that could not be kept. */
   id?: string;
-  /** True once the contents are safely in IndexedDB, so the chat list need not carry them. */
-  stored?: boolean;
   name: string;
   mime: string;
   size: number;
-  text?: string;
-  data?: string;
-  /** A small preview for images (kept with the chat). */
+  /** A small preview for images. */
   thumb?: string;
 }
 interface Msg {
@@ -38,10 +38,12 @@ interface Chat {
   title: string;
   at: number;
   messages: Msg[];
+  /** False while only the title is known (the messages load when the chat is opened). */
+  loaded: boolean;
 }
 
-const STORE = 'cowrite:assistant';
-const KEEP = 30;
+/** Where chats used to live, in this browser only; anything found there is moved to the account once. */
+const OLD_STORE = 'cowrite:assistant';
 const MAX_FILE = 15_000_000;
 const same = (s: string) => Promise.resolve(s);
 const toTokens = (md: string): Token[] => markdownToTokens(md).map((t, i) => ({ id: ['as', i + 1], ch: t.ch, attrs: (t.a ?? {}) as Token['attrs'] }));
@@ -52,31 +54,38 @@ const SUGGESTIONS = [
   ['💡', 'Brainstorm ideas', 'Give me 10 ideas for a final-year computer science project.'],
 ] as const;
 const ACCEPT = '.pdf,.docx,.txt,.md,.markdown,.csv,.tsv,.json,.html,.htm,.xml,.yaml,.yml,.js,.ts,.tsx,.jsx,.py,.java,.c,.cpp,.cs,.go,.rs,.rb,.php,.sql,.css,.sh,image/png,image/jpeg,image/webp,image/gif';
-
-function loadChats(): Chat[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORE) ?? '[]') as Chat[];
-  } catch {
-    return [];
-  }
-}
-/** Chats are remembered in this browser; the raw bytes of images and PDFs are not (only their names and previews). */
-/**
- * The chat list goes to localStorage; file contents live in IndexedDB (see lib/fileStore.ts) and are only
- * referenced here by id. A file whose contents could not be stored keeps its text inline, as before.
- */
-function saveChats(chats: Chat[]) {
-  try {
-    const slim = chats.slice(0, KEEP).map((c) => ({ ...c, messages: c.messages.map((m) => (m.files ? { ...m, files: m.files.map(({ data: _d, text, ...f }) => (f.stored ? f : { ...f, text })) } : m)) }));
-    localStorage.setItem(STORE, JSON.stringify(slim));
-  } catch {
-    // Storage full or blocked: chats simply are not remembered.
-  }
-  // Chats that fell off the end take their stored files with them.
-  void deleteFiles(chats.slice(KEEP).flatMap(fileIds));
-}
-const fileIds = (c: Chat) => c.messages.flatMap((m) => (m.files ?? []).flatMap((f) => (f.id ? [f.id] : [])));
 const newId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
+/** Saves to the same chat run one after another, so an older save can never land after a newer one. */
+const saving = new Map<string, Promise<unknown>>();
+/** Saves a whole chat to the account. */
+function saveChat(c: Pick<Chat, 'id' | 'title' | 'at' | 'messages'>) {
+  const next = (saving.get(c.id) ?? Promise.resolve()).catch(() => {}).then(() => putChat(c));
+  saving.set(c.id, next);
+  return next;
+}
+function putChat(c: Pick<Chat, 'id' | 'title' | 'at' | 'messages'>) {
+  return api(`/assistant/chats/${c.id}`, {
+    method: 'PUT',
+    body: { title: c.title, at: c.at, messages: c.messages.map(({ role, text, files }) => ({ role, text, ...(files?.length ? { files: files.map(({ id, name, mime, size, thumb }) => ({ id, name, mime, size, thumb })) } : {}) })) },
+  });
+}
+
+/** Stores one attachment with the account and returns its id. `asText` bodies are UTF-8 text extracted from the file. */
+async function uploadFile(body: Blob, name: string, mime: string, asText: boolean): Promise<string> {
+  const res = await fetch('/api/assistant/files', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'content-type': asText ? 'text/plain; charset=utf-8' : mime, 'x-file-name': encodeURIComponent(name), ...(asText ? { 'x-file-kind': 'text', 'x-original-type': mime || 'text/plain' } : {}) },
+    body,
+  });
+  const j = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+  if (!res.ok || !j.id) throw new Error(j.error ?? `Could not save ${name} (${res.status}).`);
+  return j.id;
+}
+// An empty document or file is still worth attaching; say so rather than sending nothing.
+const uploadText = (text: string, name: string, mime: string) => uploadFile(new Blob([text.trim() ? text : '(this file is empty)'], { type: 'text/plain' }), name, mime, true);
+const fromBase64 = (b64: string, mime: string) => new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: mime });
 
 const readAs = (f: Blob, how: 'dataUrl' | 'text') =>
   new Promise<string>((ok, no) => {
@@ -87,10 +96,10 @@ const readAs = (f: Blob, how: 'dataUrl' | 'text') =>
     else r.readAsText(f);
   });
 
-/** A small JPEG preview of an image, so chats can show it after a reload without storing the original. */
-async function thumbnail(dataUrl: string): Promise<string> {
+/** A small JPEG preview of an image for the chat thread. */
+async function thumbnail(src: string): Promise<string> {
   const img = new Image();
-  img.src = dataUrl;
+  img.src = src;
   await img.decode();
   const scale = Math.min(1, 240 / Math.max(img.width, img.height));
   const c = document.createElement('canvas');
@@ -100,36 +109,83 @@ async function thumbnail(dataUrl: string): Promise<string> {
   return c.toDataURL('image/jpeg', 0.7);
 }
 
+/** Reads a picked file and stores it with the account: images and PDFs as they are, everything else as text. */
 async function toAttachment(f: File): Promise<Att> {
   if (f.size > MAX_FILE) throw new Error(`${f.name} is larger than 15 MB.`);
   const name = f.name || 'pasted-image.png';
   const lower = name.toLowerCase();
   if (/^image\/(png|jpeg|webp|gif)$/.test(f.type) || f.type === 'application/pdf' || lower.endsWith('.pdf')) {
-    const url = await readAs(f, 'dataUrl');
     const mime = f.type || 'application/pdf';
-    return { id: newId(), name, mime, size: f.size, data: url.split(',')[1] ?? '', thumb: mime.startsWith('image/') ? await thumbnail(url).catch(() => undefined) : undefined };
+    let thumb: string | undefined;
+    if (mime.startsWith('image/')) {
+      const url = URL.createObjectURL(f);
+      thumb = await thumbnail(url).catch(() => undefined);
+      URL.revokeObjectURL(url);
+    }
+    return { id: await uploadFile(f, name, mime, false), name, mime, size: f.size, thumb };
   }
+  let text: string;
+  let mime = f.type || 'text/plain';
   if (lower.endsWith('.docx')) {
     const mammoth = await import('mammoth');
-    const { value } = await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() });
-    return { id: newId(), name, mime: f.type, size: f.size, text: value };
-  }
-  if (lower.endsWith('.html') || lower.endsWith('.htm')) {
+    text = (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
+  } else if (lower.endsWith('.html') || lower.endsWith('.htm')) {
     const doc = new DOMParser().parseFromString(await readAs(f, 'text'), 'text/html');
-    return { id: newId(), name, mime: 'text/html', size: f.size, text: doc.body.innerText || doc.body.textContent || '' };
-  }
-  if (/\.(doc|ppt|pptx|xls|xlsx|zip|exe)$/i.test(lower)) throw new Error(`${name}: upload PDFs, Word (.docx), images or text and code files.`);
-  return { id: newId(), name, mime: f.type || 'text/plain', size: f.size, text: await readAs(f, 'text') };
+    text = doc.body.innerText || doc.body.textContent || '';
+    mime = 'text/html';
+  } else if (/\.(doc|ppt|pptx|xls|xlsx|zip|exe)$/i.test(lower)) {
+    throw new Error(`${name}: upload PDFs, Word (.docx), images or text and code files.`);
+  } else text = await readAs(f, 'text');
+  return { id: await uploadText(text, name, mime), name, mime, size: f.size };
 }
 
-/** What the server receives for one attachment: its text, or its bytes, read back from IndexedDB when needed. */
-async function forWire(f: Att): Promise<{ name: string; mime: string; text?: string; data?: string }> {
-  if (f.text !== undefined) return { name: f.name, mime: f.mime, text: f.text };
-  if (f.data) return { name: f.name, mime: f.mime, data: f.data };
-  const saved = f.id ? await getFile(f.id) : undefined;
-  if (saved?.text !== undefined) return { name: f.name, mime: f.mime, text: saved.text };
-  if (saved?.data) return { name: f.name, mime: f.mime, data: saved.data };
-  return { name: f.name, mime: 'text/plain', text: '(this file is no longer available in this browser; ask the person to attach it again)' };
+/**
+ * Chats from before they were kept with the account lived in this browser (localStorage, file contents in
+ * IndexedDB). Moves them to the account, files included, then clears the old copies. A chat that fails to
+ * move stays where it was and is tried again next time.
+ */
+async function moveLocalChats(): Promise<number> {
+  let old: { id: string; title: string; at: number; messages: (Msg & { files?: (Att & { text?: string; data?: string })[] })[] }[];
+  try {
+    old = JSON.parse(localStorage.getItem(OLD_STORE) ?? '[]');
+  } catch {
+    old = [];
+  }
+  if (!old.length) return 0;
+  const left: typeof old = [];
+  const idbIds: string[] = [];
+  for (const c of old) {
+    try {
+      const messages: Msg[] = [];
+      for (const m of c.messages) {
+        const files: Att[] = [];
+        for (const f of m.files ?? []) {
+          if (f.id) idbIds.push(f.id);
+          const kept = f.id ? await getFile(f.id) : undefined;
+          const text = f.text ?? kept?.text;
+          const data = f.data ?? kept?.data;
+          let id: string | undefined;
+          if (text !== undefined) id = await uploadText(text, f.name, f.mime);
+          else if (data) id = await uploadFile(fromBase64(data, f.mime), f.name, f.mime, false);
+          // An image whose original was never kept still has its preview: keep that rather than nothing.
+          else if (f.thumb) id = await uploadFile(await (await fetch(f.thumb)).blob(), f.name, 'image/jpeg', false);
+          files.push({ ...(id ? { id } : {}), name: f.name, mime: id && !text && !data && f.thumb ? 'image/jpeg' : f.mime, size: f.size, thumb: f.thumb });
+        }
+        messages.push({ role: m.role, text: m.text, ...(files.length ? { files } : {}) });
+      }
+      await saveChat({ id: c.id.length >= 6 ? c.id : `${c.id}-old`, title: c.title, at: c.at, messages });
+    } catch {
+      left.push(c);
+    }
+  }
+  try {
+    if (left.length) localStorage.setItem(OLD_STORE, JSON.stringify(left));
+    else localStorage.removeItem(OLD_STORE);
+  } catch {
+    // nothing to do
+  }
+  if (!left.length) void deleteFiles(idbIds);
+  return old.length - left.length;
 }
 
 const kb = (n: number) => (n > 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
@@ -138,7 +194,7 @@ const plain = (md: string) => md.replace(/```[\s\S]*?```/g, ' code ').replace(/[
 /** A Gemini- and ChatGPT-style assistant, using the person's own AI key or the site's. */
 export function Assistant() {
   const { user, ready, aiReady, aiName } = useAuth();
-  const [chats, setChats] = useState<Chat[]>(loadChats);
+  const [chats, setChats] = useState<Chat[] | null>(null);
   const [cur, setCur] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<Att[]>([]);
@@ -157,7 +213,7 @@ export function Assistant() {
   const fileInput = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
   const thread = useRef<HTMLDivElement>(null);
-  const chat = chats.find((c) => c.id === cur) ?? null;
+  const chat = chats?.find((c) => c.id === cur) ?? null;
   const voice = useSpeech((t) => setInput((v) => `${v}${v && !v.endsWith(' ') ? ' ' : ''}${t}`));
 
   useEffect(() => {
@@ -166,10 +222,23 @@ export function Assistant() {
   useEffect(() => {
     if (ready && !user) navigate('/signin?next=/assistant', { replace: true });
   }, [ready, user]);
+  // The chat list comes from the account (after moving any chats left in this browser).
+  useEffect(() => {
+    if (!user) return;
+    let live = true;
+    void (async () => {
+      await moveLocalChats().catch(() => 0);
+      const r = await api<{ chats: { id: string; title: string; at: number }[] }>('/assistant/chats');
+      if (live) setChats(r.chats.map((c) => ({ ...c, messages: [], loaded: false })));
+    })().catch((e) => live && (setChats([]), setError(errorText(e))));
+    return () => {
+      live = false;
+    };
+  }, [user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   // Braces matter: newer browsers return a Promise from scrollIntoView, and an effect must not return one.
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
-  }, [chat?.messages.length, chat?.messages.at(-1)?.text.length]);
+  }, [cur, chat?.loaded, chat?.messages.length, chat?.messages.at(-1)?.text.length]);
   // The message box grows with its text, like Gemini's and ChatGPT's.
   useEffect(() => {
     const t = box.current;
@@ -195,12 +264,21 @@ export function Assistant() {
   });
   useEffect(() => () => window.speechSynthesis?.cancel(), []);
 
-  const update = (id: string, f: (c: Chat) => Chat) =>
-    setChats((all) => {
-      const next = all.map((c) => (c.id === id ? f(c) : c));
-      saveChats(next);
-      return next;
-    });
+  const update = (id: string, f: (c: Chat) => Chat) => setChats((all) => (all ?? []).map((c) => (c.id === id ? f(c) : c)));
+
+  /** Opens a chat, loading its messages from the account the first time. */
+  const open = async (id: string) => {
+    setCur(id);
+    setEditing(null);
+    const c = chats?.find((x) => x.id === id);
+    if (!c || c.loaded) return;
+    try {
+      const r = await api<{ chat: { id: string; title: string; at: number; messages: Msg[] } }>(`/assistant/chats/${encodeURIComponent(id)}`);
+      update(id, (x) => ({ ...x, ...r.chat, loaded: true }));
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
 
   const attach = async (list: FileList | File[] | null) => {
     // Copy the files out now: a FileList is live and empties when its input is reset.
@@ -222,14 +300,19 @@ export function Assistant() {
 
   const attachDoc = async (d: DocMeta) => {
     setPicker(false);
+    setReading((n) => n + 1);
     try {
       const r = await api<{ documents: { title: string; text: string; encrypted: boolean }[] }>(`/me/backup?ids=${encodeURIComponent(d.id)}`);
       const doc = r.documents[0];
       if (!doc) throw new Error('That document could not be read.');
       if (doc.encrypted) throw new Error('Encrypted documents cannot be sent to the AI.');
-      setFiles((fs) => [...fs, { id: newId(), name: `${doc.title || 'Untitled'} (CoWrite)`, mime: 'text/plain', size: doc.text.length, text: doc.text }].slice(0, 10));
+      const name = `${doc.title || 'Untitled'} (CoWrite)`;
+      const id = await uploadText(doc.text, name, 'text/plain');
+      setFiles((fs) => [...fs, { id, name, mime: 'text/plain', size: doc.text.length }].slice(0, 10));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not attach that document.');
+    } finally {
+      setReading((n) => n - 1);
     }
   };
 
@@ -243,26 +326,28 @@ export function Assistant() {
     setError(null);
     let id = cur;
     let history: Msg[] = (chat?.messages ?? []).slice(0, upto ?? undefined);
+    let title = chat?.title ?? '';
     if (!id) {
-      id = Math.random().toString(36).slice(2, 10);
-      const fresh: Chat = { id, title: (q || attached[0]?.name || 'New chat').slice(0, 60), at: Date.now(), messages: [] };
-      setChats((all) => [fresh, ...all]);
+      id = newId();
+      title = (q || attached[0]?.name || 'New chat').slice(0, 60);
+      const fresh: Chat = { id, title, at: Date.now(), messages: [], loaded: true };
+      setChats((all) => [fresh, ...(all ?? [])]);
       setCur(id);
       history = [];
     }
-    setBusy(true);
-    // Keep the files' contents in IndexedDB so follow-ups still have them after a reload.
-    const kept = await Promise.all(attached.map(async (f) => (f.stored || !f.id ? f : { ...f, stored: await putFile(f.id, { text: f.text, data: f.data }) })));
-    const messages: Msg[] = [...history, { role: 'user', text: q || 'Please look at the attached file.', ...(kept.length ? { files: kept } : {}) }];
-    update(id, (c) => ({ ...c, at: Date.now(), messages: [...messages, { role: 'assistant', text: '' }] }));
+    const messages: Msg[] = [...history, { role: 'user', text: q || 'Please look at the attached file.', ...(attached.length ? { files: attached } : {}) }];
+    const at = Date.now();
+    update(id, (c) => ({ ...c, at, messages: [...messages, { role: 'assistant', text: '' }] }));
+    // The question is saved straight away, so it is not lost if the page closes mid-answer.
+    void saveChat({ id, title, at, messages }).catch(() => {});
     setBusy(true);
     const ctrl = new AbortController();
     abort.current = ctrl;
     let answer = '';
+    let final: Msg[] = messages;
     try {
-      // Earlier images and PDFs are only in memory; after a reload they are sent by name.
-      // Files from earlier turns (or from before a reload) are read back from IndexedDB.
-      const wire = await Promise.all(messages.map(async (m) => ({ role: m.role, text: m.text, files: m.files ? await Promise.all(m.files.map(forWire)) : undefined })));
+      // Files go by id; the server reads them from the account.
+      const wire = messages.map((m) => ({ role: m.role, text: m.text, files: m.files?.map((f) => (f.id ? { id: f.id, name: f.name, mime: f.mime } : { name: f.name, mime: 'text/plain', text: '(this file could not be kept; ask the person to attach it again)' })) }));
       const res = await fetch('/api/ai/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: wire }), credentials: 'same-origin', signal: ctrl.signal });
       if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -277,18 +362,19 @@ export function Assistant() {
         const a = answer;
         update(id, (c) => ({ ...c, messages: [...messages, { role: 'assistant', text: a }] }));
       }
+      final = [...messages, { role: 'assistant', text: answer }];
     } catch (e) {
       if (ctrl.signal.aborted) {
         // Stopped by the person: keep whatever had arrived.
-        const a = answer;
-        update(id, (c) => ({ ...c, messages: a ? [...messages, { role: 'assistant', text: a }] : messages }));
+        final = answer ? [...messages, { role: 'assistant', text: answer }] : messages;
       } else {
         setError(e instanceof Error ? e.message : 'Something went wrong.');
-        update(id, (c) => ({ ...c, messages }));
       }
+      update(id, (c) => ({ ...c, messages: final }));
     } finally {
       abort.current = null;
       setBusy(false);
+      void saveChat({ id, title, at, messages: final }).catch((e) => setError(`Could not save this chat: ${errorText(e)}`));
     }
   };
 
@@ -324,16 +410,22 @@ export function Assistant() {
   };
 
   const remove = (id: string) => {
-    const gone = chats.find((c) => c.id === id);
-    if (gone) void deleteFiles(fileIds(gone));
-    const next = chats.filter((c) => c.id !== id);
-    setChats(next);
-    saveChats(next);
+    setChats((all) => (all ?? []).filter((c) => c.id !== id));
     if (cur === id) setCur(null);
+    void api(`/assistant/chats/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch((e) => setError(errorText(e)));
   };
-  const rename = (id: string, title: string) => {
-    if (title.trim()) update(id, (c) => ({ ...c, title: title.trim().slice(0, 80) }));
+  const rename = async (id: string, title: string) => {
     setRenaming(null);
+    const t = title.trim().slice(0, 80);
+    if (!t) return;
+    update(id, (c) => ({ ...c, title: t }));
+    try {
+      let c = chats?.find((x) => x.id === id);
+      if (c && !c.loaded) c = { ...c, ...(await api<{ chat: Chat }>(`/assistant/chats/${encodeURIComponent(id)}`)).chat, loaded: true };
+      if (c) await saveChat({ ...c, title: t });
+    } catch (e) {
+      setError(errorText(e));
+    }
   };
   const exportChat = () => {
     if (!chat) return;
@@ -350,7 +442,8 @@ export function Assistant() {
 
   const shown = useMemo(() => {
     const q = find.trim().toLowerCase();
-    return q ? chats.filter((c) => c.title.toLowerCase().includes(q) || c.messages.some((m) => m.text.toLowerCase().includes(q))) : chats;
+    const all = chats ?? [];
+    return q ? all.filter((c) => c.title.toLowerCase().includes(q) || c.messages.some((m) => m.text.toLowerCase().includes(q))) : all;
   }, [chats, find]);
   const canSend = aiReady && !busy && !reading && (!!input.trim() || files.length > 0);
 
@@ -371,9 +464,9 @@ export function Assistant() {
             {shown.map((c) => (
               <li key={c.id} className={c.id === cur ? 'on' : ''}>
                 {renaming === c.id ? (
-                  <input className="as-rename" defaultValue={c.title} autoFocus aria-label="Chat name" onBlur={(e) => rename(c.id, e.target.value)} onKeyDown={(e) => (e.key === 'Enter' ? rename(c.id, e.currentTarget.value) : e.key === 'Escape' ? setRenaming(null) : undefined)} />
+                  <input className="as-rename" defaultValue={c.title} autoFocus aria-label="Chat name" onBlur={(e) => void rename(c.id, e.target.value)} onKeyDown={(e) => (e.key === 'Enter' ? void rename(c.id, e.currentTarget.value) : e.key === 'Escape' ? setRenaming(null) : undefined)} />
                 ) : (
-                  <button onClick={() => (setCur(c.id), setEditing(null))} onDoubleClick={() => setRenaming(c.id)} title={`${c.title} · ${timeAgo(c.at)}`} type="button">
+                  <button onClick={() => void open(c.id)} onDoubleClick={() => setRenaming(c.id)} title={`${c.title} · ${timeAgo(c.at)}`} type="button">
                     <MIcon path={ic.mdiMessageTextOutline} size={16} /> <span>{c.title}</span>
                   </button>
                 )}
@@ -387,9 +480,13 @@ export function Assistant() {
                 </span>
               </li>
             ))}
-            {!shown.length && <li className="muted small as-none">{find ? 'No chats match.' : 'Your chats appear here.'}</li>}
+            {!chats ? (
+              <li className="muted small as-none">Loading your chats…</li>
+            ) : (
+              !shown.length && <li className="muted small as-none">{find ? 'No chats match.' : 'Your chats appear here.'}</li>
+            )}
           </ul>
-          <p className="muted small">Chats are kept in this browser only.</p>
+          <p className="muted small">Chats and their files are saved to your account, on every device you sign in on.</p>
         </aside>
         <main
           className={`as-main ${drag ? 'dragging' : ''}`}
@@ -447,6 +544,7 @@ export function Assistant() {
               </div>
             ) : (
               <div className="as-thread" ref={thread}>
+                {!chat.loaded && <Spinner />}
                 {chat.messages.map((m, i) => {
                   const last = i === chat.messages.length - 1;
                   return (

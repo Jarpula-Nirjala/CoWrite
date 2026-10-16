@@ -25,6 +25,7 @@ import { aiRoutes, syncTranslation } from './routes-ai.ts';
 import { indexTasks, listLocks, runReminders, teamRoutes } from './routes-team.ts';
 import { extraRoutes, runDigests } from './routes-extra.ts';
 import { lifeRoutes, runEventReminders } from './routes-life.ts';
+import { assistantRoutes } from './routes-assistant.ts';
 import { toolRoutes } from './routes-tools.ts';
 import { integrationRoutes } from './routes-integrations.ts';
 import { loadOAuthClients } from './oauth.ts';
@@ -205,7 +206,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const api = express.Router();
   // Uploads and emails with attachments parse their own (larger) bodies.
-  api.use((req, res, next) => ((req.path === '/files' || req.path === '/gmail/send' || req.path === '/apps-upload/drive' || req.path === '/ai/chat') && req.method === 'POST' ? next() : express.json({ limit: '600kb' })(req, res, next)));
+  api.use((req, res, next) => (((req.path === '/files' || req.path === '/gmail/send' || req.path === '/apps-upload/drive' || req.path === '/ai/chat' || req.path === '/assistant/files') && req.method === 'POST') || (req.path.startsWith('/assistant/chats/') && req.method === 'PUT') ? next() : express.json({ limit: '600kb' })(req, res, next)));
   api.use(async (req, res, next) => {
     try {
       res.locals.user = await auth.userForToken(readCookie(req.headers.cookie, SESSION_COOKIE));
@@ -224,6 +225,7 @@ export async function startServer(opts: ServerOptions): Promise<RunningServer> {
   api.use(extraRoutes(ctx));
   api.use(lifeRoutes(ctx));
   api.use(toolRoutes(ctx));
+  api.use(assistantRoutes(ctx));
   api.use(integrationRoutes(ctx));
   api.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

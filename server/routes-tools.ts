@@ -3,6 +3,7 @@ import express from 'express';
 import type { AppCtx } from './context.ts';
 import { HttpError, rateLimit, requireUser, str } from './http.ts';
 import type { LlmFile } from './llm.ts';
+import { loadAssistantFiles } from './routes-assistant.ts';
 
 /** Slide themes the AI may pick from, by style. */
 export const DECK_STYLES: Record<string, string[]> = {
@@ -307,9 +308,12 @@ Design rules:
   /** Chat with the assistant; the answer streams back as plain text. */
   r.post('/ai/chat', rateLimit(60, 10 * 60_000), express.json({ limit: '30mb' }), async (req, res) => {
     const user = requireUser(res);
-    type InFile = { name?: unknown; mime?: unknown; text?: unknown; data?: unknown };
+    type InFile = { id?: unknown; name?: unknown; mime?: unknown; text?: unknown; data?: unknown };
     const raw = Array.isArray(req.body?.messages) ? (req.body.messages as { role?: unknown; text?: unknown; files?: unknown }[]) : [];
     const recent = raw.slice(-20);
+    // Files saved with the account are referenced by id and read here, so follow-ups need not resend them.
+    const refs = recent.flatMap((m) => (Array.isArray(m.files) ? (m.files as InFile[]).map((f) => f.id).filter((x): x is string => typeof x === 'string') : []));
+    const saved = await loadAssistantFiles(ctx.db, user.id, [...new Set(refs)].slice(0, 50));
     // Attachments: text files arrive as their text; images and PDFs as base64, read by the model itself.
     const binaries: LlmFile[] = [];
     let budget = 20_000_000;
@@ -317,7 +321,9 @@ Design rules:
       .map((m) => {
         const files = Array.isArray(m.files) ? (m.files as InFile[]).slice(0, 10) : [];
         const texts: string[] = [];
-        for (const f of files) {
+        for (const raw of files) {
+          const kept = typeof raw.id === 'string' ? saved.get(raw.id) : undefined;
+          const f: InFile = kept ? { name: kept.name, mime: kept.mime, ...(kept.text !== null ? { text: kept.text } : { data: kept.data?.toString('base64') }) } : raw.id !== undefined ? { name: raw.name, mime: 'text/plain', text: '(this file was deleted)' } : raw;
           const name = str(f.name, 200) || 'file';
           const mime = str(f.mime, 100);
           if (typeof f.text === 'string') texts.push(`<file name="${name.replace(/"/g, "'")}">\n${str(f.text, 120_000)}\n</file>`);

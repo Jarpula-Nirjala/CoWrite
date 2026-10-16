@@ -376,6 +376,27 @@ const MIGRATIONS: string[] = [
      created_at double precision not null,
      primary key (user_id, provider)
    );`,
+  // 6: assistant chats and their attachments, kept with the account so they follow the person to any browser.
+  `create table assistant_chats (
+     id text not null,
+     user_id text not null references users(id) on delete cascade,
+     title text not null,
+     messages jsonb not null default '[]',
+     updated_at double precision not null,
+     primary key (user_id, id)
+   );
+   create index assistant_chats_recent on assistant_chats (user_id, updated_at);
+   create table assistant_files (
+     id text primary key,
+     user_id text not null references users(id) on delete cascade,
+     name text not null,
+     mime text not null,
+     size integer not null,
+     text text,
+     data bytea,
+     created_at double precision not null
+   );
+   create index assistant_files_user on assistant_files (user_id);`,
 ];
 
 async function migrate(db: Db): Promise<void> {
