@@ -23,6 +23,9 @@ services:
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Comma-separated emails of the site owner(s): they can set up the Google and GitHub sign-in apps.
+      - key: ADMIN_EMAILS
+        sync: false
       # Encrypts people's own AI keys at rest.
       - key: APP_SECRET
         generateValue: true
