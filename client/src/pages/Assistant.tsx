@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import * as ic from '@mdi/js';
+import * as ic from '../lib/mdi.ts';
 import type { Token } from '../../../shared/crdt.ts';
 import { markdownToTokens } from '../../../shared/rich.ts';
 import { api, errorText, timeAgo, type DocMeta } from '../api.ts';

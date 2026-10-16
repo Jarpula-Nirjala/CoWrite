@@ -1,4 +1,4 @@
-import * as m from '@mdi/js';
+import * as m from '../lib/mdi.ts';
 import { MIcon } from './MIcon.tsx';
 
 /**

@@ -6,6 +6,7 @@ import type { Node as PMNode } from 'prosemirror-model';
 import type { EditorView, NodeView } from 'prosemirror-view';
 import { Icon } from '../components/ui.tsx';
 import type { EditorCtx } from './ctx.ts';
+import { loadMermaid } from '../lib/mermaid.ts';
 
 type Data = Record<string, unknown>;
 
@@ -587,7 +588,7 @@ function MermaidBlock(p: AtomProps) {
     let alive = true;
     const t = setTimeout(async () => {
       try {
-        const { default: mermaid } = await import('mermaid');
+        const mermaid = await loadMermaid();
         mermaid.initialize({ startOnLoad: false, theme: 'neutral', fontFamily: 'Times New Roman', securityLevel: 'strict' });
         const { svg } = await mermaid.render(`mmd-${++mermaidSeq}`, shown || 'graph TD; A[Start] --> B[Finish]');
         if (alive) {

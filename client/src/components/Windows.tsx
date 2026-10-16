@@ -2,7 +2,7 @@ import { createContext, lazy, Suspense, useCallback, useContext, useEffect, useM
 import { navigate } from '../router.ts';
 import { AppLogo, type AppLogoName } from './AppLogo.tsx';
 import { Spinner } from './ui.tsx';
-import * as ic from '@mdi/js';
+import * as ic from '../lib/mdi.ts';
 import { MIcon } from './MIcon.tsx';
 
 /** Apps that open as floating windows inside CoWrite. */

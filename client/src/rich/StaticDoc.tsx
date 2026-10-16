@@ -3,6 +3,7 @@ import { BLOCK, EMBED, type Attrs, type Token } from '../../../shared/crdt.ts';
 import { strokePath } from './atoms.tsx';
 import { StaticForm } from './form.tsx';
 import { fontStack, listLabel } from './schema.ts';
+import { loadMermaid } from '../lib/mermaid.ts';
 
 /** Renders a token list read-only (versions, replay, published pages). */
 export function StaticDoc({
@@ -198,7 +199,7 @@ function StaticAtom({ a, resolve, headings }: { a: Attrs; resolve?: (s: string) 
   useEffect(() => {
     if (a.atom === 'math') void import('./katex.ts').then((k) => setTex(k.renderTex(String(a.tex ?? ''), true).html));
     if (a.atom === 'mermaid') {
-      void import('mermaid').then(async ({ default: m }) => {
+      void loadMermaid().then(async (m) => {
         m.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
         try {
           setSvg((await m.render(`smmd-${Math.random().toString(36).slice(2)}`, String(a.code ?? ''))).svg);

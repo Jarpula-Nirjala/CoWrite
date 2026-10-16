@@ -1,4 +1,4 @@
-import * as m from '@mdi/js';
+import * as m from '../lib/mdi.ts';
 
 /** One Material icon (Google's icon set) drawn from its SVG path, sized like Google's own apps. */
 export function MIcon({ path, size = 20, color, className, title }: { path: string; size?: number; color?: string; className?: string; title?: string }) {

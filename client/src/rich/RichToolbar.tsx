@@ -5,7 +5,7 @@ import { clearFormatting, currentPara, indent, isMarkActive, markValue, setBlock
 import type { RichHandle } from './RichEditor.tsx';
 import { FONT_NAMES } from './schema.ts';
 import { MIcon } from '../components/MIcon.tsx';
-import { mdiFormatAlignCenter, mdiFormatAlignJustify, mdiFormatAlignLeft, mdiFormatAlignRight } from '@mdi/js';
+import { mdiFormatAlignCenter, mdiFormatAlignJustify, mdiFormatAlignLeft, mdiFormatAlignRight } from '../lib/mdi.ts';
 
 const COLORS = ['#111418', '#5f6368', '#b3261e', '#c15f3c', '#a8842f', '#2e7d5b', '#1f6f8b', '#1f3a68', '#6b4c9a', '#9c3d6b'];
 const HIGHLIGHTS = ['#fff59d', '#ffe0b2', '#c8e6c9', '#bbdefb', '#e1bee7', '#f8bbd0', '#eeeeee'];

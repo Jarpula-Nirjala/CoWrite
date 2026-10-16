@@ -6,7 +6,7 @@ import { createAndOpen } from '../lib/create.ts';
 import { AppLogo } from './AppLogo.tsx';
 import { GoogleGate } from './GoogleGate.tsx';
 import { Spinner } from './ui.tsx';
-import * as ic from '@mdi/js';
+import * as ic from '../lib/mdi.ts';
 import { FileTypeIcon, MIcon } from './MIcon.tsx';
 
 interface DFile {

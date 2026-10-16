@@ -17,7 +17,7 @@ import { useWindows, type WindowApp } from '../components/Windows.tsx';
 import { SiteFooter } from '../components/SiteFooter.tsx';
 import { SiteHeader } from '../components/SiteHeader.tsx';
 import { Icon, Spinner } from '../components/ui.tsx';
-import * as ic from '@mdi/js';
+import * as ic from '../lib/mdi.ts';
 import { FileTypeIcon, MIcon } from '../components/MIcon.tsx';
 import { FileDirectoryFillIcon, FileIcon, LockIcon, RepoIcon } from '@primer/octicons-react';
 import { createAndOpen } from '../lib/create.ts';

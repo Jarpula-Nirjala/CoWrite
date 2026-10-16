@@ -14,7 +14,8 @@
     "build": "vite build",
     "start": "node server/main.ts",
     "test": "node --test \"test/**/*.test.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "icons": "node scripts/gen-icons.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -34,7 +35,6 @@
     "lowlight": "^3.3.0",
     "mammoth": "^1.13.0",
     "marked": "^18.1.1",
-    "mermaid": "^12.2.0",
     "pdf-lib": "^1.17.1",
     "pg": "^8.23.1",
     "pptxgenjs": "^4.0.1",
