@@ -3,8 +3,8 @@ services:
     name: cowrite
     runtime: node
     plan: free
-    # The free plan gives a build 512 MB: bundle on one thread with a capped heap (peaks near 440 MB).
-    buildCommand: npm ci --include=dev && RAYON_NUM_THREADS=1 NODE_OPTIONS=--max-old-space-size=320 npm run build
+    # `npm run build` keeps the build within the free plan's 512 MB (see scripts/build.mjs).
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm start
     healthCheckPath: /healthz
     autoDeploy: true

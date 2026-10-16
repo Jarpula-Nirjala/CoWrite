@@ -11,7 +11,7 @@
   "scripts": {
     "dev:server": "node --watch server/main.ts",
     "dev:client": "vite",
-    "build": "vite build",
+    "build": "node scripts/build.mjs",
     "start": "node server/main.ts",
     "test": "node --test \"test/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
