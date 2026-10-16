@@ -154,8 +154,10 @@ body.with-rail .site-header {
 
 /* ----------------------------------------------------- balanced footer */
 .footer-inner {
-  grid-template-columns: minmax(0, 1.5fr) repeat(4, minmax(0, 1fr));
-  gap: 2.5rem;
+  /* Columns as wide as their links, spread evenly: equal gaps, the last column flush with the right edge. */
+  grid-template-columns: minmax(240px, 340px) repeat(5, auto);
+  justify-content: space-between;
+  gap: 2rem 2.5rem;
   align-items: start;
 }
 .footer-brand p {
@@ -181,15 +183,20 @@ body.with-rail .site-header {
 .footer-mail:hover {
   color: var(--accent);
 }
-@media (max-width: 1000px) {
+@media (max-width: 1100px) {
   .footer-inner {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   .footer-brand {
     grid-column: 1 / -1;
   }
 }
-@media (max-width: 640px) {
+@media (max-width: 760px) {
+  .footer-inner {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 520px) {
   .footer-inner {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

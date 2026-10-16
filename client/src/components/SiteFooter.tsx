@@ -11,7 +11,7 @@ const app = (id: string): FooterLink => {
 };
 const solution = (name: string): FooterLink => ({ name, to: `/templates?cat=${encodeURIComponent(SOLUTIONS.find((s) => s.name === name)!.cat)}` });
 
-/** Four columns of five links each, so the footer lines up evenly. */
+/** Five columns of five links each, so the footer lines up evenly. */
 const COLUMNS: { title: string; links: FooterLink[] }[] = [
   { title: 'Apps', links: ['docs', 'sheets', 'slides', 'forms', 'drive'].map(app) },
   { title: 'Solutions', links: ['Small business', 'Enterprise', 'Education', 'Healthcare', 'Personal & students'].map(solution) },
@@ -23,6 +23,16 @@ const COLUMNS: { title: string; links: FooterLink[] }[] = [
       { name: 'Templates', to: '/templates' },
       { name: 'Security', to: '/account#security' },
       { name: 'Admin & teams', to: '/workspaces' },
+    ],
+  },
+  {
+    title: 'Integrations',
+    links: [
+      { name: 'Gmail', to: '/connections?tab=gmail' },
+      { name: 'Google Drive', to: '/connections?tab=drive' },
+      { name: 'Google Calendar', to: '/connections?tab=calendar' },
+      { name: 'YouTube', to: '/connections?tab=youtube' },
+      { name: 'GitHub repos', to: '/connections?tab=repos' },
     ],
   },
   {
