@@ -146,8 +146,8 @@ export function FeatureShowcase() {
     return () => clearTimeout(t);
   }, [i, inView]);
 
-  const CW = Math.min(380, stageW * 0.78);
-  const GAP = 22;
+  const CW = Math.min(760, stageW * 0.8);
+  const GAP = 28;
   const offset = stageW / 2 - CW / 2 - i * (CW + GAP);
   const first = (gi: number) => CARDS.findIndex((c) => c.gi === gi);
 
