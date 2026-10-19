@@ -6,6 +6,7 @@ import { Plugin, PluginKey, type EditorState } from 'prosemirror-state';
 import { Decoration, DecorationSet } from 'prosemirror-view';
 import { indent, insertAtom, setBlock, smartBackspace, smartEnter, toggleMark } from './commands.ts';
 import { listLabel, schema } from './schema.ts';
+import { fromCdn } from '../lib/cdn.ts';
 
 // ---------------------------------------------------------------- keymap
 
@@ -174,7 +175,7 @@ const highlightKey = new PluginKey<DecorationSet>('highlight');
 
 function loadLowlight(onReady: () => void) {
   if (lowlight || loading) return;
-  loading = import('lowlight').then(({ common, createLowlight }) => {
+  loading = fromCdn<typeof import('lowlight')>('lowlight').then(({ common, createLowlight }) => {
     lowlight = createLowlight(common) as unknown as Lowlight;
     onReady();
   });

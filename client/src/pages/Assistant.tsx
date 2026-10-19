@@ -14,6 +14,7 @@ import { createAndOpen } from '../lib/create.ts';
 import { deleteFiles, getFile } from '../lib/fileStore.ts';
 import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate } from '../router.ts';
+import { fromCdn } from '../lib/cdn.ts';
 
 /**
  * A file attached to a message. Its contents are stored with the person's account on the server (see
@@ -127,7 +128,7 @@ async function toAttachment(f: File): Promise<Att> {
   let text: string;
   let mime = f.type || 'text/plain';
   if (lower.endsWith('.docx')) {
-    const mammoth = await import('mammoth');
+    const mammoth = await fromCdn<typeof import('mammoth')>('mammoth');
     text = (await mammoth.extractRawText({ arrayBuffer: await f.arrayBuffer() })).value;
   } else if (lower.endsWith('.html') || lower.endsWith('.htm')) {
     const doc = new DOMParser().parseFromString(await readAs(f, 'text'), 'text/html');

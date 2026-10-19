@@ -1,8 +1,9 @@
 import { shareTokens } from '../api.ts';
+import { fromCdn } from '../lib/cdn.ts';
 
 /** Turns raw 16-bit mono PCM into an MP3 file (in chunks, so long audio stays responsive). */
 export async function pcmToMp3(pcm: ArrayBuffer, sampleRate: number): Promise<Blob> {
-  const { Mp3Encoder } = await import('@breezystack/lamejs');
+  const { Mp3Encoder } = await fromCdn<typeof import('@breezystack/lamejs')>('@breezystack/lamejs');
   const samples = new Int16Array(pcm.byteLength % 2 ? pcm.slice(0, pcm.byteLength - 1) : pcm);
   const enc = new Mp3Encoder(1, sampleRate, 64);
   const parts: Uint8Array[] = [];

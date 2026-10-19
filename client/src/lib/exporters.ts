@@ -1,5 +1,6 @@
 import type { Token } from '../../../shared/crdt.ts';
 import { blocksOf, markdownToTokens, plainText, toMarkdown, type InlinePart, type NewToken, type RichBlock } from '../../../shared/rich.ts';
+import { fromCdn } from '../lib/cdn.ts';
 
 /** Downloads, conversions and imports. Heavy libraries load only when used. */
 
@@ -56,7 +57,7 @@ const listMarker = (b: Extract<RichBlock, { type: 'text' }>, n: number) => (b.ki
 // ------------------------------------------------------------------- DOCX
 
 export async function exportDocx(title: string, tokens: Token[], resolve: Resolve, opts: { blob?: boolean } = {}): Promise<Blob | void> {
-  const d = await import('docx');
+  const d = await fromCdn<typeof import('docx')>('docx');
   const runOf = (p: InlinePart) =>
     new d.TextRun({
       text: p.text,
@@ -189,7 +190,7 @@ export async function exportDocx(title: string, tokens: Token[], resolve: Resolv
 // -------------------------------------------------------------------- PDF
 
 export async function exportPdf(title: string, tokens: Token[], resolve: Resolve, opts: { header?: string; footer?: string; pageNumbers?: boolean } = {}) {
-  const { jsPDF } = await import('jspdf');
+  const { jsPDF } = await fromCdn<typeof import('jspdf')>('jspdf');
   const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
   const W = pdf.internal.pageSize.getWidth();
   const H = pdf.internal.pageSize.getHeight();
@@ -390,7 +391,7 @@ export async function readImport(file: File): Promise<{ title: string; tokens: N
   const name = file.name.toLowerCase();
   const base = file.name.replace(/\.[^.]+$/, '');
   if (name.endsWith('.docx')) {
-    const mammoth = await import('mammoth');
+    const mammoth = await fromCdn<typeof import('mammoth')>('mammoth');
     const { value } = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
     return { title: base, tokens: [], html: value };
   }

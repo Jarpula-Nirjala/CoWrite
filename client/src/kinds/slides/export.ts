@@ -2,6 +2,7 @@ import type { Obj } from '../objects.ts';
 import { fontOf, isTitleLayout, textColor, type DeckSettings, type El, type SlideFields } from './model.ts';
 import { shapePath } from './shapePath.ts';
 import { decoSvg, themeById, type SlideTheme } from './themes.ts';
+import { fromCdn } from '../../lib/cdn.ts';
 
 export interface DeckData {
   slides: Obj<SlideFields>[];
@@ -211,7 +212,7 @@ const download = (blob: Blob, name: string) => {
 const safeName = (t: string) => t.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Presentation';
 
 export async function exportDeckPdf(title: string, data: DeckData, resolve: (s: string) => Promise<string>) {
-  const { jsPDF } = await import('jspdf');
+  const { jsPDF } = await fromCdn<typeof import('jspdf')>('jspdf');
   const pdf = new jsPDF({ unit: 'pt', format: [W, H], orientation: 'landscape' });
   for (let i = 0; i < data.slides.length; i++) {
     if (i) pdf.addPage([W, H], 'landscape');
@@ -240,7 +241,7 @@ type Pptx = any;
 /** Editable PowerPoint file: native text, shapes and pictures on a rendered background. */
 export async function exportDeckPptx(title: string, data: DeckData, resolve: (s: string) => Promise<string>, opts: { blob?: boolean } = {}): Promise<Blob | void> {
   // The package's CommonJS/ESM default export differs between bundlers.
-  const mod = (await import('pptxgenjs')) as unknown as { default: unknown };
+  const mod = (await fromCdn<typeof import('pptxgenjs')>('pptxgenjs')) as unknown as { default: unknown };
   const Ctor = ((mod.default as { default?: unknown }).default ?? mod.default) as new () => Pptx;
   const pres = new Ctor();
   pres.layout = 'LAYOUT_16x9';

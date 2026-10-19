@@ -14,6 +14,7 @@ import { StaticDoc } from '../rich/StaticDoc.tsx';
 import { Link, navigate, useSearch } from '../router.ts';
 import { Glyph } from '../components/Glyph.tsx';
 import { FileTypeIcon } from '../components/MIcon.tsx';
+import { fromCdn } from '../lib/cdn.ts';
 
 interface Tool {
   id: string;
@@ -581,7 +582,7 @@ function ImageToPdf() {
     setBusy(true);
     setError(null);
     try {
-      const { jsPDF } = await import('jspdf');
+      const { jsPDF } = await fromCdn<typeof import('jspdf')>('jspdf');
       let pdf: InstanceType<typeof jsPDF> | null = null;
       for (const f of files) {
         // Re-encode through a canvas so any browser-readable image (HEIC excepted) becomes a JPEG.
@@ -695,7 +696,7 @@ function SplitMerge() {
     setFiles([one]);
     setError(null);
     try {
-      const { PDFDocument } = await import('pdf-lib');
+      const { PDFDocument } = await fromCdn<typeof import('pdf-lib')>('pdf-lib');
       setPages((await PDFDocument.load(await one.arrayBuffer(), { ignoreEncryption: true })).getPageCount());
     } catch {
       setError('That PDF could not be opened.');
@@ -706,7 +707,7 @@ function SplitMerge() {
     setBusy(true);
     setError(null);
     try {
-      const { PDFDocument } = await import('pdf-lib');
+      const { PDFDocument } = await fromCdn<typeof import('pdf-lib')>('pdf-lib');
       if (tab === 'merge') {
         const out = await PDFDocument.create();
         for (const f of files) {
@@ -808,7 +809,7 @@ function ExtractImages() {
     setBusy(true);
     setError(null);
     try {
-      const { PDFDocument, PDFRawStream, PDFName, PDFNumber, decodePDFRawStream } = await import('pdf-lib');
+      const { PDFDocument, PDFRawStream, PDFName, PDFNumber, decodePDFRawStream } = await fromCdn<typeof import('pdf-lib')>('pdf-lib');
       const doc = await PDFDocument.load(await f.arrayBuffer(), { ignoreEncryption: true });
       const out: { url: string; name: string }[] = [];
       let skip = 0;

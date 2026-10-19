@@ -1,4 +1,5 @@
 import { api, ApiError } from '../api.ts';
+import { fromCdn } from '../lib/cdn.ts';
 
 /** Sends a PDF or image to an AI file tool and returns its Markdown answer. */
 export async function aiFile(file: Blob, task: string, params: Record<string, string> = {}): Promise<string> {
@@ -14,7 +15,7 @@ export async function aiFile(file: Blob, task: string, params: Record<string, st
 export async function fileToText(file: File): Promise<string> {
   const name = file.name.toLowerCase();
   if (name.endsWith('.docx')) {
-    const mammoth = await import('mammoth');
+    const mammoth = await fromCdn<typeof import('mammoth')>('mammoth');
     return (await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() })).value;
   }
   if (file.type === 'application/pdf' || name.endsWith('.pdf') || file.type.startsWith('image/')) return aiFile(file, 'extract');
